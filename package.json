@@ -48,7 +48,8 @@
     "start:seed": "EXPO_PUBLIC_SEED=1 expo start",
     "test:db": "node --test 'supabase/tests/*.test.mts'",
     "test:db:remote": "node --env-file-if-exists=.env.local --test supabase/tests/rls.remote.mts",
-    "test:sync:remote": "node --env-file-if-exists=.env.local node_modules/.bin/jest -c jest.remote.config.js"
+    "test:sync:remote": "node --env-file-if-exists=.env.local node_modules/.bin/jest -c jest.remote.config.js",
+    "test:account-delete": "node --env-file-if-exists=.env.local supabase/tests/account-delete.remote.mts"
   },
   "private": true,
   "jest": {

@@ -389,10 +389,10 @@ export const space  = { screenX: 20, rowY: 9 };
 | M0 | Repo, Expo TS, estructura del §4.7, docs copiados | `npx expo start` corre |
 | M1 | `src/domain/` + tests portados de `progression_sim.py` | Los tests reproducen la tabla del §7 de PROGRESSION.md |
 | M2 | SQLite: esquema, migraciones, consultas, carga del seed | La app lista los grupos con las fechas reales del seed ✓ |
-| M2a | Esquema local listo para sincronizar: UUID, `updated_at`, `deleted_at`, `dirty`, `sync_state` (sin `user_id`: base de un solo usuario); seed remapeado | Tests de repos verdes: ids UUID, filas nuevas `dirty = 1`, lo borrado no aparece |
-| M2b | Proyecto Supabase, migraciones SQL (`user_id default auth.uid()`), RLS, auth anónima en la app | Un usuario anónimo no puede leer ni escribir filas de otro, ni forzar un `user_id` ajeno (probado) |
-| M2c | `sync.ts` con sus tests de dos dispositivos, cerrar sesión | Offline → online sube todo; un segundo teléfono baja todo; cerrar sesión no borra nada sin subir |
-| M3 | Worker `/parse` (Haiku 4.5 + structured outputs) **con verificación de JWT** y rate limit por usuario, + `/account/delete` | Sin token → 401; las 32 frases del seed parsean bien con `wrangler dev`; desplegado |
+| M2a | Esquema local listo para sincronizar: UUID, `updated_at`, `deleted_at`, `dirty`, `sync_state` (sin `user_id`: base de un solo usuario); seed remapeado | Tests de repos verdes: ids UUID, filas nuevas `dirty = 1`, lo borrado no aparece ✓ |
+| M2b | Proyecto Supabase, migraciones SQL (`user_id default auth.uid()`), RLS, auth anónima en la app | Un usuario anónimo no puede leer ni escribir filas de otro, ni forzar un `user_id` ajeno (probado) ✓ |
+| M2c | `sync.ts` con sus tests de dos dispositivos, cerrar sesión | Offline → online sube todo; un segundo teléfono baja todo; cerrar sesión no borra nada sin subir ✓ |
+| M3 | Worker `/parse` (Haiku 4.5 + structured outputs) **con verificación de JWT** y rate limit por usuario, + `/account/delete` | Sin token → 401; las 32 frases del seed parsean bien con `wrangler dev`; desplegado ✓ (y `/account/delete` probado con cascada real) |
 | M4 | Pantallas 1–3 | Flujo hasta escribir, con sugerencias locales |
 | M5 | Pantallas 4–5 | Enviar → animación → guardado → delta. Ambigüedad resuelta con toque |
 | M6 | Pantallas 6–7 | Mantener el stop → inundación → resumen con comparación por ejercicio |
