@@ -2,7 +2,7 @@
 
 Nombre de la app: **unamas** (junto, en minúsculas). Slug y carpeta: `unamas`.
 
-Lee este archivo completo antes de escribir código. Los detalles del algoritmo están en `docs/PROGRESSION.md` y los mockups aprobados en `design/flow.html` (ábrelo en un navegador; las pantallas 1, 4 y 6 son interactivas).
+Lee este archivo completo antes de escribir código. Los detalles del algoritmo están en `docs/PROGRESSION.md`, los de cuentas y sincronización en `docs/MULTIUSER.md` (manda sobre este archivo si se contradicen), y los mockups aprobados en `design/flow.html` (ábrelo en un navegador; las pantallas 1, 4 y 6 son interactivas).
 
 ## 1. Qué es
 
@@ -13,13 +13,14 @@ Principios de producto, decididos con el dueño (Jason):
 - **Todo lo importante está siempre visible.** No hay gestos escondidos: si existe un gesto, la UI tiene que mostrar que existe.
 - **El verde significa progreso.** Solo aparece para acciones principales y logros.
 - **La IA entiende texto; el código decide números.** El algoritmo de progresión es determinista (ver §5).
+- **Local primero.** Anotar nunca espera a la red: todo se guarda en el teléfono y se sincroniza después.
 - Idioma de la UI: **español**, tono cercano y breve. El código y los identificadores van en inglés.
 
 ## 2. Alcance del MVP
 
-**Incluye:** elegir músculos → anotar ejercicios por texto, voz o foto → feedback contra la última vez → sugerencias desde el historial → pregunta cuando algo es ambiguo → terminar la sesión → resumen.
+**Incluye:** elegir músculos → anotar ejercicios por texto, voz o foto → feedback contra la última vez → sugerencias desde el historial → pregunta cuando algo es ambiguo → terminar la sesión → resumen. **Cuentas y sincronización** (decidido el 29 sep 2026, ver `docs/MULTIUSER.md`): cuenta anónima al primer arranque, sin pantalla de login; más adelante se puede guardar con Apple o email; borrar cuenta dentro de la app.
 
-**Fuera del MVP (decidido):** mascota, cuentas de usuario y sincronización en la nube, volumen semanal por músculo, descargas programadas, pedir RIR/RPE en cada serie, Android pulido (se prioriza iOS, pero sin romper Android), modo claro.
+**Fuera del MVP (decidido):** mascota, volumen semanal por músculo, descargas programadas, pedir RIR/RPE en cada serie, Android pulido (se prioriza iOS, pero sin romper Android), modo claro.
 
 ## 3. Stack
 
@@ -30,17 +31,18 @@ Principios de producto, decididos con el dueño (Jason):
 | Voz | **expo-speech-recognition** (jamsch) | Necesita **development build** (no funciona en Expo Go). `ExpoSpeechRecognitionModule.requestPermissionsAsync()`, `.start({ lang, interimResults: true })`, `useSpeechRecognitionEvent('result', …)` |
 | Háptica | expo-haptics | |
 | Foto | expo-image-picker | Para máquinas que el usuario no sabe nombrar |
-| Backend | **Cloudflare Worker** (una función), sin base de datos | Solo hace de proxy a la API de Claude y guarda la clave como secreto |
+| Cuentas y nube | **Supabase** (Auth + Postgres + Row Level Security) | `@supabase/supabase-js` + `@react-native-async-storage/async-storage`. Auth anónima al primer arranque; Apple (`expo-apple-authentication` + `signInWithIdToken`) y email para guardar la cuenta. Sincronización propia en `src/data/sync.ts` |
+| Backend IA | **Cloudflare Worker**, sin base de datos | Proxy a la API de Claude (guarda la clave como secreto), verifica el JWT de Supabase con `jose` y expone `POST /account/delete` |
 | IA | **Claude Haiku 4.5** (`claude-haiku-4-5-20251001`) | $1/MTok de entrada, $5/MTok de salida, con visión. Usa **structured outputs**: `output_config.format = { type: "json_schema", schema }`, sin header beta (`output_format` está deprecado) |
 | Tests | Jest (lo trae Expo) para el motor; Vitest en el worker | |
 
-Costo estimado de IA: ~1.500 tokens de entrada + ~150 de salida por mensaje ≈ **$0.002**. Con ~15 mensajes por sesión ≈ **$0.03 por sesión**.
+Costo estimado de IA: ~1.500 tokens de entrada + ~150 de salida por mensaje ≈ **$0.002**. Con ~15 mensajes por sesión ≈ **$0.03 por sesión**. Supabase: gratis en desarrollo (se pausa tras 1 semana sin uso), **Pro $25/mes** al lanzar.
 
 Antes de usar cualquier API, verifica en su documentación actual. Las notas de arriba se revisaron el 28 sep 2026.
 
-Librerías extra: `zustand` (estado de la sesión activa), `zod` (validar el contrato con el worker, en ambos lados), `react-native-reanimated` + `react-native-worklets` (animaciones, vienen en Expo), `react-native-svg` (anillo del stop), `@react-native-community/netinfo` (cola sin conexión).
+Librerías extra: `zustand` (estado de la sesión activa), `zod` (validar el contrato con el worker, en ambos lados), `react-native-reanimated` + `react-native-worklets` (animaciones, vienen en Expo), `react-native-svg` (anillo del stop), `@react-native-community/netinfo` (cola sin conexión y sincronizar al recuperar la red), `expo-crypto` (`randomUUID()` para todos los ids).
 
-**Sin ORM:** son 3 tablas, así que basta con repositorios tipados sobre expo-sqlite. Drizzle con expo-sqlite hoy se instala en versión RC y pide configuración extra de Babel para las migraciones; no compensa en el MVP.
+**Sin ORM:** son 3 tablas (más `sync_state`), así que basta con repositorios tipados sobre expo-sqlite. Drizzle con expo-sqlite hoy se instala en versión RC y pide configuración extra de Babel para las migraciones; no compensa en el MVP.
 
 ## 4. Arquitectura de la app
 
@@ -53,10 +55,10 @@ Librerías extra: `zustand` (estado de la sesión activa), `zod` (validar el con
 │ Feature   src/features/session/                                 │  controlador de sesión (máquina de estados)
 │           src/features/picker/                                  │  store de Zustand + casos de uso
 ├──────────────────────────────────────────────────────────────┤
-│ Services  src/services/ai (cliente /parse) · speech · haptics   │  todo lo que toca red, hardware o SO
-│           image · network                                       │  cada uno detrás de una interfaz (fácil de simular en tests)
+│ Services  src/services/ai (cliente /parse) · auth (Supabase)    │  todo lo que toca red, hardware o SO
+│           speech · haptics · image · network                    │  cada uno detrás de una interfaz (fácil de simular en tests)
 ├──────────────────────────────────────────────────────────────┤
-│ Data      src/data/ (db.ts, migrations, repos, seed)            │  expo-sqlite, única fuente de verdad persistente
+│ Data      src/data/ (db.ts, migrations, repos, seed, sync.ts)   │  expo-sqlite local; Supabase es la verdad en la nube
 ├──────────────────────────────────────────────────────────────┤
 │ Domain    src/domain/ (engine de progresión, comparación,       │  TypeScript puro: sin React, sin expo, sin I/O
 │           búsqueda difusa de ejercicios, formato de series)      │  100 % testeable
@@ -72,7 +74,7 @@ Reglas:
 ### 4.2 Rutas (expo-router)
 
 ```
-app/_layout.tsx          SQLiteProvider (onInit = migraciones + seed en dev) + tema oscuro
+app/_layout.tsx          SQLiteProvider (onInit = migraciones + seed en dev) + sesión de Supabase (anónima) + tema oscuro
 app/index.tsx            Pantalla 1 · elegir músculo
 app/session.tsx          Pantallas 2–7: una sola ruta cuyo contenido depende del estado de la sesión
 ```
@@ -114,41 +116,46 @@ UI: onSend(text | image | voz→texto)
         end_session→ dispatch(SHOW_STOP_TIP)
         unclear    → dispatch(REPLY) y la entrada pendiente se borra
      5. error de red → la entrada queda 'pending' y la cola la reintenta (NetInfo)
+     6. unos segundos después, sync sube lo que quedó con dirty = 1 (sin bloquear la UI)
 ```
 
 ### 4.5 Qué vive dónde
 
 | Dato | Dónde | Por qué |
 |---|---|---|
-| Ejercicios, sesiones, entradas | SQLite | Persistente, fuente de verdad |
+| Ejercicios, sesiones, entradas | SQLite, sincronizado con Supabase | Local primero; Supabase es la fuente de verdad entre dispositivos |
 | Estado de la sesión activa (fase, burbuja, sugerencias, texto) | Zustand | Efímero y reactivo. Se reconstruye desde SQLite si la app se cierra |
 | Metas del día | Calculadas al vuelo con `domain/` | Nunca se guardan: siempre salen del historial, así un cambio en el algoritmo aplica solo |
-| `deviceId` (para el rate limit) | expo-secure-store | Se genera en el primer arranque |
+| Sesión de Supabase (`user_id`, tokens) | AsyncStorage (vía supabase-js) | Anónima desde el primer arranque. El `user_id` marca cada fila y es la clave del rate limit |
 
 ### 4.6 Worker
 
 ```
-worker/src/index.ts     router mínimo: POST /parse, todo lo demás 404
-worker/src/parse.ts     valida la request (zod) → rate limit → arma el prompt → llama a Claude → valida la salida
+worker/src/index.ts     router mínimo: POST /parse y POST /account/delete, todo lo demás 404
+worker/src/auth.ts      verifica el JWT de Supabase (jose + JWKS) → user_id; sin token o inválido → 401
+worker/src/parse.ts     valida la request (zod) → rate limit por user_id → arma el prompt → llama a Claude → valida la salida
+worker/src/account.ts   borra el usuario con la service role key (las filas caen en cascada)
 worker/src/prompt.ts    system prompt + ejemplos (las frases del seed)
 shared/contract.ts      el mismo esquema zod que usa la app; de ahí sale el JSON Schema para structured outputs
 ```
 
-Sin estado ni base de datos. Todo lo que necesita (la lista de ejercicios del usuario) le llega en la request.
+Sin estado ni base de datos propia. Todo lo que necesita para /parse (la lista de ejercicios del usuario) le llega en la request.
 
 ### 4.7 Estructura del repo
 
 ```
 app/                      rutas (expo-router)
 src/domain/               engine/, compare.ts, match.ts (búsqueda difusa), format.ts   ← docs/PROGRESSION.md
-src/data/                 db.ts, migrations/, repos/{exercises,sessions,entries}.ts, seed.ts
-src/services/             ai.ts, speech.ts, haptics.ts, image.ts, network.ts
+src/data/                 db.ts, migrations/, repos/{exercises,sessions,entries}.ts, seed.ts, sync.ts
+src/services/             ai.ts, auth.ts, speech.ts, haptics.ts, image.ts, network.ts
 src/features/session/     reducer.ts, store.ts, controller.ts, templates.ts (frases de feedback)
 src/features/picker/      store.ts, controller.ts
 src/ui/                   tokens.ts, copy.ts, components/ (Bubble, StopButton, Flood, MuscleList, SuggestRow…)
 shared/contract.ts        esquema zod de /parse
 worker/                   Cloudflare Worker (wrangler)
+supabase/migrations/      esquema Postgres + RLS (Supabase CLI)
 docs/PROGRESSION.md
+docs/MULTIUSER.md
 design/flow.html          mockups aprobados
 dev/seed.json             historial real para desarrollo
 dev/progression_sim.py    implementación de referencia del motor (Python)
@@ -160,8 +167,9 @@ dev/progression_sim.py    implementación de referencia del motor (Python)
 |---|---|---|
 | domain | Motor con los casos de PROGRESSION.md, comparación, búsqueda difusa | Jest |
 | features | Reducer (todas las transiciones) y controlador con `deps` falsos (IA que responde ambiguo, red caída…) | Jest |
-| data | Migraciones y repos contra SQLite en memoria | Jest + expo-sqlite mock |
-| worker | Las 32 frases del seed → JSON esperado | Vitest + `wrangler dev` |
+| data | Migraciones y repos contra SQLite en memoria (dos `user_id` que no se mezclan); sync con dos dispositivos contra un Supabase falso | Jest + SQLite en memoria (`node:sqlite`) |
+| worker | Las 32 frases del seed → JSON esperado; sin token → 401 | Vitest + `wrangler dev` |
+| RLS | Un usuario no puede leer ni escribir filas de otro | Supabase local (CLI) |
 | UI | Solo smoke tests de las pantallas; las animaciones se validan a mano | React Native Testing Library |
 
 ## 5. Motor de progresión
@@ -176,6 +184,8 @@ Está especificado en `docs/PROGRESSION.md`, con evidencia y parámetros. Resume
 **Implementación:** `src/domain/engine/` en TypeScript puro. Porta `dev/progression_sim.py` y **sus casos como tests** (la tabla del §7 de PROGRESSION.md y los casos borde). Este es el primer código que se escribe (hito M1).
 
 ## 6. La función (Cloudflare Worker)
+
+Toda request lleva `Authorization: Bearer <access_token de Supabase>`.
 
 ### Endpoint `POST /parse`
 
@@ -222,42 +232,62 @@ Response (esquema JSON con structured outputs):
   ```jsonc
   "ratelimits": [{ "name": "PARSE_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }]
   ```
-  con `env.PARSE_LIMITER.limit({ key: deviceId })`. El `deviceId` es un UUID generado en el primer arranque.
-- Un header `X-App-Token` solo sirve para disuadir; no es seguridad real, porque va dentro de la app. Está bien para el MVP; la autenticación real llega con cuentas.
+  con `env.PARSE_LIMITER.limit({ key: payload.sub })`, es decir, por usuario.
+- **Autenticación:** el JWT de Supabase se verifica con `jose` (`createRemoteJWKSet` sobre `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` + `jwtVerify`). El proyecto de Supabase usa claves de firma asimétricas. Sin token o con uno inválido → 401.
+- **Cuentas anónimas:** Supabase limita su creación a 30 por hora por IP. Si hay abuso, se agrega Cloudflare Turnstile.
+- **`POST /account/delete`:** verifica el JWT y borra el usuario con `SUPABASE_SERVICE_ROLE_KEY` (secreto del Worker, nunca en la app). Obligatorio por Apple 5.1.1(v).
 - `max_tokens` bajo (~400) y un timeout de 15 s.
 
 ### Tests del worker
 
 `dev/seed.json` trae **32 frases reales** de Jason en `entries[].raw_text`, con el resultado correcto. Úsalas como fixtures: cada frase debe parsear al `exercise_id`, `load_kg` y `reps` esperados. Las 2 entradas con `load_kg: null` (curl martillo del 15 sep, máquina lumbar) no dicen el peso: lo esperado es `intent: "ambiguous"` con una pregunta por el peso. Agrega casos ambiguos, por ejemplo "laterales con 10" con tres laterales en el contexto.
 
-## 7. Modelo de datos (SQLite)
+## 7. Modelo de datos
+
+Detalle completo y razones en `docs/MULTIUSER.md` §3.
+
+### SQLite (local)
 
 ```sql
+-- Todas las tablas de datos llevan user_id, updated_at, deleted_at y dirty.
 CREATE TABLE exercise (
-  id TEXT PRIMARY KEY, canonical_name TEXT NOT NULL, aliases TEXT NOT NULL DEFAULT '[]',   -- JSON
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+  canonical_name TEXT NOT NULL, aliases TEXT NOT NULL DEFAULT '[]',                         -- JSON
   muscle_groups TEXT NOT NULL,                                                              -- JSON
   kind TEXT NOT NULL CHECK (kind IN ('compound_heavy','compound','isolation','calf')),
   rep_floor INTEGER NOT NULL, rep_top INTEGER NOT NULL, step_kg REAL NOT NULL,
   load_basis TEXT NOT NULL CHECK (load_basis IN ('per_side','per_dumbbell','total','stack')),
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL, deleted_at TEXT, dirty INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE session (
-  id TEXT PRIMARY KEY, muscle_groups TEXT NOT NULL,          -- JSON, en el orden elegido
-  started_at TEXT, ended_at TEXT, avg_bpm INTEGER
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+  muscle_groups TEXT NOT NULL,                               -- JSON, en el orden elegido
+  started_at TEXT, ended_at TEXT, avg_bpm INTEGER,
+  updated_at TEXT NOT NULL, deleted_at TEXT, dirty INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE entry (
-  id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES session(id),
+  id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+  session_id TEXT NOT NULL REFERENCES session(id),
   exercise_id TEXT REFERENCES exercise(id),                -- NULL mientras está pendiente o ambigua
   load_kg REAL, reps TEXT,                                 -- JSON [11,11,11,9]
   raw_text TEXT NOT NULL, rir_note TEXT,
   status TEXT NOT NULL DEFAULT 'ok' CHECK (status IN ('ok','pending','ambiguous')),
-  created_at TEXT NOT NULL
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL, deleted_at TEXT, dirty INTEGER NOT NULL DEFAULT 1
 );
-CREATE INDEX entry_exercise_created ON entry(exercise_id, created_at);
+CREATE TABLE sync_state (table_name TEXT PRIMARY KEY, cursor TEXT);
 ```
+- **Todos los `id` son UUID v4** (`expo-crypto` → `randomUUID()`). Nunca slugs ni autoincrementales.
+- `user_id` = `auth.uid()` de Supabase. `updated_at` lo pone el cliente en cada cambio. `deleted_at` = borrado suave (se sincroniza). `dirty = 1` = falta subir.
+- Toda consulta del motor y de las pantallas filtra `user_id = :me AND deleted_at IS NULL`.
 - `reps` siempre como lista por serie.
 - `session.started_at` = hora de la **primera entrada**. `ended_at` = cuando se completa el stop.
-- `dev/seed.json` sigue este mismo modelo. Cárgalo solo en desarrollo (por ejemplo, con un flag `EXPO_PUBLIC_SEED=1`).
+- `dev/seed.json` usa ids de texto legibles. Al cargarlo (solo en desarrollo, con `EXPO_PUBLIC_SEED=1`), cada id se cambia por un UUID nuevo, manteniendo las relaciones, y todas las filas reciben el `user_id` actual.
+
+### Postgres (Supabase), en `supabase/migrations/`
+
+Las mismas tablas, con `user_id uuid not null references auth.users(id) on delete cascade`, `server_updated_at timestamptz` puesto por un trigger (cursor para bajar cambios), `jsonb` para `reps`, `aliases` y `muscle_groups`, y **RLS** en las tres tablas (`user_id = (select auth.uid())`).
 
 ## 8. Pantallas (ver `design/flow.html`)
 
@@ -347,15 +377,18 @@ export const space  = { screenX: 20, rowY: 9 };
 |---|---|---|
 | M0 | Repo, Expo TS, estructura del §4.7, docs copiados | `npx expo start` corre |
 | M1 | `src/domain/` + tests portados de `progression_sim.py` | Los tests reproducen la tabla del §7 de PROGRESSION.md |
-| M2 | SQLite: esquema, migraciones, consultas, carga del seed | La app lista los grupos con las fechas reales del seed |
-| M3 | Worker `/parse` (Haiku 4.5 + structured outputs + rate limit) | Las 32 frases del seed parsean bien con `wrangler dev`; desplegado |
+| M2 | SQLite: esquema, migraciones, consultas, carga del seed | La app lista los grupos con las fechas reales del seed ✓ |
+| M2a | Esquema local multiusuario: UUID, `user_id`, `updated_at`, `deleted_at`, `dirty`, `sync_state`; seed remapeado | Tests de repos verdes con dos `user_id` que no se mezclan |
+| M2b | Proyecto Supabase, migraciones SQL, RLS, auth anónima en la app | Un usuario anónimo no puede leer filas de otro (probado) |
+| M2c | `sync.ts` con sus tests de dos dispositivos | Offline → online sube todo; un segundo teléfono baja todo |
+| M3 | Worker `/parse` (Haiku 4.5 + structured outputs) **con verificación de JWT** y rate limit por usuario, + `/account/delete` | Sin token → 401; las 32 frases del seed parsean bien con `wrangler dev`; desplegado |
 | M4 | Pantallas 1–3 | Flujo hasta escribir, con sugerencias locales |
 | M5 | Pantallas 4–5 | Enviar → animación → guardado → delta. Ambigüedad resuelta con toque |
 | M6 | Pantallas 6–7 | Mantener el stop → inundación → resumen con comparación por ejercicio |
 | M7 | Voz (development build) y foto | Dictar "press de hombro 24 4 de 9" funciona de punta a punta |
 | M8 | Sin conexión, háptica fina, estados vacíos | Uso real en el gym una semana |
 
-Jason quiere **aprender a hacer funciones** con el worker (M3): explícale los pasos (wrangler init, secrets, bindings, deploy) mientras lo construyen, no los hagas en silencio.
+Jason quiere **aprender a hacer funciones** con el worker (M3) y a usar Supabase (M2b): explícale los pasos (wrangler init, secrets, bindings, deploy; proyecto de Supabase, migraciones con el CLI, RLS, auth) mientras lo construyen, no los hagas en silencio.
 
 ## 11. Decisiones pendientes (preguntar a Jason, no asumir)
 
@@ -364,6 +397,7 @@ Jason quiere **aprender a hacer funciones** con el worker (M3): explícale los p
 3. Animación de terminar: aceptada "por ahora".
 4. Idioma y variante del reconocimiento de voz (`es-419`, `es-EC` o el locale del dispositivo).
 5. Mascota: fuera del MVP; la línea de feedback es su lugar futuro.
+6. **Pantallas de cuenta** ("Guarda tu cuenta", acceso a la cuenta, "Borrar cuenta"): ninguna pantalla aprobada las tiene. **No diseñarlas ni construirlas sin Jason.** Propuesta a validar en `docs/MULTIUSER.md` §8.
 
 ## 12. Convenciones
 
