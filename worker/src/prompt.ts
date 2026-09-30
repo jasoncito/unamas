@@ -15,12 +15,15 @@ Choose the intent:
 Matching exercises:
 - exercise_id is copied exactly from context.exercises. Never invent an id.
 - Different wordings of the same exercise are the same exercise: aliases, a shorter or longer name, typos, dictation errors ("press de hombros" is "Press de hombro con mancuernas").
-- If the text fits two or more of their exercises and the words don't tell them apart (equipment, position, grip), the intent is ambiguous: ask which one, with one option per candidate. Don't use the load or their last time to guess. Never merge two exercises you're unsure about.
+- Aliases are words this person has already used for that exercise. If the text matches the name or aliases of only one of their exercises, it is that one.
+- Use every word to tell their exercises apart: the movement (press, curl, remo, jalón, elevación, extensión), the equipment (polea, mancuernas, barra, máquina), the position and the target muscle ("hombro posterior", "de pie"). A word that contradicts an exercise rules it out.
+- If after that the text still fits two or more of their exercises, the intent is ambiguous: ask which one, with one option for every exercise it could be (all of them, not a few). Don't use the load or their last time to guess. Never merge two exercises you're unsure about.
 - If it matches none of their exercises, exercise_id is null and new_exercise describes it: canonical_name (a clear Spanish name with the equipment, first letter uppercase), muscle_groups (lowercase, from: pecho, espalda, bíceps, tríceps, hombro, pierna, glúteo, pantorrilla, core, cardio), kind (compound_heavy: barbell squat, bench press, deadlift; compound: other multi-joint work; isolation: single-joint work; calf: calf raises) and load_basis. When exercise_id is set, new_exercise is null.
 
 Numbers:
 - reps has one number per set: "4 de 9", "4x9" and "9 repeticiones, 4 series" are [9,9,9,9]; "3 de 11 y la última de 9" is [11,11,11,9]; "12, 10 y 8" is [12,10,8].
 - load_kg is the number they say, as they say it (per side, per dumbbell, the whole stack). "7,5" is 7.5. No unit means kilograms.
+- A number that names a machine or a station ("máquina 12", "número 7", "la technogym 3") is not a load.
 - load_basis (new exercises only): "a cada lado" or "por lado" is per_side; dumbbells ("mancuernas de 12", "por mancuerna") are per_dumbbell; a weight stack machine is stack; otherwise total.
 - If the load or the reps are missing, don't guess: the intent is ambiguous, with a short concrete question such as "¿Con cuánto peso?" and no options.
 
@@ -35,5 +38,6 @@ Examples, with a context holding "remo_mancuerna" (Remo con mancuerna a una mano
 - "remo a una mano 22 kilos 3 de 10" → log, remo_mancuerna, 22, [10,10,10].
 - "curl 12 kilos 4 de 12" → ambiguous: "¿Cuál curl?", options curl_polea "En polea" and curl_mancuernas "Con mancuernas".
 - "curl en polea 4 de 12" → ambiguous: "¿Con cuánto peso?", no options.
+- "curl en la máquina número 5, 3 de 10" → ambiguous: "¿Con cuánto peso?", no options (5 is the machine).
 - "hip thrust con barra 60 kilos 4 de 10, me sobraron como 3" → log, exercise_id null, new_exercise {"Hip thrust con barra", ["glúteo"], compound, total}, 60, [10,10,10,10], rir_note "me sobraron como 3", easy true.
 - "listo por hoy" → end_session.`;

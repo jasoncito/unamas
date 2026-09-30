@@ -85,8 +85,11 @@ export function sanitize(response: ParseResponse, exercises: readonly ContextExe
 			if (response.entries.length === 0) return UNCLEAR;
 			for (const e of response.entries) {
 				const identified = e.exercise_id !== null ? known.has(e.exercise_id) : e.new_exercise !== null;
-				if (!identified || e.load_kg === null || e.reps.length === 0) return UNCLEAR;
+				if (!identified) return UNCLEAR;
 			}
+			// Exercise known but a number missing: ask for it instead of inventing it (CLAUDE.md §6).
+			if (response.entries.some((e) => e.load_kg === null)) return askFor('¿Con cuánto peso?');
+			if (response.entries.some((e) => e.reps.length === 0)) return askFor('¿Cuántas series y repeticiones?');
 			return {
 				intent: 'log',
 				entries: response.entries.map((e) => (e.exercise_id !== null ? { ...e, new_exercise: null } : e)),
@@ -105,4 +108,8 @@ export function sanitize(response: ParseResponse, exercises: readonly ContextExe
 		case 'unclear':
 			return { intent: response.intent, entries: [], ambiguity: null, reply: response.reply };
 	}
+}
+
+function askFor(question: string): ParseResponse {
+	return { intent: 'ambiguous', entries: [], ambiguity: { question, options: [] }, reply: null };
 }

@@ -146,9 +146,21 @@ describe('sanitize', () => {
 		expect(sanitize(log([both]), EXERCISES).entries[0].new_exercise).toBeNull();
 	});
 
-	it('a log without load or reps is unclear (the model should have asked)', () => {
-		expect(sanitize(log([entry({ load_kg: null })]), EXERCISES)).toEqual(UNCLEAR);
-		expect(sanitize(log([entry({ reps: [] })]), EXERCISES)).toEqual(UNCLEAR);
+	it('a log with the exercise but no load asks for the load (never invents it)', () => {
+		expect(sanitize(log([entry({ load_kg: null })]), EXERCISES)).toEqual({
+			intent: 'ambiguous',
+			entries: [],
+			ambiguity: { question: '¿Con cuánto peso?', options: [] },
+			reply: null,
+		});
+	});
+
+	it('a log with the exercise but no reps asks for them', () => {
+		expect(sanitize(log([entry({ reps: [] })]), EXERCISES).ambiguity?.question).toBe('¿Cuántas series y repeticiones?');
+	});
+
+	it('an unidentified exercise is still unclear, even without a load', () => {
+		expect(sanitize(log([entry({ exercise_id: 'invented', load_kg: null })]), EXERCISES)).toEqual(UNCLEAR);
 		expect(sanitize(log([]), EXERCISES)).toEqual(UNCLEAR);
 	});
 
