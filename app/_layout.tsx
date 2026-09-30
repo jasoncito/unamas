@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { initDb } from '@/data/init';
 import type { Seed } from '@/data/seed';
+import { useSync } from '@/features/sync/useSync';
 import { useSupabaseSession } from '@/services/useSupabaseSession';
 import { color } from '@/ui/tokens';
 
@@ -17,8 +18,15 @@ export default function RootLayout() {
 
   return (
     <SQLiteProvider databaseName="unamas.db" onInit={onInit}>
+      <SyncRunner />
       <StatusBar style="light" />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.bg } }} />
     </SQLiteProvider>
   );
+}
+
+/** Lives inside SQLiteProvider so sync can reach the database. Renders nothing. */
+function SyncRunner() {
+  useSync();
+  return null;
 }
