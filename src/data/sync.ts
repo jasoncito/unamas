@@ -70,6 +70,8 @@ const PARENTS_FIRST: readonly Table[] = ['exercise', 'session', 'entry'];
 export interface SyncOptions {
   /** False while an account switch is pending (MULTIUSER.md §2): nothing is uploaded then. */
   canUpload?: () => Promise<boolean>;
+  /** Rows per pull page (tests use small pages to exercise pagination against a real server). */
+  pageSize?: number;
 }
 
 export interface SyncResult {
@@ -80,7 +82,7 @@ export interface SyncResult {
 /** Uploads what's dirty, then downloads what changed. Throws if the server can't be reached. */
 export async function sync(db: Db, remote: RemoteStore, opts: SyncOptions = {}): Promise<SyncResult> {
   const pushed = (await (opts.canUpload?.() ?? true)) ? await push(db, remote) : 0;
-  const pulled = await pull(db, remote);
+  const pulled = await pull(db, remote, opts.pageSize ?? PULL_PAGE_SIZE);
   return { pushed, pulled };
 }
 
@@ -119,7 +121,7 @@ async function push(db: Db, remote: RemoteStore): Promise<number> {
   return pushed;
 }
 
-async function pull(db: Db, remote: RemoteStore): Promise<number> {
+async function pull(db: Db, remote: RemoteStore, pageSize: number): Promise<number> {
   // Children first: an entry that was readable already had its session and exercise committed,
   // so reading the parents afterwards brings them too.
   const fetched = new Map<Table, RemoteRow[]>();
@@ -130,9 +132,9 @@ async function pull(db: Db, remote: RemoteStore): Promise<number> {
     const rows: RemoteRow[] = [];
     let after: PullAfter = { at: cursor ? withMargin(cursor) : EPOCH, id: '' };
     for (;;) {
-      const page = await remote.pull(table, after, PULL_PAGE_SIZE);
+      const page = await remote.pull(table, after, pageSize);
       rows.push(...page);
-      if (page.length < PULL_PAGE_SIZE) break;
+      if (page.length < pageSize) break;
       const last = page[page.length - 1];
       after = { at: last.server_updated_at, id: last.id };
     }
