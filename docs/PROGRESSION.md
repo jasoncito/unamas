@@ -146,11 +146,28 @@ Sin preguntarle nada al usuario, el algoritmo ajusta estas cosas **por ejercicio
 
 **[evidencia de por qué es opcional; el ajuste es heurística]**
 
+### 6.1 Cómo lo aplica el motor (detalles de implementación)
+
+La tabla de arriba deja detalles abiertos. Así los resuelve `src/domain/engine/`. Todos son **[heurística]** y hay que validarlos con uso real.
+
+Todo se **deriva del historial**: el motor lo recorre de la primera a la última exposición, calcula qué meta tenía cada una en su momento y va ajustando el perfil del ejercicio. No se guarda nada: si cambia el algoritmo, el perfil se recalcula solo.
+
+| Qué | Regla exacta |
+|---|---|
+| Rango recentrado | Solo con las 2 primeras exposiciones, y solo si **todas** sus series quedan fuera del rango **del mismo lado** (todas arriba del tope o todas bajo el piso). Nuevo rango: `[máx(1, mediana − 2), mediana + 3]`, con la mediana de todas esas series, redondeada. |
+| Paso aprendido | Cada vez que el peso sube respecto a la exposición anterior, el paso pasa a ser esa diferencia (el **último** salto registrado). |
+| Modo confirmar | Se activa cuando el peso sube y alguna serie queda bajo el piso. Se desactiva con la siguiente subida de peso que sí llega al piso. Mientras está activo, subir de peso exige el tope en las **2 últimas** exposiciones con el mismo peso. Si solo la última llegó, la meta es repetir el tope. |
+| Progresión rápida | "Superar la meta en ≥ 2" = mismo peso que la meta y **cada** serie de la meta superada en ≥ 2 reps. Se activa tras 2 exposiciones seguidas así. Se apaga cuando el usuario, con el peso de la meta, no la cumple en alguna serie. Afecta solo a la regla 8 (+2 en vez de +1, sin pasar el tope). |
+| Días malos | Si la última exposición **bajó sin cambiar el peso** (según el §5) y la anterior no había bajado también con ese peso, la meta es **repetir la meta que tenía esa exposición**, aunque fuera una subida de peso que no hizo. Si bajó 2 veces seguidas, siguen las reglas normales. Se evalúa después de la regla 3 y antes de la 5. |
+| Sesión ligera → variante | Las exposiciones hechas con una meta de "sesión ligera" **no cuentan** para el estancamiento, la comparación ni las reglas 4–8. Después de la sesión ligera viene **un intento normal**. Si ese intento sigue estancado, la meta es "cambia de variante" (se repiten los números de la última exposición normal). Se vuelve a sugerir sesión ligera solo cuando la ventana de estancamiento ya no incluye la anterior. |
+| RIR "fácil" | Si la última exposición está en el tope y el usuario dijo "fácil" (o ≥ 3 en reserva), se salta el modo confirmar. |
+| RIR "al fallo" | Si la última exposición dice "al fallo" o "no pude más", **no se sube el peso**: si estaba en el tope, se repite. En el piso ya no se subiría de todos modos, así que la regla solo cambia algo en el tope. |
+
 ---
 
 ## 7. Validación con tu historial real
 
-La implementación de referencia (`progression_sim.py`) aplicada a tus registros, con "hoy" = 29 sep 2026. Implementa las reglas 1–8 del §4 y la comparación del §5. La personalización del §6 (modo confirmar, rango y paso aprendidos, progresión rápida) y la sugerencia de variante tras la sesión ligera quedan para la versión en TypeScript.
+La implementación de referencia (`progression_sim.py`) aplicada a tus registros, con "hoy" = 29 sep 2026. Implementa las reglas 1–8 del §4 y la comparación del §5. La personalización del §6 (modo confirmar, rango y paso aprendidos, progresión rápida) y la sugerencia de variante tras la sesión ligera quedan para la versión en TypeScript (`src/domain/engine/`, ver §6.1).
 
 | Ejercicio | Rango | Última vez | → Meta | Motivo |
 |---|---|---|---|---|
