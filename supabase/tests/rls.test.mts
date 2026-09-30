@@ -189,6 +189,47 @@ describe('server_updated_at', () => {
   });
 });
 
+describe('last write wins on the server', () => {
+  const read = async () =>
+    (
+      await as<{ canonical_name: string; updated_at: Date; server_updated_at: Date }>(
+        A,
+        'select canonical_name, updated_at, server_updated_at from public.exercise',
+      )
+    ).rows[0];
+
+  it('ignores a write older than the stored row, but still bumps server_updated_at', async () => {
+    await as(A, "update public.exercise set canonical_name = 'newer', updated_at = '2026-09-29T20:00:00Z' where id = $1", [EX_A]);
+    const before = await read();
+    await as(A, "update public.exercise set canonical_name = 'stale', updated_at = '2026-09-29T19:00:00Z' where id = $1", [EX_A]);
+    const after = await read();
+    assert.equal(after.canonical_name, 'newer');
+    assert.equal(after.updated_at.toISOString(), '2026-09-29T20:00:00.000Z');
+    assert.ok(after.server_updated_at.getTime() > before.server_updated_at.getTime());
+  });
+
+  it('applies a newer write, and the same write sent twice', async () => {
+    await as(A, "update public.exercise set canonical_name = 'newer', updated_at = '2026-09-29T20:00:00Z' where id = $1", [EX_A]);
+    await as(A, "update public.exercise set canonical_name = 'again', updated_at = '2026-09-29T20:00:00Z' where id = $1", [EX_A]);
+    assert.equal((await read()).canonical_name, 'again');
+  });
+
+  it('works through upsert, which is what sync sends', async () => {
+    const upsert = (name: string, at: string) =>
+      as(
+        A,
+        `insert into public.exercise (id, canonical_name, muscle_groups, kind, rep_floor, rep_top, step_kg, load_basis,
+           created_at, updated_at)
+         values ($1, $2, '[]', 'compound', 8, 12, 2, 'total', $3, $3)
+         on conflict (id) do update set canonical_name = excluded.canonical_name, updated_at = excluded.updated_at`,
+        [EX_A, name, at],
+      );
+    await upsert('newer', '2026-09-29T20:00:00Z');
+    await upsert('stale', '2026-09-29T19:00:00Z');
+    assert.equal((await read()).canonical_name, 'newer');
+  });
+});
+
 describe('account deletion', () => {
   it('deleting the auth user removes all of their rows', async () => {
     await db.query('delete from auth.users where id = $1', [A]);
