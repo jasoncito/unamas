@@ -99,6 +99,7 @@ El `with check` impide que alguien escriba filas con un `user_id` ajeno aunque l
 2. `supabase.from(t).upsert(rows, { onConflict: 'id' })`, sin `user_id` en las filas (lo pone el default).
 3. Si responde bien, marcar esas filas como `dirty = 0`, **solo si no cambiaron mientras subían** (mismo `updated_at` que se envió). Si el usuario editó una fila durante la subida, queda `dirty = 1` para la próxima.
 4. Mientras haya un cambio de cuenta pendiente (§2, plan B), no se sube nada.
+5. **El servidor también aplica "gana el último"** (migración `last_write_wins`): como se sube antes de bajar, un teléfono con una edición vieja sin subir pisaría una más nueva. Si llega una escritura con `updated_at` más viejo que el guardado, se conserva la fila guardada, pero igual se renueva `server_updated_at`, para que ese teléfono baje la ganadora en el próximo pull.
 
 **Bajar (pull):**
 1. Por tabla: `select <columnas locales> where server_updated_at > cursor − margen order by server_updated_at, id`, paginado por `(server_updated_at, id)`, así no se pierden filas con la misma hora entre páginas. RLS ya limita a las filas del usuario, y `user_id` no se guarda en el teléfono.

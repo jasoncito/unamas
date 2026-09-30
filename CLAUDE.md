@@ -169,7 +169,7 @@ dev/progression_sim.py    implementación de referencia del motor (Python)
 |---|---|---|
 | domain | Motor con los casos de PROGRESSION.md, comparación, búsqueda difusa | Jest |
 | features | Reducer (todas las transiciones) y controlador con `deps` falsos (IA que responde ambiguo, red caída…) | Jest |
-| data | Migraciones y repos contra SQLite en memoria; sync con dos dispositivos contra un Supabase falso | Jest + SQLite en memoria (`node:sqlite`) |
+| data | Migraciones y repos contra SQLite en memoria; sync con dos dispositivos contra un Supabase falso, y de punta a punta contra el proyecto de desarrollo | Jest + SQLite en memoria (`node:sqlite`); `npm run test:sync:remote` |
 | worker | Las 32 frases del seed → JSON esperado; sin token → 401 | Vitest + `wrangler dev` |
 | RLS | Un usuario no puede leer ni escribir filas de otro, ni forzar un `user_id` ajeno | Migraciones en Postgres real con PGlite (`npm run test:db`, sin Docker) + chequeo contra el proyecto real (`npm run test:db:remote`) |
 | UI | Solo smoke tests de las pantallas; las animaciones se validan a mano | React Native Testing Library |
