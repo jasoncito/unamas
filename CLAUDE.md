@@ -126,7 +126,7 @@ UI: onSend(text | image | voz→texto)
 | Ejercicios, sesiones, entradas | SQLite, sincronizado con Supabase | Local primero; Supabase es la fuente de verdad entre dispositivos |
 | Estado de la sesión activa (fase, burbuja, sugerencias, texto) | Zustand | Efímero y reactivo. Se reconstruye desde SQLite si la app se cierra |
 | Metas del día | Calculadas al vuelo con `domain/` | Nunca se guardan: siempre salen del historial, así un cambio en el algoritmo aplica solo |
-| Sesión de Supabase (`user_id`, tokens) | AsyncStorage (vía supabase-js) | Anónima desde el primer arranque. El `user_id` marca cada fila y es la clave del rate limit |
+| Sesión de Supabase (`user_id`, tokens) | AsyncStorage (vía supabase-js) | Anónima desde el primer arranque (o en cuanto haya señal). El `user_id` lo usan el servidor (RLS) y el rate limit; la base local no lo guarda |
 
 ### 4.6 Worker
 
@@ -167,9 +167,9 @@ dev/progression_sim.py    implementación de referencia del motor (Python)
 |---|---|---|
 | domain | Motor con los casos de PROGRESSION.md, comparación, búsqueda difusa | Jest |
 | features | Reducer (todas las transiciones) y controlador con `deps` falsos (IA que responde ambiguo, red caída…) | Jest |
-| data | Migraciones y repos contra SQLite en memoria (dos `user_id` que no se mezclan); sync con dos dispositivos contra un Supabase falso | Jest + SQLite en memoria (`node:sqlite`) |
+| data | Migraciones y repos contra SQLite en memoria; sync con dos dispositivos contra un Supabase falso | Jest + SQLite en memoria (`node:sqlite`) |
 | worker | Las 32 frases del seed → JSON esperado; sin token → 401 | Vitest + `wrangler dev` |
-| RLS | Un usuario no puede leer ni escribir filas de otro | Supabase local (CLI) |
+| RLS | Un usuario no puede leer ni escribir filas de otro, ni forzar un `user_id` ajeno | Supabase local (CLI) |
 | UI | Solo smoke tests de las pantallas; las animaciones se validan a mano | React Native Testing Library |
 
 ## 5. Motor de progresión
@@ -249,9 +249,9 @@ Detalle completo y razones en `docs/MULTIUSER.md` §3.
 ### SQLite (local)
 
 ```sql
--- Todas las tablas de datos llevan user_id, updated_at, deleted_at y dirty.
+-- Base de un solo usuario: sin user_id. Todas las tablas de datos llevan updated_at, deleted_at y dirty.
 CREATE TABLE exercise (
-  id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+  id TEXT PRIMARY KEY,
   canonical_name TEXT NOT NULL, aliases TEXT NOT NULL DEFAULT '[]',                         -- JSON
   muscle_groups TEXT NOT NULL,                                                              -- JSON
   kind TEXT NOT NULL CHECK (kind IN ('compound_heavy','compound','isolation','calf')),
@@ -261,13 +261,13 @@ CREATE TABLE exercise (
   updated_at TEXT NOT NULL, deleted_at TEXT, dirty INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE session (
-  id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+  id TEXT PRIMARY KEY,
   muscle_groups TEXT NOT NULL,                               -- JSON, en el orden elegido
   started_at TEXT, ended_at TEXT, avg_bpm INTEGER,
   updated_at TEXT NOT NULL, deleted_at TEXT, dirty INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE entry (
-  id TEXT PRIMARY KEY, user_id TEXT NOT NULL,
+  id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL REFERENCES session(id),
   exercise_id TEXT REFERENCES exercise(id),                -- NULL mientras está pendiente o ambigua
   load_kg REAL, reps TEXT,                                 -- JSON [11,11,11,9]
@@ -279,15 +279,16 @@ CREATE TABLE entry (
 CREATE TABLE sync_state (table_name TEXT PRIMARY KEY, cursor TEXT);
 ```
 - **Todos los `id` son UUID v4** (`expo-crypto` → `randomUUID()`). Nunca slugs ni autoincrementales.
-- `user_id` = `auth.uid()` de Supabase. `updated_at` lo pone el cliente en cada cambio. `deleted_at` = borrado suave (se sincroniza). `dirty = 1` = falta subir.
-- Toda consulta del motor y de las pantallas filtra `user_id = :me AND deleted_at IS NULL`.
+- **La base del teléfono es siempre de un solo usuario:** no hay `user_id` local. Lo pone Postgres (`default auth.uid()`) y el cliente nunca lo envía. Cerrar sesión = sincronizar y, si subió todo, vaciar la base local.
+- `updated_at` lo pone el cliente en cada cambio. `deleted_at` = borrado suave (se sincroniza). `dirty = 1` = falta subir. Sin señal en el primer arranque se anota igual y se sube cuando exista la cuenta anónima.
+- Toda consulta del motor y de las pantallas filtra `deleted_at IS NULL`.
 - `reps` siempre como lista por serie.
 - `session.started_at` = hora de la **primera entrada**. `ended_at` = cuando se completa el stop.
-- `dev/seed.json` usa ids de texto legibles. Al cargarlo (solo en desarrollo, con `EXPO_PUBLIC_SEED=1`), cada id se cambia por un UUID nuevo, manteniendo las relaciones, y todas las filas reciben el `user_id` actual.
+- `dev/seed.json` usa ids de texto legibles. Al cargarlo (solo en desarrollo, con `EXPO_PUBLIC_SEED=1`), cada id se cambia por un UUID nuevo, manteniendo las relaciones. Queda todo `dirty = 1`.
 
 ### Postgres (Supabase), en `supabase/migrations/`
 
-Las mismas tablas, con `user_id uuid not null references auth.users(id) on delete cascade`, `server_updated_at timestamptz` puesto por un trigger (cursor para bajar cambios), `jsonb` para `reps`, `aliases` y `muscle_groups`, y **RLS** en las tres tablas (`user_id = (select auth.uid())`).
+Las mismas tablas, con `user_id uuid not null default auth.uid() references auth.users(id) on delete cascade` (el cliente nunca lo envía), `server_updated_at timestamptz` puesto por un trigger (cursor para bajar cambios), `jsonb` para `reps`, `aliases` y `muscle_groups`, y **RLS** en las tres tablas (`using` y `with check` con `user_id = (select auth.uid())`).
 
 ## 8. Pantallas (ver `design/flow.html`)
 
@@ -378,9 +379,9 @@ export const space  = { screenX: 20, rowY: 9 };
 | M0 | Repo, Expo TS, estructura del §4.7, docs copiados | `npx expo start` corre |
 | M1 | `src/domain/` + tests portados de `progression_sim.py` | Los tests reproducen la tabla del §7 de PROGRESSION.md |
 | M2 | SQLite: esquema, migraciones, consultas, carga del seed | La app lista los grupos con las fechas reales del seed ✓ |
-| M2a | Esquema local multiusuario: UUID, `user_id`, `updated_at`, `deleted_at`, `dirty`, `sync_state`; seed remapeado | Tests de repos verdes con dos `user_id` que no se mezclan |
-| M2b | Proyecto Supabase, migraciones SQL, RLS, auth anónima en la app | Un usuario anónimo no puede leer filas de otro (probado) |
-| M2c | `sync.ts` con sus tests de dos dispositivos | Offline → online sube todo; un segundo teléfono baja todo |
+| M2a | Esquema local listo para sincronizar: UUID, `updated_at`, `deleted_at`, `dirty`, `sync_state` (sin `user_id`: base de un solo usuario); seed remapeado | Tests de repos verdes: ids UUID, filas nuevas `dirty = 1`, lo borrado no aparece |
+| M2b | Proyecto Supabase, migraciones SQL (`user_id default auth.uid()`), RLS, auth anónima en la app | Un usuario anónimo no puede leer ni escribir filas de otro, ni forzar un `user_id` ajeno (probado) |
+| M2c | `sync.ts` con sus tests de dos dispositivos, cerrar sesión | Offline → online sube todo; un segundo teléfono baja todo; cerrar sesión no borra nada sin subir |
 | M3 | Worker `/parse` (Haiku 4.5 + structured outputs) **con verificación de JWT** y rate limit por usuario, + `/account/delete` | Sin token → 401; las 32 frases del seed parsean bien con `wrangler dev`; desplegado |
 | M4 | Pantallas 1–3 | Flujo hasta escribir, con sugerencias locales |
 | M5 | Pantallas 4–5 | Enviar → animación → guardado → delta. Ambigüedad resuelta con toque |

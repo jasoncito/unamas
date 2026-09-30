@@ -27,13 +27,17 @@ Decisión de Jason (29 sep 2026): **las cuentas y la sincronización entran al M
 
 1. **Primer arranque:** `supabase.auth.signInAnonymously()`. El usuario ya tiene un `user_id` y todo se sincroniza, **sin pantalla de login**.
    - Motivo: Apple 5.1.1(v): *"If your app doesn't include significant account-based features, let people use it without a login."* Así no hay muro de login y la app ya es multiusuario desde el día uno.
+   - **Sin señal en el primer arranque:** se anota normal; todo queda con `dirty = 1`. Cuando hay señal se crea la cuenta anónima y el sync sube todo. No se reescribe ningún id, porque la base local no guarda `user_id` (§3).
 2. **"Guarda tu cuenta"** (más adelante, cuando el usuario quiera): convertir la cuenta anónima en permanente.
    - **Email:** `updateUser({ email })` + código OTP. Documentado por Supabase para cuentas anónimas.
    - **Sign in with Apple nativo** (`expo-apple-authentication` → `supabase.auth.signInWithIdToken({ provider: 'apple', token, nonce })`).
-   - ⚠️ **Verificar** si Supabase permite **vincular** un id token nativo de Apple a un usuario anónimo. Su documentación muestra `linkIdentity` solo con el flujo OAuth web.
-   - **Plan B si no se puede:** iniciar sesión con Apple (sale un `user_id` nuevo) → reescribir `user_id` en todas las filas locales → marcarlas como pendientes → subir. Como todo vive en el teléfono, el plan B es barato. Las cuentas anónimas huérfanas se limpian con un job SQL.
+   - **Vincular Apple a la cuenta anónima: sí se puede** (verificado el 29 sep 2026 en el código de `@supabase/auth-js` 2.117.2 y `supabase/auth` v2.197.0; la documentación aún no lo muestra). `supabase.auth.linkIdentity({ provider: 'apple', token, nonce })`: el servidor vincula la identidad al usuario de la sesión y le quita `is_anonymous`. El `user_id` no cambia y no hay que resubir nada. Requiere activar **"Enable Manual Linking"**. Hay que probarlo de punta a punta en M2b con un token real.
+   - **Plan B, cuando ese Apple ID ya pertenece a otra cuenta** (el servidor responde `identity_already_exists`; por ejemplo, reinstalaste la app y tu Apple ya tenía cuenta): `signInWithIdToken` (entra a esa cuenta, `user_id` distinto) → marcar **todas** las filas locales `dirty = 1` → el sync las sube a la cuenta nueva.
+     - ⚠️ **Choque de ids:** esas filas siguen en el servidor con los mismos `id`, pero son de la cuenta anónima anterior. El upsert chocaría con la clave primaria y RLS no deja actualizar filas ajenas, así que la subida fallaría. **Propuesta (a confirmar con Jason):** antes de resubir, borrar la cuenta anónima anterior con su propio token, que sigue vigente unos minutos, vía `POST /account/delete`. Sus filas caen en cascada y la subida ya no choca. Como todo está en el teléfono, no se pierde nada.
+     - Las cuentas anónimas que queden huérfanas por otros motivos se limpian con un job SQL.
 3. **Otro teléfono:** iniciar sesión → bajar todo.
-4. **Borrar cuenta:** obligatorio por Apple 5.1.1(v) (*"If your app supports account creation, you must also offer account deletion within the app"*). Endpoint en el Worker `POST /account/delete`, que verifica el JWT y borra el usuario con la service role key (secreto del Worker). Las filas se borran en cascada desde `auth.users`.
+4. **Cerrar sesión:** sincronizar y, **solo si subió todo** (no queda ninguna fila `dirty = 1`), vaciar la base local (tablas de datos y `sync_state`). Si no hay señal o falla la subida, no se cierra la sesión y se avisa, para no perder lo que no subió.
+5. **Borrar cuenta:** obligatorio por Apple 5.1.1(v) (*"If your app supports account creation, you must also offer account deletion within the app"*). Endpoint en el Worker `POST /account/delete`, que verifica el JWT y borra el usuario con la service role key (secreto del Worker). Las filas se borran en cascada desde `auth.users`. Después se vacía la base local.
 
 Guideline 4.8: si algún día se agrega Google u otro login social, hay que ofrecer también Sign in with Apple (o uno equivalente en privacidad). Con Apple + email ya se cumple.
 
@@ -45,10 +49,11 @@ Guideline 4.8: si algún día se agrega Google u otro login social, hay que ofre
 
 ### SQLite (local)
 
+**La base del teléfono es siempre de un solo usuario** (decidido por Jason el 29 sep 2026), así que las tablas locales **no tienen `user_id`**. Quién es el dueño lo decide el servidor con la sesión.
+
 Todas las tablas (`exercise`, `session`, `entry`) agregan:
 
 ```sql
-user_id    TEXT NOT NULL,          -- auth.uid()
 updated_at TEXT NOT NULL,          -- ISO, lo pone el cliente en cada cambio
 deleted_at TEXT,                   -- borrado suave (sincronizable)
 dirty      INTEGER NOT NULL DEFAULT 1   -- 1 = falta subir
@@ -56,13 +61,13 @@ dirty      INTEGER NOT NULL DEFAULT 1   -- 1 = falta subir
 
 - **Todos los `id` son UUID v4** (`expo-crypto` → `randomUUID()`), nunca slugs como `curl_barra_z` ni ids autoincrementales: dos usuarios o dos teléfonos no pueden chocar.
 - Nueva tabla `sync_state(table_name TEXT PRIMARY KEY, cursor TEXT)`.
-- Las consultas del motor y de las pantallas filtran `deleted_at IS NULL AND user_id = :me`.
-- **Seed de desarrollo:** al cargar `dev/seed.json`, mapear cada id de texto a un UUID nuevo (manteniendo las relaciones) y asignar el `user_id` actual.
+- Las consultas del motor y de las pantallas filtran `deleted_at IS NULL`.
+- **Seed de desarrollo:** al cargar `dev/seed.json`, mapear cada id de texto a un UUID nuevo (manteniendo las relaciones). Queda todo `dirty = 1`, así que se sube a la cuenta de la sesión como cualquier otra fila.
 
 ### Postgres (Supabase), en `supabase/migrations/`
 
 Las mismas tablas, con estas diferencias:
-- `user_id uuid not null references auth.users(id) on delete cascade`
+- `user_id uuid not null default auth.uid() references auth.users(id) on delete cascade`. **El cliente nunca envía `user_id`**: lo pone Postgres con la sesión del request.
 - `server_updated_at timestamptz not null default now()`, actualizado por un **trigger** en cada insert o update. Es el cursor para bajar cambios, y usa el reloj del servidor, así que no depende de la hora del teléfono.
 - `reps`, `aliases` y `muscle_groups` como `jsonb`.
 - **RLS** activado en las tres tablas:
@@ -75,15 +80,17 @@ create policy "own rows" on entry for all
 -- igual en exercise y session
 ```
 
+El `with check` impide que alguien escriba filas con un `user_id` ajeno aunque lo mande a mano.
+
 ## 4. Sincronización (`src/data/sync.ts`)
 
 **Subir (push):**
 1. Por tabla, en orden `exercise → session → entry` (por las claves foráneas): tomar las filas con `dirty = 1`. De `entry`, solo las que tienen `status = 'ok'`.
-2. `supabase.from(t).upsert(rows, { onConflict: 'id' })`.
+2. `supabase.from(t).upsert(rows, { onConflict: 'id' })`, sin `user_id` en las filas (lo pone el default).
 3. Si responde bien, marcar esas filas como `dirty = 0`.
 
 **Bajar (pull):**
-1. Por tabla: `select * where server_updated_at > cursor order by server_updated_at`.
+1. Por tabla: `select <columnas locales> where server_updated_at > cursor order by server_updated_at`. RLS ya limita a las filas del usuario, y `user_id` no se guarda en el teléfono.
 2. Por cada fila remota: si la local tiene `dirty = 1` y su `updated_at` es más nuevo, gana la local; si no, gana la remota.
 3. Guardar el nuevo cursor en `sync_state`.
 
@@ -117,9 +124,9 @@ M0 y M1 no cambian. M2 se reabre:
 
 | Hito | Qué | Listo cuando |
 |---|---|---|
-| M2a | Esquema local multiusuario: UUID, `user_id`, `updated_at`, `deleted_at`, `dirty`, `sync_state`; seed remapeado | Tests de repos verdes con dos `user_id` que no se mezclan |
-| M2b | Proyecto Supabase, migraciones SQL, RLS, auth anónima en la app | Un usuario anónimo no puede leer filas de otro (probarlo) |
-| M2c | `sync.ts` con sus tests de dos dispositivos | Offline → online sube todo; un segundo teléfono baja todo |
+| M2a | Esquema local listo para sincronizar: UUID, `updated_at`, `deleted_at`, `dirty`, `sync_state` (sin `user_id`: base de un solo usuario); seed remapeado | Tests de repos verdes: ids UUID, filas nuevas `dirty = 1`, lo borrado no aparece |
+| M2b | Proyecto Supabase, migraciones SQL (`user_id default auth.uid()`), RLS, auth anónima en la app | Un usuario anónimo no puede leer ni escribir filas de otro, ni forzar un `user_id` ajeno (probarlo) |
+| M2c | `sync.ts` con sus tests de dos dispositivos, cerrar sesión | Offline → online sube todo; un segundo teléfono baja todo; cerrar sesión no borra nada sin subir |
 | M3 | Worker `/parse` **con verificación de JWT** y rate limit por usuario, + `/account/delete` | Sin token → 401; las 32 frases parsean bien |
 | M4… | Igual que antes | |
 
