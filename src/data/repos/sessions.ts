@@ -1,4 +1,5 @@
 import type { Db } from '../db';
+import { nowIso } from '../ids';
 
 export interface Session {
   id: string;
@@ -54,4 +55,13 @@ export async function getLastTrainedByGroup(db: Db): Promise<Map<string, string>
     [],
   );
   return new Map(rows.map((r) => [r.muscle_group, r.last_at]));
+}
+
+/** A new open session for these muscle groups, in the order they were chosen. Dirty, so it syncs. */
+export async function createSession(db: Db, id: string, muscleGroups: readonly string[]): Promise<void> {
+  await db.runAsync('INSERT INTO session (id, muscle_groups, updated_at, dirty) VALUES (?, ?, ?, 1)', [
+    id,
+    JSON.stringify(muscleGroups),
+    nowIso(),
+  ]);
 }
