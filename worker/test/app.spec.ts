@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { UNCLEAR, type ParseRequest } from '../../shared/contract';
 import { createApp, type AppDeps } from '../src/app';
@@ -68,6 +68,30 @@ describe('POST /parse', () => {
 		expect(res.headers.get('Retry-After')).toBe('60');
 		expect(keys).toEqual(['user-1']);
 		expect(calls).toEqual([]);
+	});
+
+	it('an invalid body still uses up quota: the limit is checked before reading the body', async () => {
+		let used = 0;
+		const { handle } = app({ withinLimit: async () => ++used <= 2 });
+		expect((await handle(post('/parse', 'garbage'))).status).toBe(400);
+		expect((await handle(post('/parse', 'garbage'))).status).toBe(400);
+		expect((await handle(post('/parse', 'garbage'))).status).toBe(429);
+		expect(used).toBe(3);
+	});
+
+	it('logs whether each request was within the limit, without the user id', async () => {
+		const logs: string[] = [];
+		const spy = vi.spyOn(console, 'log').mockImplementation((line: string) => void logs.push(line));
+		let n = 0;
+		const { handle } = app({ withinLimit: async () => ++n === 1 });
+		await handle(post('/parse'));
+		await handle(post('/parse'));
+		spy.mockRestore();
+		expect(logs.map((l) => JSON.parse(l))).toEqual([
+			{ event: 'rate_limit', success: true },
+			{ event: 'rate_limit', success: false },
+		]);
+		expect(logs.join()).not.toContain('user-1');
 	});
 
 	it.each([

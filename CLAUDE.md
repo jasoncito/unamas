@@ -134,11 +134,14 @@ UI: onSend(text | image | voz→texto)
 ### 4.6 Worker
 
 ```
-worker/src/index.ts     router mínimo: POST /parse y POST /account/delete, todo lo demás 404
+worker/src/index.ts     conecta las rutas con el entorno real (JWKS, limitador, Claude, admin de Supabase)
+worker/src/app.ts       rutas: POST /parse y POST /account/delete, todo lo demás 404
+                        /parse, en este orden: verifica el token (401) → limit() por user_id (429) → valida el cuerpo
+                        con zod (400) → Claude → revisa la respuesta. El límite va antes de validar: la basura también cuenta
 worker/src/auth.ts      verifica el JWT de Supabase (jose + JWKS) → user_id; sin token o inválido → 401
-worker/src/parse.ts     valida la request (zod) → rate limit por user_id → arma el prompt → llama a Claude → valida la salida
-worker/src/account.ts   borra el usuario con la service role key (las filas caen en cascada)
-worker/src/prompt.ts    system prompt + ejemplos (las frases del seed)
+worker/src/claude.ts    arma el pedido a Haiku (structured outputs), revisa la respuesta, completa opciones y registra el uso
+worker/src/prompt.ts    system prompt + ejemplos inventados (las frases del seed son el set de prueba)
+worker/src/account.ts   borra el usuario con la clave secreta (las filas caen en cascada)
 shared/contract.ts      el mismo esquema zod que usa la app; de ahí sale el JSON Schema para structured outputs
 ```
 

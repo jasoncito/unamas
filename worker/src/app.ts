@@ -28,7 +28,10 @@ type Route = (request: Request, userId: string, deps: AppDeps) => Promise<Respon
 
 const ROUTES: Record<string, Route> = {
 	'/parse': async (request, userId, deps) => {
-		if (!(await deps.withinLimit(userId))) return json({ error: 'rate_limited' }, 429, { 'Retry-After': '60' });
+		// Before reading the body: invalid requests use up quota too.
+		const allowed = await deps.withinLimit(userId);
+		console.log(JSON.stringify({ event: 'rate_limit', success: allowed })); // no user id in the logs
+		if (!allowed) return json({ error: 'rate_limited' }, 429, { 'Retry-After': '60' });
 
 		const body = await request.json().catch(() => null);
 		const parsed = ParseRequest.safeParse(body);
