@@ -5,7 +5,6 @@ export type TargetReason =
   | 'stalled_light_session' // rule 3: 3 exposures without "up", half the sets, away from failure
   | 'stalled_try_variant' // rule 3: still stalled after the light session and one normal attempt
   | 'bad_day_repeat' // §6: dropped once at the same load, repeat the previous target
-  | 'hold_after_failure' // §6: at the top but "al fallo", don't add load yet
   | 'confirm_top' // §6 confirm mode: hit the top once, needs a second time before adding load
   | 'add_load' // rule 5: every set at the effective top
   | 'failed_load_jump' // rule 6: below the floor right after a load increase

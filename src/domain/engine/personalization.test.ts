@@ -12,11 +12,11 @@ function config(kind: ExerciseKind, stepKg: number): ExerciseConfig {
   return { kind, repFloor, repTop, stepKg };
 }
 
-const x = (date: string, loadKg: number, reps: number[], effort?: Exposure['effort']): Exposure => ({
+const x = (date: string, loadKg: number, reps: number[], easy?: boolean): Exposure => ({
   date,
   loadKg,
   reps,
-  ...(effort && { effort }),
+  ...(easy && { easy }),
 });
 const sets = (n: number, reps: number) => Array<number>(n).fill(reps);
 /** Weekly dates ending on 27 sep, oldest first. */
@@ -62,24 +62,35 @@ describe('rep range recentering', () => {
 });
 
 describe('learned step', () => {
-  it('16 → 17.5 makes the step 1.5', () => {
+  it('a smaller jump shrinks the step: 16 → 17.5 with step 2 makes it 1.5', () => {
     const p = learnProfile([x('2026-09-20', 16, sets(4, 15)), x('2026-09-27', 17.5, sets(4, 12))], config('isolation', 2));
     expect(p.stepKg).toBe(1.5);
   });
 
-  it('the last increase wins, and decreases do not count', () => {
+  it('a bigger jump never grows the step: tríceps 25 → 30 keeps 2.5', () => {
+    const history = [x('2026-09-16', 25, sets(3, 10)), x('2026-09-27', 30, sets(4, 10))];
+    expect(learnProfile(history, config('isolation', 2.5)).stepKg).toBe(2.5);
+  });
+
+  it('the smallest jump seen wins, and decreases do not count', () => {
     const history = [
-      x('2026-09-06', 20, sets(4, 12)),
-      x('2026-09-13', 25, sets(4, 10)),
-      x('2026-09-20', 22.5, sets(4, 12)),
-      x('2026-09-27', 25, sets(4, 12)),
+      x('2026-09-06', 20, sets(4, 15)),
+      x('2026-09-13', 21, sets(4, 12)), // +1
+      x('2026-09-20', 18, sets(4, 15)), // −3: ignored
+      x('2026-09-27', 22, sets(4, 12)), // +4: bigger, ignored
     ];
-    expect(learnProfile(history, config('isolation', 2)).stepKg).toBe(2.5);
+    expect(learnProfile(history, config('isolation', 2)).stepKg).toBe(1);
+  });
+
+  it('with the default step, the next jump from 30 kg is to 32.5 kg', () => {
+    const history = [x('2026-09-16', 25, sets(4, 15)), x('2026-09-27', 30, sets(4, 15))];
+    expect(nextTarget(history, config('isolation', 2.5), TODAY)!).toMatchObject({ reason: 'add_load', loadKg: 32.5 });
   });
 
   it('the learned step is used when stepping down after a long break', () => {
-    const history = [x('2026-08-10', 20, sets(4, 12)), x('2026-08-17', 22.5, sets(4, 8))];
-    const t = nextTarget(history, config('compound', 2), TODAY)!;
+    // Base step 2.5, learned 1.5 from 20 → 21.5; 43 days off → 21.5 − 1.5 = 20.
+    const history = [x('2026-08-10', 20, sets(4, 12)), x('2026-08-17', 21.5, sets(4, 8))];
+    const t = nextTarget(history, config('compound', 2.5), TODAY)!;
     expect(t).toMatchObject({ reason: 'long_gap_step_down', loadKg: 20 });
   });
 
@@ -121,7 +132,7 @@ describe('confirm mode (after a failed load jump)', () => {
   });
 
   it('"fácil" at the top skips the confirmation', () => {
-    const t = nextTarget([...failed, x('2026-09-27', 12.5, sets(4, 15), 'easy')], curl, TODAY)!;
+    const t = nextTarget([...failed, x('2026-09-27', 12.5, sets(4, 15), true)], curl, TODAY)!;
     expect(t).toMatchObject({ reason: 'add_load', loadKg: 13.75 });
   });
 
@@ -138,18 +149,6 @@ describe('confirm mode (after a failed load jump)', () => {
   it('is off without a failed jump', () => {
     const t = nextTarget([x('2026-09-27', 12.5, sets(4, 15))], curl, TODAY)!;
     expect(t.reason).toBe('add_load');
-  });
-});
-
-describe('"al fallo" at the top', () => {
-  it('holds the load instead of adding it', () => {
-    const t = nextTarget([x('2026-09-27', 20, sets(4, 12), 'failure')], press, TODAY)!;
-    expect(t).toMatchObject({ reason: 'hold_after_failure', loadKg: 20, reps: sets(4, 12) });
-  });
-
-  it('below the top it changes nothing', () => {
-    const t = nextTarget([x('2026-09-27', 20, sets(4, 8), 'failure')], press, TODAY)!;
-    expect(t).toMatchObject({ reason: 'add_rep', reps: sets(4, 9) });
   });
 });
 
@@ -257,9 +256,8 @@ describe('stall → light session → one normal attempt → variant', () => {
 });
 
 describe('the §7 table still holds with personalization on', () => {
-  it('tríceps 25 → 30 learns step 5 but the target is still 30 kg · 4×11', () => {
+  it('tríceps 25 → 30 → 30 kg · 4×11', () => {
     const history = [x('2026-09-16', 25, sets(3, 10)), x('2026-09-27', 30, sets(4, 10))];
-    expect(learnProfile(history, config('isolation', 2.5)).stepKg).toBe(5);
     const t = nextTarget(history, config('isolation', 2.5), TODAY)!;
     expect(formatExposure(t.loadKg, t.reps)).toBe('30 kg · 4×11');
   });

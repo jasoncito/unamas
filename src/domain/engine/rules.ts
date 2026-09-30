@@ -74,15 +74,12 @@ export function decide(history: readonly Exposure[], profile: Profile, today: Is
   ) {
     return target(inEffect.loadKg, [...inEffect.reps], 'bad_day_repeat');
   }
-  // 4–5. Every set at the effective top → add load, back to the floor (unless §6 holds it).
+  // 4–5. Every set at the effective top → add load, back to the floor (unless confirm mode holds it).
   const minReps = Math.min(...last.reps);
   if (minReps >= top) {
-    if (last.effort === 'failure') {
-      return target(last.loadKg, [...last.reps], 'hold_after_failure');
-    }
     const confirmed =
       !profile.confirmMode ||
-      last.effort === 'easy' ||
+      last.easy === true ||
       (prev !== undefined && prev.loadKg === last.loadKg && Math.min(...prev.reps) >= top);
     if (!confirmed) {
       return target(last.loadKg, last.reps.map(() => top), 'confirm_top');

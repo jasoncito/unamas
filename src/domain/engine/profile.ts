@@ -22,9 +22,9 @@ export function learnProfile(history: readonly Exposure[], ex: ExerciseConfig): 
       if (range) [p.repFloor, p.repTop] = range;
     }
 
-    // Step and confirm mode: learned from load increases.
+    // Step and confirm mode: learned from load increases. The step can only shrink.
     if (prev && cur.loadKg > prev.loadKg) {
-      p.stepKg = roundKg(cur.loadKg - prev.loadKg);
+      p.stepKg = Math.min(p.stepKg, roundKg(cur.loadKg - prev.loadKg));
       p.confirmMode = Math.min(...cur.reps) < p.repFloor;
     }
 
