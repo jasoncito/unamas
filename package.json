@@ -10,6 +10,7 @@
     "expo-linking": "~57.0.11",
     "expo-router": "~57.0.23",
     "expo-splash-screen": "~57.0.9",
+    "expo-sqlite": "~57.0.3",
     "expo-status-bar": "~57.0.1",
     "expo-system-ui": "~57.0.4",
     "react": "19.2.3",
@@ -36,7 +37,8 @@
     "web": "expo start --web",
     "lint": "expo lint",
     "test": "jest",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "start:seed": "EXPO_PUBLIC_SEED=1 expo start"
   },
   "private": true,
   "jest": {
