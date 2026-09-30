@@ -1,32 +1,32 @@
 """Genera seed.json con el historial real de Jason (15–27 sep 2026) para desarrollo y tests."""
 import json
 
-# id, nombre canónico, alias, músculos, kind, load_basis, step_kg
+# id, nombre canónico (corto, ~28 caracteres; el detalle va en los alias), alias, músculos, kind, load_basis, step_kg
 EX = [
     ("curl_barra_z", "Curl con barra Z", ["bicep curl barra z", "curl barra z"], ["bíceps"], "isolation", "per_side", 1.25),
     ("curl_inclinado_mancuernas", "Curl inclinado con mancuernas", ["curl mancuernas banco inclinado"], ["bíceps"], "isolation", "per_dumbbell", 2),
     ("curl_martillo_polea", "Curl martillo en polea", ["curl martillo"], ["bíceps"], "isolation", "stack", 2.5),
     ("curl_concentracion", "Curl de concentración", ["curl concentrado sentado"], ["bíceps"], "isolation", "per_dumbbell", 2),
     ("preacher_curl_z", "Curl predicador con barra Z", ["preacher curl", "banco scott"], ["bíceps"], "isolation", "per_side", 1.25),
-    ("low_row_maquina", "Remo bajo en máquina (low row)", ["low row", "remo bajo"], ["espalda"], "compound", "stack", 5),
+    ("low_row_maquina", "Remo bajo en máquina", ["low row", "remo bajo", "Remo bajo en máquina (low row)"], ["espalda"], "compound", "stack", 5),
     ("jalon_pecho_maquina", "Jalón al pecho en máquina", ["jalón al pecho", "lat pulldown"], ["espalda"], "compound", "stack", 5),
     ("lumbar_maquina", "Extensión lumbar en máquina", ["máquina lumbar", "lumbar technogym"], ["espalda"], "isolation", "stack", 5),
     ("press_hombro_mancuernas", "Press de hombro con mancuernas", ["press de hombros", "press hombro mancuernas", "press militar mancuernas"], ["hombro"], "compound", "per_dumbbell", 2),
     ("press_hombro_maquina", "Press de hombro en máquina", ["press hombro technogym", "press militar máquina"], ["hombro"], "compound", "per_side", 2.5),
-    ("laterales_pie_mancuernas", "Elevaciones laterales de pie con mancuernas", ["laterales de pie", "elevaciones laterales"], ["hombro"], "isolation", "per_dumbbell", 2),
-    ("laterales_polea", "Elevaciones laterales en polea", ["laterales en polea"], ["hombro"], "isolation", "stack", 2.5),
-    ("laterales_pecho_rodillas", "Elevaciones laterales con pecho en rodillas", ["pájaros", "laterales inclinado", "deltoide posterior mancuernas"], ["hombro"], "isolation", "per_dumbbell", 2),
+    ("laterales_pie_mancuernas", "Laterales de pie", ["laterales de pie", "elevaciones laterales", "Elevaciones laterales de pie con mancuernas"], ["hombro"], "isolation", "per_dumbbell", 2),
+    ("laterales_polea", "Laterales en polea", ["laterales en polea", "Elevaciones laterales en polea"], ["hombro"], "isolation", "stack", 2.5),
+    ("laterales_pecho_rodillas", "Laterales con pecho en rodillas", ["pájaros", "laterales inclinado", "deltoide posterior mancuernas", "Elevaciones laterales con pecho en rodillas"], ["hombro"], "isolation", "per_dumbbell", 2),
     ("face_pull", "Face pull en polea alta", ["jalón a la cara", "jalones polea deltoide posterior"], ["hombro"], "isolation", "stack", 2.5),
-    ("frontales_mancuernas", "Elevaciones frontales con mancuernas", ["frontales"], ["hombro"], "isolation", "per_dumbbell", 2),
-    ("triceps_polea_tras_cabeza", "Extensión de tríceps en polea por detrás de la cabeza", ["tríceps polea detrás de la cabeza", "overhead polea"], ["tríceps"], "isolation", "stack", 2.5),
-    ("pushdown_barra_v", "Tríceps en polea con barra V (pushdown)", ["pushdown", "tríceps polea barra v", "tríceps arriba hacia abajo"], ["tríceps"], "isolation", "stack", 2.5),
-    ("triceps_mancuerna_cabeza", "Extensión de tríceps sobre la cabeza con mancuerna", ["tríceps sobre la cabeza", "copa con mancuerna"], ["tríceps"], "isolation", "total", 2),
-    ("press_banca_barra", "Press de banca plano con barra", ["press banca", "bench press"], ["pecho"], "compound_heavy", "per_side", 2.5),
+    ("frontales_mancuernas", "Frontales con mancuernas", ["frontales", "Elevaciones frontales con mancuernas"], ["hombro"], "isolation", "per_dumbbell", 2),
+    ("triceps_polea_tras_cabeza", "Tríceps en polea tras nuca", ["tríceps polea detrás de la cabeza", "overhead polea", "Extensión de tríceps en polea por detrás de la cabeza"], ["tríceps"], "isolation", "stack", 2.5),
+    ("pushdown_barra_v", "Tríceps en polea, barra V", ["pushdown", "tríceps polea barra v", "tríceps arriba hacia abajo", "Tríceps en polea con barra V (pushdown)"], ["tríceps"], "isolation", "stack", 2.5),
+    ("triceps_mancuerna_cabeza", "Tríceps sobre la cabeza", ["tríceps sobre la cabeza", "copa con mancuerna", "Extensión de tríceps sobre la cabeza con mancuerna"], ["tríceps"], "isolation", "total", 2),
+    ("press_banca_barra", "Press de banca con barra", ["press banca", "bench press", "Press de banca plano con barra"], ["pecho"], "compound_heavy", "per_side", 2.5),
     ("press_pecho_maquina", "Press de pecho en máquina", ["press pecho technogym"], ["pecho"], "compound", "per_side", 2.5),
     ("sentadilla_smith", "Sentadilla en máquina Smith", ["sentadilla smith", "squat smith"], ["pierna", "glúteo"], "compound_heavy", "per_side", 2.5),
     ("zancadas_barra", "Zancadas alternas con barra", ["lunges", "zancadas en el sitio"], ["pierna", "glúteo"], "compound", "per_side", 2.5),
-    ("leg_extension", "Extensión de pierna en máquina", ["leg extension"], ["pierna"], "isolation", "stack", 5),
-    ("pantorrilla_pie_mancuerna", "Elevación de pantorrilla de pie con mancuerna", ["pantorrilla de pie"], ["pantorrilla"], "calf", "total", 2),
+    ("leg_extension", "Extensión de pierna", ["leg extension", "Extensión de pierna en máquina"], ["pierna"], "isolation", "stack", 5),
+    ("pantorrilla_pie_mancuerna", "Pantorrilla de pie", ["pantorrilla de pie", "Elevación de pantorrilla de pie con mancuerna"], ["pantorrilla"], "calf", "total", 2),
 ]
 RANGES = {"compound_heavy": (6, 10), "compound": (8, 12), "isolation": (10, 15), "calf": (12, 20)}
 

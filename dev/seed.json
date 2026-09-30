@@ -79,10 +79,11 @@
     },
     {
       "id": "low_row_maquina",
-      "canonical_name": "Remo bajo en máquina (low row)",
+      "canonical_name": "Remo bajo en máquina",
       "aliases": [
         "low row",
-        "remo bajo"
+        "remo bajo",
+        "Remo bajo en máquina (low row)"
       ],
       "muscle_groups": [
         "espalda"
@@ -160,10 +161,11 @@
     },
     {
       "id": "laterales_pie_mancuernas",
-      "canonical_name": "Elevaciones laterales de pie con mancuernas",
+      "canonical_name": "Laterales de pie",
       "aliases": [
         "laterales de pie",
-        "elevaciones laterales"
+        "elevaciones laterales",
+        "Elevaciones laterales de pie con mancuernas"
       ],
       "muscle_groups": [
         "hombro"
@@ -176,9 +178,10 @@
     },
     {
       "id": "laterales_polea",
-      "canonical_name": "Elevaciones laterales en polea",
+      "canonical_name": "Laterales en polea",
       "aliases": [
-        "laterales en polea"
+        "laterales en polea",
+        "Elevaciones laterales en polea"
       ],
       "muscle_groups": [
         "hombro"
@@ -191,11 +194,12 @@
     },
     {
       "id": "laterales_pecho_rodillas",
-      "canonical_name": "Elevaciones laterales con pecho en rodillas",
+      "canonical_name": "Laterales con pecho en rodillas",
       "aliases": [
         "pájaros",
         "laterales inclinado",
-        "deltoide posterior mancuernas"
+        "deltoide posterior mancuernas",
+        "Elevaciones laterales con pecho en rodillas"
       ],
       "muscle_groups": [
         "hombro"
@@ -224,9 +228,10 @@
     },
     {
       "id": "frontales_mancuernas",
-      "canonical_name": "Elevaciones frontales con mancuernas",
+      "canonical_name": "Frontales con mancuernas",
       "aliases": [
-        "frontales"
+        "frontales",
+        "Elevaciones frontales con mancuernas"
       ],
       "muscle_groups": [
         "hombro"
@@ -239,10 +244,11 @@
     },
     {
       "id": "triceps_polea_tras_cabeza",
-      "canonical_name": "Extensión de tríceps en polea por detrás de la cabeza",
+      "canonical_name": "Tríceps en polea tras nuca",
       "aliases": [
         "tríceps polea detrás de la cabeza",
-        "overhead polea"
+        "overhead polea",
+        "Extensión de tríceps en polea por detrás de la cabeza"
       ],
       "muscle_groups": [
         "tríceps"
@@ -255,11 +261,12 @@
     },
     {
       "id": "pushdown_barra_v",
-      "canonical_name": "Tríceps en polea con barra V (pushdown)",
+      "canonical_name": "Tríceps en polea, barra V",
       "aliases": [
         "pushdown",
         "tríceps polea barra v",
-        "tríceps arriba hacia abajo"
+        "tríceps arriba hacia abajo",
+        "Tríceps en polea con barra V (pushdown)"
       ],
       "muscle_groups": [
         "tríceps"
@@ -272,10 +279,11 @@
     },
     {
       "id": "triceps_mancuerna_cabeza",
-      "canonical_name": "Extensión de tríceps sobre la cabeza con mancuerna",
+      "canonical_name": "Tríceps sobre la cabeza",
       "aliases": [
         "tríceps sobre la cabeza",
-        "copa con mancuerna"
+        "copa con mancuerna",
+        "Extensión de tríceps sobre la cabeza con mancuerna"
       ],
       "muscle_groups": [
         "tríceps"
@@ -288,10 +296,11 @@
     },
     {
       "id": "press_banca_barra",
-      "canonical_name": "Press de banca plano con barra",
+      "canonical_name": "Press de banca con barra",
       "aliases": [
         "press banca",
-        "bench press"
+        "bench press",
+        "Press de banca plano con barra"
       ],
       "muscle_groups": [
         "pecho"
@@ -353,9 +362,10 @@
     },
     {
       "id": "leg_extension",
-      "canonical_name": "Extensión de pierna en máquina",
+      "canonical_name": "Extensión de pierna",
       "aliases": [
-        "leg extension"
+        "leg extension",
+        "Extensión de pierna en máquina"
       ],
       "muscle_groups": [
         "pierna"
@@ -368,9 +378,10 @@
     },
     {
       "id": "pantorrilla_pie_mancuerna",
-      "canonical_name": "Elevación de pantorrilla de pie con mancuerna",
+      "canonical_name": "Pantorrilla de pie",
       "aliases": [
-        "pantorrilla de pie"
+        "pantorrilla de pie",
+        "Elevación de pantorrilla de pie con mancuerna"
       ],
       "muscle_groups": [
         "pantorrilla"
