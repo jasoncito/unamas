@@ -81,7 +81,7 @@ out = {"exercises": [], "sessions": [], "entries": []}
 for i, n, al, mg, k, lb, st in EX:
     lo, hi = RANGES[k]
     out["exercises"].append(dict(id=i, canonical_name=n, aliases=al, muscle_groups=mg, kind=k, rep_floor=lo, rep_top=hi,
-                                 step_kg=st, load_basis=lb, confirm_mode=False, fast_progress=False))
+                                 step_kg=st, load_basis=lb))
 for si, (d, groups, dur, bpm, entries) in enumerate(SESSIONS, 1):
     sid = f"s{si}"
     out["sessions"].append(dict(id=sid, date=d, muscle_groups=groups, duration_min=dur, avg_bpm=bpm))

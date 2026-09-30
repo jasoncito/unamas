@@ -54,7 +54,7 @@ La IA asigna el tipo cuando el ejercicio se crea por primera vez, y el usuario l
 
 - Es el **siguiente peso disponible** para ese equipo, por lado o por mancuerna, tal como lo dice el usuario ("20 kg a cada lado", "mancuernas de 24").
 - Valores iniciales: mancuernas 2 kg · discos 2.5 kg por lado (barra Z 1.25) · polea/máquina 2.5 kg · máquinas grandes 5 kg.
-- **Se aprende:** si el usuario registra 16 → 17.5, el paso de ese ejercicio pasa a 1.5. **[heurística]**
+- **Se aprende, pero solo hacia abajo:** el paso base es `step_kg` del ejercicio (el incremento mínimo del equipo). Si el usuario registra un salto menor (16 → 17.5 con paso 2), el paso pasa a 1.5. Un salto mayor (25 → 30 con paso 2.5) **no** cambia el paso: la próxima subida sigue siendo de 2.5. **[heurística]**
 
 ### 3.3 ¿El salto es absorbible?
 
@@ -135,14 +135,15 @@ Sin preguntarle nada al usuario, el algoritmo ajusta estas cosas **por ejercicio
 | Qué aprende | Señal | Ajuste | Etiqueta |
 |---|---|---|---|
 | Rango de reps | Sus primeras 2 sesiones fuera del rango | Recentra el rango (§3.1) | [heurística] |
-| Paso de peso | Los saltos que realmente registra | Actualiza `paso` | [heurística] |
+| Paso de peso | Un salto registrado menor que el paso actual | Achica `paso` (nunca lo agranda) | [heurística] |
 | **Modo confirmar** | Falló una subida de peso (regla 6) | La próxima subida exige el tope en **2 sesiones seguidas** (regla de ACSM) | [evidencia] ACSM 2009 |
 | Progresión rápida | Supera la meta en ≥ 2 reps dos veces seguidas | Permite +2 reps por sesión en vez de +1 | [heurística] |
 | Días malos | Una sesión bajó sin cambiar el peso | Repite la meta, no baja. Solo baja si ocurre 2 veces | [heurística] |
 
 **Esfuerzo percibido (RIR):** no se le pide al usuario en el MVP. Las personas se equivocan por ~1 rep al estimar cuánto les falta para el fallo, y la estimación empeora por encima de 12 reps (Halperin et al. 2022). Además, la carga autorregulada y la estandarizada dan ganancias de fuerza similares (Hickmott et al. 2022). Pero si el usuario lo dice espontáneamente ("me sobraron 3", "fácil"), la IA lo extrae y:
 - "fácil" o ≥ 3 en reserva estando en el tope → permite saltarse el modo confirmar.
-- "al fallo" o "no pude más" en el piso → no sube el peso la próxima vez.
+
+"Al fallo" o "no pude más" **no cambia la meta**: 0–2 reps en reserva es el esfuerzo objetivo (§3.4), así que llegar al fallo en el tope igual sube el peso. Solo se guarda como nota.
 
 **[evidencia de por qué es opcional; el ajuste es heurística]**
 
@@ -150,18 +151,17 @@ Sin preguntarle nada al usuario, el algoritmo ajusta estas cosas **por ejercicio
 
 La tabla de arriba deja detalles abiertos. Así los resuelve `src/domain/engine/`. Todos son **[heurística]** y hay que validarlos con uso real.
 
-Todo se **deriva del historial**: el motor lo recorre de la primera a la última exposición, calcula qué meta tenía cada una en su momento y va ajustando el perfil del ejercicio. No se guarda nada: si cambia el algoritmo, el perfil se recalcula solo.
+Todo se **deriva del historial**: el motor lo recorre de la primera a la última exposición, calcula qué meta tenía cada una en su momento y va ajustando el perfil del ejercicio. No se guarda nada: si cambia el algoritmo, el perfil se recalcula solo. Por eso el modo confirmar y la progresión rápida **no son columnas** de la base de datos.
 
 | Qué | Regla exacta |
 |---|---|
 | Rango recentrado | Solo con las 2 primeras exposiciones, y solo si **todas** sus series quedan fuera del rango **del mismo lado** (todas arriba del tope o todas bajo el piso). Nuevo rango: `[máx(1, mediana − 2), mediana + 3]`, con la mediana de todas esas series, redondeada. |
-| Paso aprendido | Cada vez que el peso sube respecto a la exposición anterior, el paso pasa a ser esa diferencia (el **último** salto registrado). |
+| Paso aprendido | Parte de `step_kg`. Cada vez que el peso sube respecto a la exposición anterior con un salto **menor** que el paso actual, el paso pasa a ser ese salto. Nunca crece. |
 | Modo confirmar | Se activa cuando el peso sube y alguna serie queda bajo el piso. Se desactiva con la siguiente subida de peso que sí llega al piso. Mientras está activo, subir de peso exige el tope en las **2 últimas** exposiciones con el mismo peso. Si solo la última llegó, la meta es repetir el tope. |
 | Progresión rápida | "Superar la meta en ≥ 2" = mismo peso que la meta y **cada** serie de la meta superada en ≥ 2 reps. Se activa tras 2 exposiciones seguidas así. Se apaga cuando el usuario, con el peso de la meta, no la cumple en alguna serie. Afecta solo a la regla 8 (+2 en vez de +1, sin pasar el tope). |
 | Días malos | Si la última exposición **bajó sin cambiar el peso** (según el §5) y la anterior no había bajado también con ese peso, la meta es **repetir la meta que tenía esa exposición**, aunque fuera una subida de peso que no hizo. Si bajó 2 veces seguidas, siguen las reglas normales. Se evalúa después de la regla 3 y antes de la 5. |
 | Sesión ligera → variante | Las exposiciones hechas con una meta de "sesión ligera" **no cuentan** para el estancamiento, la comparación ni las reglas 4–8. Después de la sesión ligera viene **un intento normal**. Si ese intento sigue estancado, la meta es "cambia de variante" (se repiten los números de la última exposición normal). Se vuelve a sugerir sesión ligera solo cuando la ventana de estancamiento ya no incluye la anterior. |
 | RIR "fácil" | Si la última exposición está en el tope y el usuario dijo "fácil" (o ≥ 3 en reserva), se salta el modo confirmar. |
-| RIR "al fallo" | Si la última exposición dice "al fallo" o "no pude más", **no se sube el peso**: si estaba en el tope, se repite. En el piso ya no se subiría de todos modos, así que la regla solo cambia algo en el tope. |
 
 ---
 
@@ -209,8 +209,7 @@ Casos borde probados:
 
 ```
 exercise   { id, canonical_name, aliases[], muscle_groups[], kind, rep_floor, rep_top, step_kg,
-             load_basis: 'per_side' | 'per_dumbbell' | 'total' | 'stack',
-             confirm_mode: bool, fast_progress: bool }
+             load_basis: 'per_side' | 'per_dumbbell' | 'total' | 'stack' }
 session    { id, date, muscle_groups[], started_at, ended_at, avg_bpm? }
 entry      { id, session_id, exercise_id, load_kg, reps: int[], raw_text, rir_note?, created_at }
 ```

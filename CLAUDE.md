@@ -239,7 +239,6 @@ CREATE TABLE exercise (
   kind TEXT NOT NULL CHECK (kind IN ('compound_heavy','compound','isolation','calf')),
   rep_floor INTEGER NOT NULL, rep_top INTEGER NOT NULL, step_kg REAL NOT NULL,
   load_basis TEXT NOT NULL CHECK (load_basis IN ('per_side','per_dumbbell','total','stack')),
-  confirm_mode INTEGER NOT NULL DEFAULT 0, fast_progress INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL
 );
 CREATE TABLE session (

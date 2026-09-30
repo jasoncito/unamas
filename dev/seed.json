@@ -14,9 +14,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 1.25,
-      "load_basis": "per_side",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_side"
     },
     {
       "id": "curl_inclinado_mancuernas",
@@ -31,9 +29,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 2,
-      "load_basis": "per_dumbbell",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_dumbbell"
     },
     {
       "id": "curl_martillo_polea",
@@ -48,9 +44,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 2.5,
-      "load_basis": "stack",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "stack"
     },
     {
       "id": "curl_concentracion",
@@ -65,9 +59,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 2,
-      "load_basis": "per_dumbbell",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_dumbbell"
     },
     {
       "id": "preacher_curl_z",
@@ -83,9 +75,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 1.25,
-      "load_basis": "per_side",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_side"
     },
     {
       "id": "low_row_maquina",
@@ -101,9 +91,7 @@
       "rep_floor": 8,
       "rep_top": 12,
       "step_kg": 5,
-      "load_basis": "stack",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "stack"
     },
     {
       "id": "jalon_pecho_maquina",
@@ -119,9 +107,7 @@
       "rep_floor": 8,
       "rep_top": 12,
       "step_kg": 5,
-      "load_basis": "stack",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "stack"
     },
     {
       "id": "lumbar_maquina",
@@ -137,9 +123,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 5,
-      "load_basis": "stack",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "stack"
     },
     {
       "id": "press_hombro_mancuernas",
@@ -156,9 +140,7 @@
       "rep_floor": 8,
       "rep_top": 12,
       "step_kg": 2,
-      "load_basis": "per_dumbbell",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_dumbbell"
     },
     {
       "id": "press_hombro_maquina",
@@ -174,9 +156,7 @@
       "rep_floor": 8,
       "rep_top": 12,
       "step_kg": 2.5,
-      "load_basis": "per_side",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_side"
     },
     {
       "id": "laterales_pie_mancuernas",
@@ -192,9 +172,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 2,
-      "load_basis": "per_dumbbell",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_dumbbell"
     },
     {
       "id": "laterales_polea",
@@ -209,9 +187,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 2.5,
-      "load_basis": "stack",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "stack"
     },
     {
       "id": "laterales_pecho_rodillas",
@@ -228,9 +204,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 2,
-      "load_basis": "per_dumbbell",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_dumbbell"
     },
     {
       "id": "face_pull",
@@ -246,9 +220,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 2.5,
-      "load_basis": "stack",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "stack"
     },
     {
       "id": "frontales_mancuernas",
@@ -263,9 +235,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 2,
-      "load_basis": "per_dumbbell",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_dumbbell"
     },
     {
       "id": "triceps_polea_tras_cabeza",
@@ -281,9 +251,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 2.5,
-      "load_basis": "stack",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "stack"
     },
     {
       "id": "pushdown_barra_v",
@@ -300,9 +268,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 2.5,
-      "load_basis": "stack",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "stack"
     },
     {
       "id": "triceps_mancuerna_cabeza",
@@ -318,9 +284,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 2,
-      "load_basis": "total",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "total"
     },
     {
       "id": "press_banca_barra",
@@ -336,9 +300,7 @@
       "rep_floor": 6,
       "rep_top": 10,
       "step_kg": 2.5,
-      "load_basis": "per_side",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_side"
     },
     {
       "id": "press_pecho_maquina",
@@ -353,9 +315,7 @@
       "rep_floor": 8,
       "rep_top": 12,
       "step_kg": 2.5,
-      "load_basis": "per_side",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_side"
     },
     {
       "id": "sentadilla_smith",
@@ -372,9 +332,7 @@
       "rep_floor": 6,
       "rep_top": 10,
       "step_kg": 2.5,
-      "load_basis": "per_side",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_side"
     },
     {
       "id": "zancadas_barra",
@@ -391,9 +349,7 @@
       "rep_floor": 8,
       "rep_top": 12,
       "step_kg": 2.5,
-      "load_basis": "per_side",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "per_side"
     },
     {
       "id": "leg_extension",
@@ -408,9 +364,7 @@
       "rep_floor": 10,
       "rep_top": 15,
       "step_kg": 5,
-      "load_basis": "stack",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "stack"
     },
     {
       "id": "pantorrilla_pie_mancuerna",
@@ -425,9 +379,7 @@
       "rep_floor": 12,
       "rep_top": 20,
       "step_kg": 2,
-      "load_basis": "total",
-      "confirm_mode": false,
-      "fast_progress": false
+      "load_basis": "total"
     }
   ],
   "sessions": [
