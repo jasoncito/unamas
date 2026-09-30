@@ -1,0 +1,45 @@
+{
+  "expo": {
+    "name": "unamas",
+    "slug": "unamas",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "unamas",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "icon": "./assets/expo.icon",
+      "bundleIdentifier": "com.jason.unamas"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#100E11",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.jason.unamas"
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#100E11",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 76
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "backgroundColor": "#100E11"
+  }
+}
