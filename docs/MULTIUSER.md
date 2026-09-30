@@ -133,7 +133,7 @@ El `with check` impide que alguien escriba filas con un `user_id` ajeno aunque l
   const { payload } = await jwtVerify(token, JWKS)   // payload.sub = user_id
   ```
   El proyecto debe usar **claves de firma asimétricas**, que es lo que recomienda Supabase para verificar desde servidores de terceros.
-- **Rate limit por usuario:** `env.PARSE_LIMITER.limit({ key: payload.sub })`. Se eliminan el `deviceId` y `X-App-Token`.
+- **Rate limit por usuario:** un Durable Object `RateLimiter` por `payload.sub` (30 por minuto, exacto; ver CLAUDE.md §6). El binding de Rate Limiting de Workers no limitaba en producción. Se eliminan el `deviceId` y `X-App-Token`.
 - **Abuso con cuentas anónimas:** Supabase limita por defecto la creación de anónimos a 30 por hora por IP. Si hace falta, se agrega Cloudflare Turnstile, que Supabase recomienda.
 - Nuevo endpoint `POST /account/delete` (secreto `SUPABASE_SERVICE_ROLE_KEY`).
 

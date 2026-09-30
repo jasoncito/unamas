@@ -238,11 +238,9 @@ Response (esquema JSON con structured outputs):
 ### Seguridad y costo
 
 - `ANTHROPIC_API_KEY` con `wrangler secret put`. **Nunca** en el bundle de la app.
-- **Límite de uso:** usa el binding de Rate Limiting de Workers (Wrangler ≥ 4.36):
-  ```jsonc
-  "ratelimits": [{ "name": "PARSE_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }]
-  ```
-  con `env.PARSE_LIMITER.limit({ key: payload.sub })`, es decir, por usuario.
+- **Límite de uso: 30 requests por minuto por usuario**, con un **Durable Object** por usuario (`worker/src/rateLimiter.ts`, `env.RATE_LIMITER.getByName(user_id).hit()`) y una ventana deslizante de 60 s. Las requests de un mismo objeto se atienden de a una, así que el conteo es exacto. Usa almacenamiento SQLite, el único del plan gratis (100.000 requests y 100.000 filas escritas por día; cada `/parse` usa 1 de cada una).
+  - Se probó primero el binding de Rate Limiting de Workers (`ratelimits`) y **no limitaba en producción**: 40 requests en un minuto desde una sola ubicación (MIA) dieron `success: true` todas, aunque en `wrangler dev` cortaba en la 31. Por eso se reemplazó (30 sep 2026).
+  - Cada request registra `{"event":"rate_limit","success":…}` sin el id del usuario. Además hay un **tope mensual de gasto** en la consola de Anthropic, por si todo lo demás falla.
 - **Autenticación:** el JWT de Supabase se verifica con `jose` (`createRemoteJWKSet` sobre `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` + `jwtVerify`). El proyecto de Supabase usa claves de firma asimétricas. Sin token o con uno inválido → 401.
 - **Cuentas anónimas:** Supabase limita su creación a 30 por hora por IP. Si hay abuso, se agrega Cloudflare Turnstile.
 - **`POST /account/delete`:** verifica el JWT y borra el usuario con `SUPABASE_SERVICE_ROLE_KEY` (secreto del Worker, nunca en la app), que contiene una **clave secreta nueva `sb_secret_…`** en el header `apikey`: Supabase deja de aceptar la `service_role` legacy a fines de 2026. Si el usuario ya no existe responde bien igual (idempotente, para que un plan B reintentado termine). Obligatorio por Apple 5.1.1(v).

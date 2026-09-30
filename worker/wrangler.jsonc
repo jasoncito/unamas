@@ -15,8 +15,12 @@
 	"vars": {
 		"SUPABASE_URL": "https://eybbfdqbqkajcbzeprsp.supabase.co"
 	},
-	// 30 requests per minute per user (the key is the Supabase user id). Per Cloudflare location, approximate.
-	"ratelimits": [
-		{ "name": "PARSE_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }
-	]
+	// Exact rate limit: one RateLimiter Durable Object per user (src/rateLimiter.ts). SQLite storage,
+	// the only kind on the Workers Free plan. The Rate Limiting binding didn't limit in production.
+	"durable_objects": {
+		"bindings": [{ "name": "RATE_LIMITER", "class_name": "RateLimiter" }]
+	},
+	"exports": {
+		"RateLimiter": { "type": "durable-object", "storage": "sqlite" }
+	}
 }
