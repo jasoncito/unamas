@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "12.0.1",
     "@supabase/supabase-js": "^2.117.2",
     "expo": "~57.0.25",
     "expo-constants": "~57.0.19",
@@ -45,7 +46,8 @@
     "typecheck": "tsc --noEmit",
     "start:seed": "EXPO_PUBLIC_SEED=1 expo start",
     "test:db": "node --test 'supabase/tests/*.test.mts'",
-    "test:db:remote": "node --env-file-if-exists=.env.local --test supabase/tests/rls.remote.mts"
+    "test:db:remote": "node --env-file-if-exists=.env.local --test supabase/tests/rls.remote.mts",
+    "test:sync:remote": "node --env-file-if-exists=.env.local node_modules/.bin/jest -c jest.remote.config.js"
   },
   "private": true,
   "jest": {
