@@ -121,6 +121,8 @@ El `with check` impide que alguien escriba filas con un `user_id` ajeno aunque l
 
 **Tests:** simular dos dispositivos con dos SQLite en memoria contra un Supabase falso. Casos: offline → online, el mismo usuario en dos teléfonos, borrado suave que se propaga, cursor que no pierde filas (incluida una fila confirmada tarde con `server_updated_at` anterior al cursor).
 
+**Alias aprendidos** (CLAUDE.md §6): elegir una opción en la pantalla 5 agrega un alias al ejercicio y lo deja `dirty`, así que viaja con el resto de la fila. Límite conocido: `aliases` se sincroniza como una sola columna con "gana el último", así que si dos teléfonos aprenden alias distintos del mismo ejercicio antes de sincronizar, se queda solo la lista del último que escribió. Es poco probable (una persona, casi siempre un teléfono) y lo que se pierde se vuelve a aprender la próxima vez que pregunte. Si pasara seguido, la solución es unir las listas al aplicar la fila remota.
+
 **Cerrar sesión** (§2): sync → si queda alguna fila `dirty = 1` (incluidas entradas pendientes o ambiguas, que no se suben), no se cierra y se avisa → vaciar las tablas y `sync_state` → `signOut`. Se vacía **antes** del `signOut`: si la app muriera entre los dos pasos, al abrirla sigue la misma sesión con la base vacía y el próximo sync baja todo de nuevo. Al revés, la base quedaría sin sesión y se subiría a una cuenta anónima nueva.
 
 ## 5. Cambios en el Worker

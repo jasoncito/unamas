@@ -1,3 +1,4 @@
+import { normalizeName } from '@/domain/names';
 import type { ExerciseConfig, ExerciseKind, LoadBasis } from '@/domain/types';
 
 import type { Db } from '../db';
@@ -73,4 +74,28 @@ export async function insertExercise(db: Db, x: Exercise): Promise<void> {
       nowIso(),
     ],
   );
+}
+
+export type AddAliasResult = 'added' | 'already_known' | 'taken_by_other' | 'no_exercise';
+
+/**
+ * Adds an alias to an exercise (compared normalized), marked dirty so it syncs. Never adds one that
+ * is already the name or an alias of another exercise: an alias must point to a single exercise.
+ */
+export async function addExerciseAlias(db: Db, exerciseId: string, alias: string): Promise<AddAliasResult> {
+  const key = normalizeName(alias);
+  const all = await getAllExercises(db);
+  const target = all.find((e) => e.id === exerciseId);
+  if (!target) return 'no_exercise';
+
+  const names = (e: Exercise) => [e.canonicalName, ...e.aliases].map(normalizeName);
+  if (names(target).includes(key)) return 'already_known';
+  if (all.some((e) => e.id !== exerciseId && names(e).includes(key))) return 'taken_by_other';
+
+  await db.runAsync('UPDATE exercise SET aliases = ?, updated_at = ?, dirty = 1 WHERE id = ?', [
+    JSON.stringify([...target.aliases, key]),
+    nowIso(),
+    exerciseId,
+  ]);
+  return 'added';
 }

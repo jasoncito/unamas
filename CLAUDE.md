@@ -115,6 +115,7 @@ UI: onSend(text | image | voz→texto)
                      → domain.nextTarget(historial)        → meta para las sugeridas
                      → dispatch(FEEDBACK { delta, texto de plantilla })
         ambiguous  → dispatch(DISAMBIGUATE { opciones })    (la entrada queda status='ambiguous')
+                     → al elegir una opción: learnAliasFromChoice(frase, ejercicio)  (alias aprendido, §6)
         end_session→ dispatch(SHOW_STOP_TIP)
         unclear    → dispatch(REPLY) y la entrada pendiente se borra
      5. error de red → la entrada queda 'pending' y la cola la reintenta (NetInfo)
@@ -222,6 +223,7 @@ Response (esquema JSON con structured outputs):
 ```
 - `exercise_id` sale **solo** de `context.exercises`. Si no hay coincidencia, va `null` y se llena `new_exercise: { canonical_name, muscle_groups[], kind, load_basis }`.
 - **Unificación de nombres:** variaciones del mismo ejercicio ("press de hombros", "press hombro mancuernas") → mismo `exercise_id`. Si la frase sirve para **dos o más** ejercicios distintos del usuario → `intent: "ambiguous"` con opciones. Nunca fusionar historiales dudosos.
+- **Alias aprendidos:** cuando el usuario elige una opción en una pregunta de "¿cuál ejercicio?" (pantalla 5), su frase **sin números** se guarda como alias del ejercicio elegido (`src/domain/names.ts` → `phraseToAlias`, `src/features/session/aliases.ts`): minúsculas, sin tildes, sin pesos, unidades, series×reps, "a cada lado" ni notas de esfuerzo ("jalones en la polea arriba para hombro posterior, con 25, 4 de 12" → "jalones en la polea arriba para hombro posterior"). Así la próxima vez esas palabras se resuelven directo. No se agrega si ya es el nombre o un alias de **otro** ejercicio (un alias apunta a un solo ejercicio), ni cuando la pregunta era por el peso. El ejercicio queda `dirty` y se sincroniza.
 - Normalizar: "4 de 9" → `[9,9,9,9]`; "3 de 11 y la última de 9" → `[11,11,11,9]`; "a cada lado" → `load_basis: per_side`; "7,5" → 7.5. Si no dicen kg, se asume kg.
 - Si falta el peso o las reps → `ambiguous` con una pregunta concreta. No inventar valores.
 - `easy`: `true` solo si dicen "fácil" o que les sobraron 3 o más reps; es la señal que usa el motor para saltarse el modo confirmar (PROGRESSION.md §6). `rir_note` guarda sus palabras tal cual.
@@ -329,6 +331,7 @@ La lista tiene dos secciones: **"Hoy"** (lo anotado, cada uno con "vs. <fecha de
 
 ### 5 · Si hay duda
 - Tu frase entre comillas, la pregunta ("¿Cuáles laterales?") y **botones con cada opción** mostrando su última carga. Abajo: "U otra cosa, dímelo".
+- Al tocar una opción, la frase (sin números) queda como alias de ese ejercicio: la próxima vez no pregunta (§6, "Alias aprendidos").
 
 ### 6 · Terminar (mantener presionado)
 - Barra de sesión, visible desde la primera entrada: grupo (20/700), cronómetro (17/700, tabular) y **botón stop** circular de 52 px (surface, cuadrado blanco de 16 px con radio 4).
