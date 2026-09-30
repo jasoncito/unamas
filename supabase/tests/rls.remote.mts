@@ -10,6 +10,13 @@ const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const key = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 const T = new Date().toISOString();
 
+/** Denied by RLS or by missing grants: Postgres 42501 with the expected reason. */
+function assertDenied(error: { code: string; message: string } | null, reason: RegExp) {
+  assert.ok(error, 'expected an error');
+  assert.equal(error.code, '42501');
+  assert.match(error.message, reason);
+}
+
 const client = () => createClient(url!, key!, { auth: { persistSession: false, autoRefreshToken: false } });
 
 const exercise = (id: string, name = 'Press de hombro') => ({
@@ -65,22 +72,24 @@ describe('RLS on the real project', { skip: !url || !key ? 'EXPO_PUBLIC_SUPABASE
 
   it("B can't overwrite A's row with an upsert on the same id", async () => {
     const { error } = await b.from('exercise').upsert(exercise(exA, 'hacked'), { onConflict: 'id' });
-    assert.ok(error, 'expected an error');
+    assertDenied(error, /row-level security/);
   });
 
   it("B can't write rows with A's user_id", async () => {
-    const { error } = await b.from('exercise').insert({ ...exercise(randomUUID()), user_id: aId });
-    assert.ok(error, 'expected an error');
     assert.notEqual(aId, bId);
+    const { error } = await b.from('exercise').insert({ ...exercise(randomUUID()), user_id: aId });
+    assertDenied(error, /row-level security/);
   });
 
   it("clients can't hard-delete", async () => {
     const { error } = await a.from('exercise').delete().eq('id', exA);
-    assert.ok(error, 'expected an error');
+    assertDenied(error, /permission denied/);
   });
 
   it('without a session nothing is readable', async () => {
-    const { error } = await client().from('exercise').select('id');
-    assert.ok(error, 'expected an error');
+    for (const table of ['exercise', 'session', 'entry']) {
+      const { error } = await client().from(table).select('id');
+      assertDenied(error, /permission denied/);
+    }
   });
 });
