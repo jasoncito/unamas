@@ -38,6 +38,8 @@ Principios de producto, decididos con el dueño (Jason):
 
 Costo estimado de IA: ~1.500 tokens de entrada + ~150 de salida por mensaje ≈ **$0.002**. Con ~15 mensajes por sesión ≈ **$0.03 por sesión**. Supabase: gratis en desarrollo (se pausa tras 1 semana sin uso), **Pro $25/mes** al lanzar.
 
+**Entornos:** el proyecto de Supabase actual (`eybbfdqbqkajcbzeprsp`) es solo de desarrollo. Antes de publicar se crea uno de producción aparte, y la app elige el proyecto por variables de entorno (`.env.local` en local, el perfil de EAS Build en los builds). Ver `docs/MULTIUSER.md` §6.
+
 Antes de usar cualquier API, verifica en su documentación actual. Las notas de arriba se revisaron el 28 sep 2026.
 
 Librerías extra: `zustand` (estado de la sesión activa), `zod` (validar el contrato con el worker, en ambos lados), `react-native-reanimated` + `react-native-worklets` (animaciones, vienen en Expo), `react-native-svg` (anillo del stop), `@react-native-community/netinfo` (cola sin conexión y sincronizar al recuperar la red), `expo-crypto` (`randomUUID()` para todos los ids).
@@ -398,7 +400,7 @@ Jason quiere **aprender a hacer funciones** con el worker (M3) y a usar Supabase
 3. Animación de terminar: aceptada "por ahora".
 4. Idioma y variante del reconocimiento de voz (`es-419`, `es-EC` o el locale del dispositivo).
 5. Mascota: fuera del MVP; la línea de feedback es su lugar futuro.
-6. **Pantallas de cuenta** ("Guarda tu cuenta", acceso a la cuenta, "Borrar cuenta"): ninguna pantalla aprobada las tiene. **No diseñarlas ni construirlas sin Jason.** Propuesta a validar en `docs/MULTIUSER.md` §8.
+6. **Pantallas de cuenta** ("Guarda tu cuenta", acceso a la cuenta, "Borrar cuenta"): ninguna pantalla aprobada las tiene. **No diseñarlas ni construirlas sin Jason.** Propuesta a validar en `docs/MULTIUSER.md` §9.
 
 ## 12. Convenciones
 

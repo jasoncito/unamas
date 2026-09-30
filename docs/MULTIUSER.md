@@ -97,12 +97,19 @@ El `with check` impide que alguien escriba filas con un `user_id` ajeno aunque l
 **Subir (push):**
 1. Por tabla, en orden `exercise → session → entry` (por las claves foráneas): tomar las filas con `dirty = 1`. De `entry`, solo las que tienen `status = 'ok'`.
 2. `supabase.from(t).upsert(rows, { onConflict: 'id' })`, sin `user_id` en las filas (lo pone el default).
-3. Si responde bien, marcar esas filas como `dirty = 0`.
+3. Si responde bien, marcar esas filas como `dirty = 0`, **solo si no cambiaron mientras subían** (mismo `updated_at` que se envió). Si el usuario editó una fila durante la subida, queda `dirty = 1` para la próxima.
+4. Mientras haya un cambio de cuenta pendiente (§2, plan B), no se sube nada.
 
 **Bajar (pull):**
-1. Por tabla: `select <columnas locales> where server_updated_at > cursor order by server_updated_at`. RLS ya limita a las filas del usuario, y `user_id` no se guarda en el teléfono.
-2. Por cada fila remota: si la local tiene `dirty = 1` y su `updated_at` es más nuevo, gana la local; si no, gana la remota.
-3. Guardar el nuevo cursor en `sync_state`.
+1. Por tabla: `select <columnas locales> where server_updated_at > cursor − margen order by server_updated_at, id`, paginado por `(server_updated_at, id)`, así no se pierden filas con la misma hora entre páginas. RLS ya limita a las filas del usuario, y `user_id` no se guarda en el teléfono.
+2. Se **leen** en orden `entry → session → exercise` y se **aplican** en una sola transacción en orden `exercise → session → entry`. Como el servidor exige que el padre exista antes que el hijo, cualquier entrada leída ya tiene su sesión y su ejercicio confirmados, y la lectura posterior de los padres los trae.
+3. Por cada fila remota: si la local tiene `dirty = 1` y su `updated_at` es más nuevo, gana la local; si no, gana la remota. Las horas se comparan como instantes, no como texto: Postgres devuelve `+00:00` y el teléfono guarda `Z`. Las horas que vienen del servidor se guardan normalizadas (ISO con `Z`).
+4. Guardar como cursor el `server_updated_at` más alto que se aplicó, en la misma transacción.
+
+**Margen del cursor: `CURSOR_MARGIN_MS = 60 s`** (constante en `src/data/sync.ts`).
+- `server_updated_at` sale de `now()`, que en Postgres es la hora de **inicio** de la transacción, no la del commit. Una transacción que empezó antes pero confirmó después deja una fila con un `server_updated_at` **anterior** a un cursor que ya lo pasó, y un `> cursor` estricto se la saltaría para siempre.
+- Por eso cada pull pide desde `cursor − 60 s`. Las escrituras del sync son upserts cortos (milisegundos), así que 60 s cubre de sobra. Volver a aplicar una fila ya aplicada no cambia nada.
+- Si alguna vez hubiera transacciones de más de 60 s escribiendo estas tablas (una migración masiva, por ejemplo), hay que agrandar el margen o hacer un pull completo (vaciar `sync_state`).
 
 **Cuándo:**
 - Al abrir la app o volver a primer plano.
@@ -110,7 +117,9 @@ El `with check` impide que alguien escriba filas con un `user_id` ajeno aunque l
 - Al recuperar la red (NetInfo).
 - Nunca bloquea la UI.
 
-**Tests:** simular dos dispositivos con dos SQLite en memoria contra un Supabase falso. Casos: offline → online, el mismo usuario en dos teléfonos, borrado suave que se propaga, cursor que no pierde filas.
+**Tests:** simular dos dispositivos con dos SQLite en memoria contra un Supabase falso. Casos: offline → online, el mismo usuario en dos teléfonos, borrado suave que se propaga, cursor que no pierde filas (incluida una fila confirmada tarde con `server_updated_at` anterior al cursor).
+
+**Cerrar sesión** (§2): sync → si queda alguna fila `dirty = 1` (incluidas entradas pendientes o ambiguas, que no se suben), no se cierra y se avisa → vaciar las tablas y `sync_state` → `signOut`. Se vacía **antes** del `signOut`: si la app muriera entre los dos pasos, al abrirla sigue la misma sesión con la base vacía y el próximo sync baja todo de nuevo. Al revés, la base quedaría sin sesión y se subiría a una cuenta anónima nueva.
 
 ## 5. Cambios en el Worker
 
@@ -124,11 +133,18 @@ El `with check` impide que alguien escriba filas con un `user_id` ajeno aunque l
 - **Abuso con cuentas anónimas:** Supabase limita por defecto la creación de anónimos a 30 por hora por IP. Si hace falta, se agrega Cloudflare Turnstile, que Supabase recomienda.
 - Nuevo endpoint `POST /account/delete` (secreto `SUPABASE_SERVICE_ROLE_KEY`).
 
-## 6. Costo
+## 6. Entornos
+
+- El proyecto actual (`eybbfdqbqkajcbzeprsp`) es **solo de desarrollo**: ahí caen las pruebas, el seed y los usuarios anónimos de los tests.
+- **Antes de publicar se crea un proyecto de producción aparte**, en el plan Pro, con las mismas migraciones (`supabase link` al proyecto de producción + `supabase db push`) y la misma configuración de Auth: anónimos, vinculación manual, Apple y clave JWT asimétrica.
+- La app elige el proyecto por **variables de entorno** (`EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY`): en local salen de `.env.local`, y en los builds, del **perfil de EAS Build** (`development`, `preview`, `production`), cada uno con las suyas. El Worker también tiene un entorno por proyecto, con su propia `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY`.
+- Nunca se apunta un build de desarrollo a producción ni al revés.
+
+## 7. Costo
 
 **Supabase gratis:** 500 MB de base de datos y 50.000 usuarios activos al mes. El proyecto se pausa tras 1 semana sin uso: vale para desarrollo, pero no para producción. **Pro: $25/mes** al lanzar. Worker e IA sin cambios (~$0.03 por sesión).
 
-## 7. Hitos nuevos
+## 8. Hitos nuevos
 
 M0 y M1 no cambian. M2 se reabre:
 
@@ -142,7 +158,7 @@ M0 y M1 no cambian. M2 se reabre:
 
 Explícale a Jason cada paso de Supabase (proyecto, migraciones con el CLI, RLS, auth), igual que con el Worker.
 
-## 8. Pendiente de diseño (preguntar, no inventar)
+## 9. Pendiente de diseño (preguntar, no inventar)
 
 - **Dónde vive "Guarda tu cuenta"** y cómo se accede a la cuenta y a "Borrar cuenta". Ninguna pantalla aprobada lo tiene, y hay que diseñarlo antes de construirlo. Propuesta a validar: una invitación discreta en el resumen después de la primera sesión, más un acceso mínimo a la cuenta desde la pantalla 1.
 
