@@ -3,7 +3,7 @@
 // ANTHROPIC_API_KEY in .dev.vars).
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from 'cloudflare:workers';
-import { afterAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 
 import seed from '../../dev/seed.json';
 import type { ContextExercise, ParseRequest } from '../../shared/contract';
@@ -26,15 +26,17 @@ const client = new Anthropic({
 			usage.calls++;
 			usage.input += body.usage.input_tokens;
 			usage.output += body.usage.output_tokens;
+			// Printed after every call (an afterAll summary can get lost): the last line is the run's total.
+			console.log(`[eval cost] ${costLine()}`);
 		}
 		return res;
 	},
 });
 
-afterAll(() => {
+function costLine(): string {
 	const dollars = (usage.input * 1 + usage.output * 5) / 1_000_000;
-	console.log(`[eval cost] ${usage.calls} calls · ${usage.input} input + ${usage.output} output tokens · $${dollars.toFixed(4)}`);
-});
+	return `${usage.calls} calls · ${usage.input} input + ${usage.output} output tokens · $${dollars.toFixed(4)}`;
+}
 const dateOf = new Map(seed.sessions.map((s) => [s.id, s.date]));
 
 /** Every exercise, with its last time strictly before `date`: what the app would send that day. */
