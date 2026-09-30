@@ -13,7 +13,10 @@ export interface PlanLine extends PlanRow {
 }
 
 export interface SessionScreen {
-  sessionId: string;
+  /** Null until the first entry is saved: that's when the session row is created (CLAUDE.md §7). */
+  sessionId: string | null;
+  /** No entries yet: the groups header shows "‹" and going back to screen 1 is allowed. */
+  canGoBack: boolean;
   groups: string[];
   /** "Hombro y tríceps" */
   groupsLabel: string;
@@ -25,15 +28,23 @@ export interface SessionScreen {
   lastSets: Map<string, LoggedSet>;
 }
 
-/** Screens 2–3 data for the open session, or null if there's none. */
-export async function loadSessionScreen(db: Db, today: IsoDate): Promise<SessionScreen | null> {
-  const session = await getOpenSession(db);
-  if (!session) return null;
+/**
+ * Screens 2–3 data. A session open in the database (it has entries) wins; otherwise the groups just
+ * chosen on screen 1, which only live in memory until the first entry. Null if there's neither.
+ */
+export async function loadSessionScreen(
+  db: Db,
+  today: IsoDate,
+  pendingGroups: readonly string[] | null,
+): Promise<SessionScreen | null> {
+  const open = await getOpenSession(db);
+  const groups = open?.muscleGroups ?? (pendingGroups?.length ? [...pendingGroups] : null);
+  if (!groups) return null;
 
   const exercises = await getAllExercises(db);
   const byId = new Map(exercises.map((e) => [e.id, e]));
   const plan: PlanLine[] = [];
-  for (const id of await getPlanExerciseIds(db, session.muscleGroups)) {
+  for (const id of await getPlanExerciseIds(db, groups)) {
     const ex = byId.get(id);
     if (!ex) continue;
     const history = (await getExerciseHistory(db, id)).map((h) => ({
@@ -47,9 +58,10 @@ export async function loadSessionScreen(db: Db, today: IsoDate): Promise<Session
 
   const first = plan[0];
   return {
-    sessionId: session.id,
-    groups: session.muscleGroups,
-    groupsLabel: groupsLabel(session.muscleGroups),
+    sessionId: open?.id ?? null,
+    canGoBack: !open,
+    groups,
+    groupsLabel: groupsLabel(groups),
     plan,
     placeholder: first ? dictationOf(spokenName(byId.get(first.exerciseId)!), first.loadKg, first.reps) : null,
     exercises,

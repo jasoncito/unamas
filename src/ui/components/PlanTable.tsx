@@ -6,13 +6,16 @@ import type { PlanLine } from '@/features/session/controller';
 import { copy } from '../copy';
 import { font, tabular } from '../text';
 import { color, space } from '../tokens';
+import { GroupsTitle } from './GroupsTitle';
 
 /** Screen 2's "hoy te toca" (design/meta.html): only what goes up is green, with "antes" below. */
-export function PlanTable({ title, lines }: { title: string; lines: readonly PlanLine[] }) {
+export function PlanTable({ title, lines, onBack }: { title: string; lines: readonly PlanLine[]; onBack?: () => void }) {
   return (
     <View>
       <View style={styles.header}>
-        <Text style={styles.title}>{title}</Text>
+        <View style={styles.title}>
+          <GroupsTitle text={title} onBack={onBack} />
+        </View>
         <Text style={[styles.colHead, styles.loadCol]}>{copy.session.load}</Text>
         <Text style={[styles.colHead, styles.setsCol]}>{copy.session.sets}</Text>
       </View>
@@ -41,7 +44,7 @@ function Cell({ value, up, before, style }: { value: string; up: boolean; before
 
 const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'flex-end', gap: 10, marginBottom: 4 },
-  title: { ...font('label'), color: color.muted, flex: 1 },
+  title: { flex: 1 },
   colHead: { fontSize: 11, fontWeight: '600', color: color.muted, textAlign: 'right', textTransform: 'uppercase', letterSpacing: 11 * 0.06 },
   loadCol: { width: 70, alignItems: 'flex-end' },
   setsCol: { width: 62, alignItems: 'flex-end' },

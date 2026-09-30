@@ -1,11 +1,9 @@
 import { router } from 'expo-router';
-import { useSQLiteContext } from 'expo-sqlite';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { formatShortDate } from '@/domain/format';
-import { startSession } from '@/features/picker/controller';
 import { usePicker } from '@/features/picker/store';
 import { useMuscleGroups } from '@/features/picker/useMuscleGroups';
 import { useOpenSessionRedirect } from '@/features/session/useOpenSessionRedirect';
@@ -16,9 +14,8 @@ import { color, radius, space } from '@/ui/tokens';
 // Screen 1 · pick the muscle groups (CLAUDE.md §8).
 export default function PickerScreen() {
   useOpenSessionRedirect();
-  const db = useSQLiteContext();
   const groups = useMuscleGroups();
-  const { selected, custom, toggle, addCustom, reset } = usePicker();
+  const { selected, custom, toggle, addCustom } = usePicker();
   const [writingOther, setWritingOther] = useState(false);
   const [other, setOther] = useState('');
 
@@ -27,11 +24,9 @@ export default function PickerScreen() {
     ...custom.filter((c) => !groups?.some((g) => g.name === c)).map((name) => ({ name, lastDate: null })),
   ];
 
-  const start = async () => {
-    await startSession(db, selected);
-    reset();
-    router.replace('/session');
-  };
+  // No session row yet: it's created with the first entry (CLAUDE.md §7). The groups travel with the
+  // route and the selection stays, so going back shows it as it was.
+  const start = () => router.push({ pathname: '/session', params: { groups: JSON.stringify(selected) } });
 
   return (
     <SafeAreaView style={styles.screen}>

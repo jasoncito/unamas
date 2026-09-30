@@ -4,8 +4,8 @@ import type { Db } from '@/data/db';
 import { initDb } from '@/data/init';
 import { loadSeed, type Seed } from '@/data/seed';
 import { openMemoryDb } from '@/data/testing/memoryDb';
+import { createSession } from '@/data/repos/sessions';
 import { formatSets } from '@/domain/format';
-import { startSession } from '@/features/picker/controller';
 
 import { loadSessionScreen, suggestionsFor, textAfterPicking } from './controller';
 
@@ -17,10 +17,8 @@ beforeEach(async () => {
   await loadSeed(db, seedJson as Seed);
 });
 
-const screenFor = async (groups: string[]) => {
-  await startSession(db, groups);
-  return (await loadSessionScreen(db, TODAY))!;
-};
+/** Screen 2 right after EMPEZAR: the groups are only in memory, no session row yet. */
+const screenFor = async (groups: string[]) => (await loadSessionScreen(db, TODAY, groups))!;
 const lines = (s: Awaited<ReturnType<typeof screenFor>>) =>
   s.plan.map((l) => [l.name, l.loadKg, formatSets(l.reps), l.loadUp ? 'PESO↑' : l.setsUp ? 'SERIES↑' : '=']);
 
@@ -30,10 +28,10 @@ describe('loadSessionScreen (design/meta.html)', () => {
     expect(s.groupsLabel).toBe('Hombro y tríceps');
     expect(lines(s)).toEqual([
       ['Press de hombro con mancuernas', 24, '4×9', 'SERIES↑'],
-      ['Elevaciones laterales en polea', 7.5, '4×11', 'SERIES↑'],
-      ['Elevaciones laterales con pecho en rodillas', 12, '4×13', 'SERIES↑'],
-      ['Tríceps en polea con barra V (pushdown)', 30, '4×11', 'SERIES↑'],
-      ['Extensión de tríceps sobre la cabeza con mancuerna', 20, '3×11', 'SERIES↑'],
+      ['Laterales en polea', 7.5, '4×11', 'SERIES↑'],
+      ['Laterales con pecho en rodillas', 12, '4×13', 'SERIES↑'],
+      ['Tríceps en polea, barra V', 30, '4×11', 'SERIES↑'],
+      ['Tríceps sobre la cabeza', 20, '3×11', 'SERIES↑'],
     ]);
     expect(s.plan[0].before).toEqual({ loadKg: 24, reps: [8, 8, 8, 8] });
   });
@@ -53,12 +51,12 @@ describe('loadSessionScreen (design/meta.html)', () => {
     // Make 15 sep espalda's last session: hide the 17 sep back exercises.
     await db.runAsync(
       `UPDATE entry SET deleted_at = '2026-09-30T00:00:00Z'
-       WHERE exercise_id IN (SELECT id FROM exercise WHERE canonical_name IN ('Jalón al pecho en máquina', 'Remo bajo en máquina (low row)'))
+       WHERE exercise_id IN (SELECT id FROM exercise WHERE canonical_name IN ('Jalón al pecho en máquina', 'Remo bajo en máquina'))
          AND created_at > '2026-09-16'`,
       [],
     );
     const s = await screenFor(['espalda']);
-    expect(s.plan.map((l) => l.name)).toEqual(['Remo bajo en máquina (low row)']);
+    expect(s.plan.map((l) => l.name)).toEqual(['Remo bajo en máquina']);
   });
 
   it('groups with no history: no list and the generic placeholder', async () => {
@@ -67,8 +65,21 @@ describe('loadSessionScreen (design/meta.html)', () => {
     expect(s.placeholder).toBeNull();
   });
 
-  it('no open session → null', async () => {
-    expect(await loadSessionScreen(db, TODAY)).toBeNull();
+  it('right after EMPEZAR: no session row, no id, and going back is allowed', async () => {
+    const s = await screenFor(['hombro']);
+    expect([s.sessionId, s.canGoBack]).toEqual([null, true]);
+    expect(await db.getFirstAsync<{ n: number }>('SELECT count(*) AS n FROM session WHERE ended_at IS NULL', [])).toEqual({ n: 0 });
+  });
+
+  it('a session open in the database (it has entries) wins over the groups in memory, and there is no going back', async () => {
+    await createSession(db, 'f0000000-0000-4000-8000-00000000000b', ['pierna']);
+    const s = (await loadSessionScreen(db, TODAY, ['hombro']))!;
+    expect([s.sessionId, s.canGoBack, s.groups]).toEqual(['f0000000-0000-4000-8000-00000000000b', false, ['pierna']]);
+  });
+
+  it('no open session and no groups in memory → null (the app starts on screen 1)', async () => {
+    expect(await loadSessionScreen(db, TODAY, null)).toBeNull();
+    expect(await loadSessionScreen(db, TODAY, [])).toBeNull();
   });
 });
 

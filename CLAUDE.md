@@ -83,7 +83,9 @@ app/session.tsx          Pantallas 2–7: una sola ruta cuyo contenido depende d
 
 Las pantallas 2–7 son **estados de una misma pantalla**, no rutas distintas. Así la burbuja sube desde el input, la lista se transforma y el verde inunda sin cortes de navegación. "Cerrar" en el resumen → `router.replace('/')`.
 
-Al abrir la app con una sesión sin cerrar (`session.ended_at IS NULL`), va directo a `/session` y la restaura.
+**La sesión se crea al guardar la primera entrada**, no al tocar EMPEZAR (decidido con Jason). EMPEZAR navega a `/session` con los grupos como parámetro de la ruta: hasta la primera entrada viven solo en memoria. Por eso no existen sesiones vacías: si la app se cierra sin entradas, al abrirla empieza en la pantalla 1.
+
+Al abrir la app con una sesión sin cerrar (`session.ended_at IS NULL`, que siempre tiene entradas), va directo a `/session` y la restaura.
 
 ### 4.3 Máquina de estados de la sesión
 
@@ -106,6 +108,7 @@ Al abrir la app con una sesión sin cerrar (`session.ended_at IS NULL`), va dire
 ```
 UI: onSend(text | image | voz→texto)
  └▶ controller.send()
+     0. si es la primera entrada: repo.sessions.create(grupos)  (started_at = ahora; §7)
      1. repo.entries.insertPending(raw_text)            → la burbuja aparece YA (optimista)
      2. contexto = repo.exercises.forContext(grupos)     (id, nombre, alias, última marca)
      3. ai.parse({ text, image, context })               → zod valida la respuesta
@@ -224,7 +227,7 @@ Response (esquema JSON con structured outputs):
   "reply": null
 }
 ```
-- `exercise_id` sale **solo** de `context.exercises`. Si no hay coincidencia, va `null` y se llena `new_exercise: { canonical_name, muscle_groups[], kind, load_basis }`.
+- `exercise_id` sale **solo** de `context.exercises`. Si no hay coincidencia, va `null` y se llena `new_exercise: { canonical_name, muscle_groups[], kind, load_basis }`, con un `canonical_name` corto (~28 caracteres, §7).
 - **Unificación de nombres:** variaciones del mismo ejercicio ("press de hombros", "press hombro mancuernas") → mismo `exercise_id`. Si la frase sirve para **dos o más** ejercicios distintos del usuario → `intent: "ambiguous"` con opciones. Nunca fusionar historiales dudosos.
 - **Alias aprendidos:** cuando el usuario elige una opción en una pregunta de "¿cuál ejercicio?" (pantalla 5), su frase **sin números** se guarda como alias del ejercicio elegido (`src/domain/names.ts` → `phraseToAlias`, `src/features/session/aliases.ts`): minúsculas, sin tildes, sin pesos, unidades, series×reps, "a cada lado" ni notas de esfuerzo ("jalones en la polea arriba para hombro posterior, con 25, 4 de 12" → "jalones en la polea arriba para hombro posterior"). Así la próxima vez esas palabras se resuelven directo. No se agrega si ya es el nombre o un alias de **otro** ejercicio (un alias apunta a un solo ejercicio), ni cuando la pregunta era por el peso. El ejercicio queda `dirty` y se sincroniza.
 - Normalizar: "4 de 9" → `[9,9,9,9]`; "3 de 11 y la última de 9" → `[11,11,11,9]`; "a cada lado" → `load_basis: per_side`; "7,5" → 7.5. Si no dicen kg, se asume kg.
@@ -292,7 +295,8 @@ CREATE TABLE sync_state (table_name TEXT PRIMARY KEY, cursor TEXT);
 - `updated_at` lo pone el cliente en cada cambio. `deleted_at` = borrado suave (se sincroniza). `dirty = 1` = falta subir. Sin señal en el primer arranque se anota igual y se sube cuando exista la cuenta anónima.
 - Toda consulta del motor y de las pantallas filtra `deleted_at IS NULL`.
 - `reps` siempre como lista por serie.
-- `session.started_at` = hora de la **primera entrada**. `ended_at` = cuando se completa el stop.
+- La fila de `session` se crea **con la primera entrada**: `started_at` = hora de esa entrada. `ended_at` = cuando se completa el stop. No hay sesiones vacías.
+- `canonical_name` es **corto** (~28 caracteres, "Laterales en polea"); el detalle ("Elevaciones laterales en polea con cuerda") va en `aliases`. Sin campo nuevo. Para ejercicios nuevos, la IA propone el nombre corto (regla en el prompt) y la app guarda la frase del usuario sin números como alias (M5).
 - `dev/seed.json` usa ids de texto legibles. Al cargarlo (solo en desarrollo, con `EXPO_PUBLIC_SEED=1`), cada id se cambia por un UUID nuevo, manteniendo las relaciones. Queda todo `dirty = 1`.
 
 ### Postgres (Supabase), en `supabase/migrations/`
@@ -306,11 +310,12 @@ Las mismas tablas, con `user_id uuid not null default auth.uid() references auth
 - **Lista tipográfica** (no chips): nombre del grupo en 30/800, fecha de la última vez a la derecha (13/600, muted). Orden: fecha más antigua primero; los "sin registro" al final.
 - Tocar selecciona o deselecciona. El seleccionado se pone verde y muestra **su número de orden** grande en verde (1, 2…), sin check. Al quitar uno, los demás se renumeran.
 - "Otro…" al final abre un input para escribir un grupo propio.
-- El botón "EMPEZAR · Hombro + Tríceps" aparece solo con ≥ 1 seleccionado.
+- El botón "EMPEZAR · Hombro + Tríceps" aparece solo con ≥ 1 seleccionado. **No crea la sesión**: lleva a la pantalla 2 con los grupos en memoria, y la selección se mantiene por si vuelve.
 - Grupos base: Pecho, Espalda, Bíceps, Tríceps, Hombro, Pierna, Glúteo, Pantorrilla, Core, Cardio.
 
 ### 2 · Primer ejercicio
 - El teclado se abre solo (`autoFocus`). Título "¿Con qué empiezas?" pegado al input.
+- **Volver a la pantalla 1, mientras no haya entradas:** el encabezado de grupos lleva "‹" delante ("‹ Hombro y tríceps · hoy te toca", o solo "‹ Core" si no hay lista) y tocarlo vuelve; el gesto de volver de iOS también. Con la primera entrada desaparecen el "‹" y el gesto.
 - Arriba, la **meta de hoy** (decidido con Jason, ver `design/meta.html`): encabezado "<grupos> · hoy te toca" (13/600, muted) y columnas fijas **PESO** y **SERIES** (11/600, mayúsculas, muted), alineadas a la derecha y con números tabulares. Una fila por ejercicio de la última sesión que tuvo esos grupos: el nombre a la izquierda (15, text) y la meta que calcula el motor en las dos columnas (16/700).
   - **Solo el valor que sube va en verde**, con "antes X" debajo en gris (11/500): si sube el peso, PESO en verde ("32.5 kg", "antes 30") y SERIES en blanco sin "antes" (aunque las reps vuelvan al piso); si suben las reps, SERIES en verde ("4×9", "antes 4×8") y PESO en blanco. Lo que no cambia va en blanco y sin "antes".
   - **Si no hay historial para esos grupos, no hay lista.**

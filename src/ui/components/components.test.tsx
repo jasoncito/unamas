@@ -5,6 +5,7 @@ import type { Exercise } from '@/data/repos/exercises';
 import type { PlanLine, Suggestion } from '@/features/session/controller';
 
 import { color } from '../tokens';
+import { GroupsTitle } from './GroupsTitle';
 import { InputBar } from './InputBar';
 import { PlanTable } from './PlanTable';
 import { SuggestionList } from './SuggestionList';
@@ -75,5 +76,22 @@ describe('InputBar', () => {
   it('shows the placeholder it is given', async () => {
     await render(<InputBar value="" placeholder="press de hombros, 24 kg, 4 de 9" onChangeText={() => {}} />);
     expect(screen.getByPlaceholderText('press de hombros, 24 kg, 4 de 9')).toBeTruthy();
+  });
+});
+
+describe('GroupsTitle', () => {
+  it('without entries: "‹" before the groups, and tapping goes back', async () => {
+    const onBack = jest.fn();
+    await render(<GroupsTitle text="Hombro y tríceps" onBack={onBack} />);
+    expect(screen.getByText('‹', { exact: false })).toBeTruthy();
+    await fireEvent.press(screen.getByRole('button'));
+    expect(onBack).toHaveBeenCalled();
+  });
+
+  it('with entries (no onBack): just the groups, no "‹" and nothing to tap', async () => {
+    await render(<GroupsTitle text="Hombro y tríceps" />);
+    expect(screen.getByText('Hombro y tríceps')).toBeTruthy();
+    expect(screen.queryByText('‹', { exact: false })).toBeNull();
+    expect(screen.queryByRole('button')).toBeNull();
   });
 });
