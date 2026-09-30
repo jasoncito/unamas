@@ -1,0 +1,634 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flujo inicial</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --green:   #29FF94;
+    --bg:      #100E11;
+    --surface: #2B2B2B;
+    --raised:  #1C1A1D;
+    --border:  #4F4D50;
+    --divider: #403E41;
+    --text:    #FCF9FC;
+    --muted:   #7E7C7F;
+    --ink:     #100E11;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
+    background: #2A2A2A;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+    padding: 32px 24px 48px;
+  }
+  .row-of-phones {
+    display: flex; gap: 40px; flex-wrap: wrap; justify-content: center;
+  }
+  .step { display: flex; flex-direction: column; gap: 14px; align-items: center; }
+  .step-label { font-size: 15px; font-weight: 700; color: var(--text); align-self: flex-start; padding-left: 6px; }
+  .step-label span { color: var(--muted); font-weight: 500; }
+
+  .phone {
+    width: 390px; height: 844px; flex-shrink: 0;
+    background: var(--bg);
+    border-radius: 40px;
+    box-shadow: 0 0 0 10px #000, 0 20px 60px rgba(0,0,0,0.45);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    position: relative;
+  }
+  @media (max-width: 440px) {
+    body { padding: 24px 0 40px; }
+    .phone { transform: scale(0.86); transform-origin: top center; margin-bottom: -118px; }
+  }
+
+  .status {
+    height: 50px; flex-shrink: 0; display: flex; align-items: flex-end; justify-content: space-between;
+    padding: 0 30px 6px 34px; font-size: 16px; font-weight: 600;
+  }
+  .content {
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column; justify-content: flex-end;
+    padding: 12px 20px 16px; gap: 10px;
+  }
+  .content.closed { padding-bottom: 38px; }
+  .home { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); width: 134px; height: 5px; border-radius: 3px; background: var(--text); }
+
+  /* Títulos */
+  .h { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; line-height: 1.2; }
+  .h .m { color: var(--muted); font-weight: 600; }
+  .small { font-size: 13px; font-weight: 600; color: var(--muted); }
+
+  /* Chips de músculo */
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 10px; }
+  .chip {
+    background: var(--surface); color: var(--text);
+    border-radius: 999px; padding: 11px 17px;
+    font-size: 16px; font-weight: 600;
+  }
+  .chip.on { background: var(--green); color: var(--ink); }
+
+  /* Input */
+  .input-card {
+    background: var(--surface); border-radius: 16px;
+    padding: 10px 8px 10px 16px;
+    display: flex; align-items: center; gap: 8px;
+    min-height: 52px;
+  }
+  .input-card .txt { flex: 1; font-size: 17px; font-weight: 500; line-height: 1.3; }
+  .input-card .ph { color: var(--muted); }
+  .caret { display: inline-block; width: 2px; height: 20px; background: var(--green); vertical-align: -4px; margin-left: 1px; }
+  .ibtn {
+    width: 32px; height: 32px; border-radius: 999px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; color: var(--text);
+  }
+  .ibtn.send { background: var(--green); color: var(--ink); }
+
+  .btn {
+    background: var(--green); color: var(--ink); border-radius: 999px;
+    padding: 13px; text-align: center; font-size: 15px; font-weight: 700;
+    letter-spacing: 0.02em; text-transform: uppercase;
+  }
+
+  /* Referencia "la última vez" */
+  .ref { margin-bottom: auto; }
+  .ref .small { margin-bottom: 6px; }
+  .ref-row {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 0; border-bottom: 1px solid var(--divider);
+    font-size: 15px; color: var(--muted);
+  }
+  .ref-row:last-child { border-bottom: none; }
+  .ref-row .n { flex: 1; }
+  .ref-row .v { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .ref-row .dot { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid var(--border); flex-shrink: 0; }
+  .ref-row .ok { width: 18px; height: 18px; border-radius: 50%; background: var(--green); color: var(--ink); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .ref-row.done .n, .ref-row.done .v { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--border); }
+
+  /* Sugerencias al escribir */
+  .suggest { background: var(--raised); border-radius: 16px; overflow: hidden; }
+  .sg { padding: 12px 16px; border-bottom: 1px solid var(--divider); }
+  .sg:last-child { border-bottom: none; }
+  .sg .n { font-size: 16px; font-weight: 500; color: var(--muted); }
+  .sg .n b { color: var(--text); font-weight: 700; }
+  .sg .v { font-size: 13px; color: var(--muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
+  .sg .v b { color: var(--text); font-weight: 600; }
+
+  /* Entrada anotada: lo que dijiste → lo que entendió */
+  .entry { padding: 14px 0 4px; border-top: 1px solid var(--divider); }
+  .said { font-size: 14px; color: var(--muted); line-height: 1.35; margin-bottom: 8px; }
+  .said::before { content: "“"; } .said::after { content: "”"; }
+  .parsed { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
+  .parsed .ex { font-size: 16px; font-weight: 600; line-height: 1.25; }
+  .parsed .nums { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .parsed .nums span { font-size: 13px; font-weight: 600; color: var(--muted); letter-spacing: 0; margin: 0 6px 0 2px; }
+  .note { font-size: 13px; font-weight: 600; margin-top: 6px; color: var(--muted); }
+  .note.up { color: var(--green); }
+  .ask { font-size: 17px; font-weight: 700; margin: 4px 0 10px; }
+  .opts { display: flex; flex-direction: column; gap: 8px; }
+  .opt {
+    background: var(--surface); border-radius: 14px; padding: 12px 16px;
+    display: flex; justify-content: space-between; align-items: baseline;
+    font-size: 16px; font-weight: 600;
+  }
+  .opt span { font-size: 13px; color: var(--muted); font-weight: 500; }
+
+  /* Teclado iOS oscuro (sistema) */
+  .keyboard { background: #1C1B1E; padding: 8px 4px 34px; flex-shrink: 0; }
+  .kb-row { display: flex; justify-content: center; gap: 6px; margin-bottom: 8px; }
+  .kb-row.r2 { padding: 0 18px; }
+  .key {
+    background: #5B595C; border-radius: 6px; height: 42px; flex: 1;
+    box-shadow: 0 1px 0 rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 400; color: #FCF9FC; font-family: -apple-system, sans-serif;
+  }
+  .key.fn { background: #3A383B; flex: 1.4; font-size: 14px; }
+  .key.space { flex: 5; }
+  .key.ret { flex: 2; }
+
+  /* Tarjeta de anotado: se llena de verde SOLO si progresaste. Sin progreso → superficie gris */
+  .logged {
+    border-radius: 22px; padding: 16px 18px 18px; margin-top: 14px;
+    background: var(--green); color: var(--ink);
+  }
+  .logged.flat { background: var(--surface); color: var(--text); }
+  .logged .top { display: flex; justify-content: space-between; align-items: center; font-size: 12px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+  .logged .top .q { font-size: 13px; font-weight: 500; letter-spacing: 0; text-transform: none; opacity: 0.6; max-width: 70%; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .logged .q2 { font-size: 13px; font-weight: 500; opacity: 0.6; margin-top: 4px; line-height: 1.35; }
+  .logged .ex { font-size: 17px; font-weight: 700; margin-top: 14px; }
+  .logged .big { font-size: 44px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .logged .big span { font-size: 18px; font-weight: 700; letter-spacing: 0; opacity: 0.55; margin: 0 10px 0 3px; }
+  .logged .delta { display: inline-block; margin-top: 14px; background: var(--ink); color: var(--green); font-size: 13px; font-weight: 700; border-radius: 999px; padding: 6px 12px; }
+  .ref-row.done .n { color: var(--text); text-decoration: none; }
+  .ref-row.done .v { color: var(--text); text-decoration: none; }
+  .ref-row.done .v small { color: var(--green); font-weight: 700; margin-left: 6px; font-size: 12px; }
+
+  /* Anotado en su lugar: la fila del ejercicio se expande y muestra el cambio vs. la última vez */
+  .ref.anchored { margin-bottom: 0; margin-top: auto; }
+  .ref-row.just { align-items: flex-start; padding: 14px 0 16px; }
+  .ref-row.just .ok { margin-top: 2px; }
+  .ref-row.just .body { flex: 1; }
+  .ref-row.just .n { font-size: 17px; font-weight: 700; color: var(--text); }
+  .ref-row.just .q3 { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .ref-row.just .diff { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; font-variant-numeric: tabular-nums; }
+  .ref-row.just .old { font-size: 15px; font-weight: 600; color: var(--muted); text-decoration: line-through; text-decoration-color: var(--border); }
+  .ref-row.just .arrow { color: var(--muted); font-size: 15px; }
+  .ref-row.just .new { font-size: 26px; font-weight: 800; letter-spacing: -0.02em; color: var(--text); }
+  .ref-row.just .new span { font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: 0; margin: 0 6px 0 2px; }
+  .ref-row.just .plus { font-size: 15px; font-weight: 800; color: var(--green); }
+
+  /* --- Pantalla 4 animada --- */
+  .fb { display: flex; flex-direction: column; align-items: flex-end; gap: 8px; margin-bottom: 6px;
+        max-height: 0; opacity: 0; transform: translateY(24px); overflow: hidden;
+        transition: max-height .45s ease, opacity .35s ease, transform .45s cubic-bezier(.2,.8,.2,1); }
+  .bubble { background: var(--surface); color: var(--text); font-size: 16px; font-weight: 500; line-height: 1.35;
+            padding: 11px 15px; border-radius: 18px 18px 6px 18px; max-width: 85%; }
+  .conf { display: flex; align-items: center; gap: 7px; font-size: 14px; font-weight: 600; color: var(--green);
+          opacity: 0; transform: translateY(6px); transition: opacity .3s ease .25s, transform .3s ease .25s; }
+  .conf .ok { width: 18px; height: 18px; border-radius: 50%; background: var(--green); color: var(--ink); display: inline-flex; align-items: center; justify-content: center; }
+  #p4.sent .fb { max-height: 140px; opacity: 1; transform: none; }
+  #p4.sent .conf { opacity: 1; transform: none; }
+  #p4.gone .fb { max-height: 0; opacity: 0; transform: translateY(-10px); }
+
+  .a-row .mark { width: 18px; height: 18px; position: relative; flex-shrink: 0; }
+  .a-row .mark > div { position: absolute; inset: 0; transition: opacity .3s ease, transform .3s ease; }
+  .a-row .mark .ok { opacity: 0; transform: scale(.4); }
+  .a-row .v-new { display: none; color: var(--text); }
+  .a-row .v-new small { color: var(--green); font-weight: 700; margin-left: 6px; font-size: 12px; }
+  #p4.gone .a-row .mark .ok { opacity: 1; transform: scale(1); }
+  #p4.gone .a-row .mark .dot { opacity: 0; }
+  #p4.gone .a-row .n { color: var(--text); }
+  #p4.gone .a-row .v-old { display: none; }
+  #p4.gone .a-row .v-new { display: inline; }
+
+  .a-txt .ph { display: none; }
+  #p4.sent .a-txt .typed, #p4.gone .a-txt .typed { display: none; }
+  #p4.sent .a-txt .ph, #p4.gone .a-txt .ph { display: inline; }
+  .a-btn .i-mic { display: none; }
+  .a-btn { background: var(--green); color: var(--ink); }
+  #p4.sent .a-btn, #p4.gone .a-btn { background: transparent; color: var(--text); }
+  #p4.sent .a-btn .i-send, #p4.gone .a-btn .i-send { display: none; }
+  #p4.sent .a-btn .i-mic, #p4.gone .a-btn .i-mic { display: flex; }
+  .a-btn span { display: flex; }
+
+  /* --- Selector de músculo tipográfico --- */
+  .muslist { margin-top: 14px; flex: 1; }
+  .mus { display: flex; align-items: center; gap: 0; padding: 7px 0; cursor: pointer; user-select: none; }
+  .mus .mn { flex: 1; font-size: 30px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.1; color: var(--text); transition: color .15s ease; }
+  .mus .md { font-size: 13px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+  /* Seleccionado: número de orden en la misma tipografía pesada — el orden en que tocas es el orden de la sesión */
+  .mus .mk { width: 0; overflow: hidden; font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.1;
+             color: var(--green); text-align: right; font-variant-numeric: tabular-nums;
+             transition: width .2s ease, margin .2s ease; margin-left: 0; }
+  .mus.on .mn { color: var(--green); }
+  .mus.on .mk { width: 26px; margin-left: 14px; }
+  .mus .md { margin-left: 12px; }
+  .mus.other .mn { color: var(--muted); font-size: 22px; font-weight: 700; }
+  .btn.go { transition: opacity .2s ease, transform .2s ease; }
+  .btn.go.off { opacity: 0; transform: translateY(12px); pointer-events: none; }
+
+  /* --- Fin de sesión --- */
+  .ref-row.done2 .n { color: var(--text); }
+  .ref-row.done2 .v { color: var(--text); }
+  .ref-row.done2 .v small { font-weight: 700; margin-left: 6px; font-size: 12px; }
+  small.up { color: var(--green); } small.same { color: var(--muted); } small.down { color: #B9B6BA; }
+
+
+  .tally { margin: 14px 0 18px; }
+  .tally .t { font-size: 34px; font-weight: 800; letter-spacing: -0.025em; line-height: 1.12; color: var(--text); }
+  .tally .t.up { color: var(--green); }
+  .tally .t.dim { color: var(--muted); }
+  .sum-row { padding: 11px 0; border-bottom: 1px solid var(--divider); }
+  .sum-row .n { font-size: 15px; font-weight: 600; }
+  .sum-row .cmp { display: flex; align-items: baseline; gap: 8px; margin-top: 4px; font-size: 14px; font-variant-numeric: tabular-nums; }
+  .sum-row .o { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--border); }
+  .sum-row .a { color: var(--muted); }
+  .sum-row .w { font-weight: 700; }
+  .sum-row small { font-size: 13px; font-weight: 700; margin-left: auto; }
+  .nexttime { margin-top: 16px; }
+  .nexttime .nt { font-size: 15px; line-height: 1.4; margin-top: 4px; }
+  .nexttime .nt b { font-weight: 700; }
+  .btn.ghost { background: var(--surface); color: var(--text); }
+
+  /* --- Terminar: mantener presionado --- */
+  .sess-bar { display: flex; justify-content: space-between; align-items: center; padding: 14px 20px 0; flex-shrink: 0; }
+  .sess-t { font-size: 20px; font-weight: 700; letter-spacing: -0.01em; }
+  .sess-time { font-size: 17px; color: var(--text); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+  .endwrap { position: relative; display: flex; align-items: center; gap: 12px; }
+  .tip { position: absolute; right: 0; top: calc(100% + 8px); white-space: nowrap; background: var(--text); color: var(--ink);
+         font-size: 13px; font-weight: 600; padding: 7px 11px; border-radius: 10px; opacity: 0; transform: translateY(-4px);
+         transition: opacity .2s ease, transform .2s ease; pointer-events: none; z-index: 2; }
+  .tip::before { content: ""; position: absolute; right: 22px; top: -5px; width: 10px; height: 10px; background: var(--text); transform: rotate(45deg); border-radius: 2px; }
+  .tip.show { opacity: 1; transform: none; }
+
+  .ref-row .vs { display: block; font-size: 12px; color: var(--muted); margin-top: 2px; font-weight: 500; }
+  small.new { color: var(--text); background: var(--surface); padding: 2px 7px; border-radius: 999px; font-weight: 700; }
+  .sum-row .rd { color: var(--muted); font-size: 12px; font-weight: 600; margin-right: 2px; }
+
+  /* Transformación lista → resumen */
+  #p6 .p6-sum { display: none; }
+  #p6 .sugg { max-height: 200px; overflow: hidden; transition: max-height .5s ease, opacity .3s ease; }
+  #p6.closing .sugg { max-height: 0; opacity: 0; }
+  #p6.closing .p6-live .h, #p6.closing .p6-live .input-card { opacity: 0; transition: opacity .3s ease; }
+  #p6.done .sess-bar, #p6.done .p6-live { display: none; }
+  #p6.done .p6-sum { display: flex; animation: rise .5s cubic-bezier(.2,.8,.2,1); }
+  #p6.done .tally .t { animation: rise .5s cubic-bezier(.2,.8,.2,1) both; }
+  #p6.done .tally .t:nth-child(2) { animation-delay: .12s; }
+  #p6.done .tally .t:nth-child(3) { animation-delay: .24s; }
+  @keyframes rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+  /* Botón stop de cronómetro con anillo de progreso */
+  .stop { position: relative; width: 52px; height: 52px; border: none; padding: 0; border-radius: 50%;
+          background: var(--surface); cursor: pointer; touch-action: none; user-select: none; -webkit-user-select: none;
+          display: flex; align-items: center; justify-content: center; transition: transform .2s ease; }
+  .stop .sq { width: 16px; height: 16px; border-radius: 4px; background: var(--text); transition: background .2s ease, transform .2s ease; }
+  .stop .ring { position: absolute; inset: 0; transform: rotate(-90deg); }
+  .stop .ring circle { fill: none; stroke-width: 3; }
+  .stop .ring .track { stroke: transparent; }
+  .stop .ring .prog { stroke: var(--green); stroke-linecap: round; stroke-dasharray: 150.8; stroke-dashoffset: 150.8; }
+  .stop.holding { transform: scale(1.12); }
+  .stop.holding .sq { background: var(--green); transform: scale(.85); }
+  .stop.holding .ring .prog { stroke-dashoffset: 0; transition: stroke-dashoffset 1.5s linear; }
+  .stop.release .ring .prog { transition: stroke-dashoffset .3s ease-out; }
+
+  /* Inundación verde que sube desde abajo mientras mantienes */
+  .phone .flood { position: absolute; left: 0; right: 0; bottom: 0; height: 0; background: var(--green); z-index: 5;
+                  border-radius: 0; overflow: hidden; pointer-events: none; }
+  #p6.holding .flood { height: 100%; transition: height 1.5s cubic-bezier(.55,0,.9,.6); }
+  #p6.drain .flood { height: 0; transition: height .35s ease-out; }
+  #p6.flooded .flood { height: 100%; }
+  #p6 .p6-live, #p6 .sess-bar { transition: transform 1.5s ease-in, filter 1.5s ease-in, opacity .3s; }
+  #p6.holding .p6-live, #p6.holding .sess-bar { transform: scale(.94); filter: blur(2px); }
+  #p6.holding .sess-bar { filter: none; transform: none; }
+  #p6.drain .p6-live { transition: transform .3s ease-out, filter .3s ease-out; }
+  .flood-in { position: absolute; left: 24px; right: 24px; top: 50%; transform: translateY(-50%); color: var(--ink); }
+  .flood-in .fl-k { font-size: 15px; font-weight: 700; opacity: 0; }
+  .flood-in .fl-t { font-size: 46px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; opacity: 0; }
+  #p6.flooded .flood-in > * { animation: rise .45s cubic-bezier(.2,.8,.2,1) both; }
+  #p6.flooded .flood-in > *:nth-child(2) { animation-delay: .12s; }
+  #p6.flooded .flood-in > *:nth-child(3) { animation-delay: .24s; }
+  #p6.flooded .flood-in > *:nth-child(4) { animation-delay: .36s; }
+  #p6.flooded .flood-in > *:nth-child(5) { animation-delay: .5s; }
+  #p6.flooded .p6-live, #p6.flooded .sess-bar { opacity: 0; }
+  #p6.recede .flood { height: 0; transition: height .6s cubic-bezier(.6,0,.2,1); }
+  #p6.recede .flood-in { opacity: 0; transition: opacity .2s; }
+</style>
+</head>
+<body>
+<div class="row-of-phones">
+
+  <!-- 1. Elegir músculo -->
+  <div class="step">
+    <div class="step-label">1 · Elegir músculo <span>— tócalos, es interactivo</span></div>
+    <div class="phone" id="p1">
+      <div class="status" data-status></div>
+      <div class="content closed" style="justify-content:flex-start; padding-top:18px">
+        <div class="h">¿Qué toca hoy?</div>
+        <div class="small" style="margin-top:2px">Primero lo que más tiempo lleva sin entrenar. El orden en que tocas es el orden de la sesión.</div>
+        <div class="muslist">
+          <div class="mus" onclick="toggleMus(this)"><span class="mn">Pecho</span><span class="md">17 sep</span><span class="mk"></span></div>
+          <div class="mus" onclick="toggleMus(this)"><span class="mn">Espalda</span><span class="md">17 sep</span><span class="mk"></span></div>
+          <div class="mus" onclick="toggleMus(this)"><span class="mn">Bíceps</span><span class="md">17 sep</span><span class="mk"></span></div>
+          <div class="mus" onclick="toggleMus(this)"><span class="mn">Pierna</span><span class="md">24 sep</span><span class="mk"></span></div>
+          <div class="mus" onclick="toggleMus(this)"><span class="mn">Glúteo</span><span class="md">24 sep</span><span class="mk"></span></div>
+          <div class="mus" onclick="toggleMus(this)"><span class="mn">Pantorrilla</span><span class="md">24 sep</span><span class="mk"></span></div>
+          <div class="mus on" onclick="toggleMus(this)"><span class="mn">Hombro</span><span class="md">27 sep</span><span class="mk">1</span></div>
+          <div class="mus on" onclick="toggleMus(this)"><span class="mn">Tríceps</span><span class="md">27 sep</span><span class="mk">2</span></div>
+          <div class="mus" onclick="toggleMus(this)"><span class="mn">Core</span><span class="md">sin registro</span><span class="mk"></span></div>
+          <div class="mus" onclick="toggleMus(this)"><span class="mn">Cardio</span><span class="md">sin registro</span><span class="mk"></span></div>
+          <div class="mus other"><span class="mn">Otro…</span></div>
+        </div>
+        <div class="btn go" id="goBtn">Empezar · Hombro + Tríceps</div>
+      </div>
+      <div class="home"></div>
+    </div>
+  </div>
+
+  <!-- 2. Primer ejercicio, vacío -->
+  <div class="step">
+    <div class="step-label">2 · Primer ejercicio <span>— teclado abierto</span></div>
+    <div class="phone">
+      <div class="status" data-status></div>
+      <div class="content">
+        <div class="ref">
+          <div class="small">Hombro y tríceps · tu última vez, 27 sep</div>
+          <div class="ref-row"><div class="n">Press de hombro con mancuernas</div><div class="v">24 kg · 4×8</div></div>
+          <div class="ref-row"><div class="n">Laterales en polea</div><div class="v">7.5 kg · 4×10</div></div>
+          <div class="ref-row"><div class="n">Laterales con pecho en rodillas</div><div class="v">12 kg · 4×12</div></div>
+          <div class="ref-row"><div class="n">Tríceps en polea, barra V</div><div class="v">30 kg · 4×10</div></div>
+          <div class="ref-row"><div class="n">Tríceps sobre la cabeza</div><div class="v">20 kg · 3×10</div></div>
+        </div>
+        <div class="h">¿Con qué empiezas?</div>
+        <div class="input-card">
+          <div class="txt ph"><span class="caret" style="margin:0 2px 0 0"></span>press de hombro, 24 kg, 4 de 8</div>
+          <div class="ibtn" data-mic></div>
+        </div>
+      </div>
+      <div class="keyboard" data-kb></div>
+    </div>
+  </div>
+
+  <!-- 3. Escribiendo: sugerencias del historial -->
+  <div class="step">
+    <div class="step-label">3 · Escribiendo <span>— sugiere desde tu historial</span></div>
+    <div class="phone">
+      <div class="status" data-status></div>
+      <div class="content">
+        <div class="ref">
+          <div class="small">Hombro y tríceps · tu última vez, 27 sep</div>
+          <div class="ref-row"><div class="n">Press de hombro con mancuernas</div><div class="v">24 kg · 4×8</div></div>
+          <div class="ref-row"><div class="n">Laterales en polea</div><div class="v">7.5 kg · 4×10</div></div>
+          <div class="ref-row"><div class="n">Laterales con pecho en rodillas</div><div class="v">12 kg · 4×12</div></div>
+        </div>
+        <div class="suggest">
+          <div class="sg"><div class="n"><b>Press de hom</b>bro con mancuernas</div><div class="v">Última: <b>24 kg · 4×8</b> · 27 sep</div></div>
+          <div class="sg"><div class="n"><b>Press de hom</b>bro en máquina</div><div class="v">Última: <b>20 kg/lado · 4×12</b> · 17 sep</div></div>
+        </div>
+        <div class="input-card">
+          <div class="txt">press de hom<span class="caret"></span></div>
+          <div class="ibtn send" data-send></div>
+        </div>
+      </div>
+      <div class="keyboard" data-kb></div>
+    </div>
+  </div>
+
+  <!-- 4. Anotado -->
+  <div class="step">
+    <div class="step-label">4 · Anotado <span>— animado: tu texto sube, confirma y se va a la lista</span></div>
+    <div class="phone" id="p4">
+      <div class="status" data-status></div>
+      <div class="content closed">
+        <div class="ref">
+          <div class="small">Hombro y tríceps · tu última vez, 27 sep</div>
+          <div class="ref-row a-row"><div class="mark"><div class="dot"></div><div class="ok" data-check></div></div><div class="n">Press de hombro con mancuernas</div><div class="v"><span class="v-old">24 kg · 4×8</span><span class="v-new">24 kg · 4×9<small>+1</small></span></div></div>
+          <div class="ref-row"><div class="dot"></div><div class="n">Laterales en polea</div><div class="v">7.5 kg · 4×10</div></div>
+          <div class="ref-row"><div class="dot"></div><div class="n">Laterales con pecho en rodillas</div><div class="v">12 kg · 4×12</div></div>
+          <div class="ref-row"><div class="dot"></div><div class="n">Tríceps en polea, barra V</div><div class="v">30 kg · 4×10</div></div>
+          <div class="ref-row"><div class="dot"></div><div class="n">Tríceps sobre la cabeza</div><div class="v">20 kg · 3×10</div></div>
+        </div>
+        <div class="fb">
+          <div class="bubble">press de hombro con mancuernas, 24 kg, 4 de 9</div>
+          <div class="conf"><span class="ok" data-check></span>Anotado · +1 rep por serie vs. el 27</div>
+        </div>
+        <div class="h a-hint">¿Con qué empiezas?</div>
+        <div class="input-card">
+          <div class="txt a-txt"><span class="typed">press de hombro con mancuernas, 24 kg, 4 de 9</span><span class="ph a-ph">Escribe o dicta el siguiente</span></div>
+          <div class="ibtn a-btn"><span class="i-send" data-send></span><span class="i-mic" data-mic></span></div>
+        </div>
+      </div>
+      <div class="home"></div>
+    </div>
+  </div>
+
+  <!-- 5. Si hay duda -->
+  <div class="step">
+    <div class="step-label">5 · Si hay duda <span>— pregunta, no adivina</span></div>
+    <div class="phone">
+      <div class="status" data-status></div>
+      <div class="content closed">
+        <div class="ref">
+          <div class="small">Hombro y tríceps · tu última vez, 27 sep</div>
+          <div class="ref-row done"><div class="ok" data-check></div><div class="n">Press de hombro con mancuernas</div><div class="v">24 kg · 4×9<small>+1</small></div></div>
+          <div class="ref-row"><div class="dot"></div><div class="n">Laterales en polea</div><div class="v">7.5 kg · 4×10</div></div>
+          <div class="ref-row"><div class="dot"></div><div class="n">Laterales con pecho en rodillas</div><div class="v">12 kg · 4×12</div></div>
+          <div class="ref-row"><div class="dot"></div><div class="n">Tríceps en polea, barra V</div><div class="v">30 kg · 4×10</div></div>
+          <div class="ref-row"><div class="dot"></div><div class="n">Tríceps sobre la cabeza</div><div class="v">20 kg · 3×10</div></div>
+        </div>
+        <div class="entry">
+          <div class="said">laterales con 10, 4 de 11</div>
+          <div class="ask">¿Cuáles laterales?</div>
+          <div class="opts">
+            <div class="opt">En polea <span>última 7.5 kg</span></div>
+            <div class="opt">De pie con mancuernas <span>última 16 kg</span></div>
+            <div class="opt">Con pecho en rodillas <span>última 12 kg</span></div>
+          </div>
+        </div>
+        <div class="input-card" style="margin-top:6px">
+          <div class="txt ph">U otra cosa, dímelo</div>
+          <div class="ibtn" data-mic></div>
+        </div>
+      </div>
+      <div class="home"></div>
+    </div>
+  </div>
+
+
+  <!-- 6. Terminar: mantener presionado -->
+  <div class="step">
+    <div class="step-label">6 · Terminar <span>— mantén el ■, es interactivo · <a href="#" onclick="resetP6();return false" style="color:var(--green)">reiniciar</a></span></div>
+    <div class="phone" id="p6">
+      <div class="status" data-status></div>
+      <div class="sess-bar">
+        <div><div class="sess-t">Hombro</div></div>
+        <div class="endwrap">
+          <span class="sess-time">42:10</span>
+          <button class="stop" id="endBtn" aria-label="Mantén para terminar la sesión">
+            <svg class="ring" viewBox="0 0 52 52"><circle class="track" cx="26" cy="26" r="24"/><circle class="prog" cx="26" cy="26" r="24"/></svg>
+            <span class="sq"></span>
+          </button>
+          <div class="tip" id="tip">Mantén para terminar</div>
+        </div>
+      </div>
+      <div class="flood" id="flood">
+        <div class="flood-in">
+          <div class="fl-k">Sesión terminada</div>
+          <div class="fl-t">2 subieron</div>
+          <div class="fl-t">1 igual</div>
+          <div class="fl-t">1 nuevo</div>
+          <div class="fl-k" style="margin-top:14px">58 min</div>
+        </div>
+      </div>
+      <div class="content closed p6-live">
+        <div class="ref" style="margin-bottom:auto">
+          <div class="small">Hoy</div>
+            <div class="ref-row done2"><div class="ok" data-check></div><div class="n">Press de hombro con mancuernas<span class="vs">vs. 27 sep</span></div><div class="v">24 kg · 4×9<small class="up">+1</small></div></div>
+            <div class="ref-row done2"><div class="ok" data-check></div><div class="n">Laterales en polea<span class="vs">vs. 27 sep</span></div><div class="v">7.5 kg · 3×11·1×9<small class="up">+2</small></div></div>
+            <div class="ref-row done2"><div class="ok" data-check></div><div class="n">Press de hombro en máquina<span class="vs">vs. 17 sep</span></div><div class="v">20 kg/lado · 4×12<small class="same">=</small></div></div>
+            <div class="ref-row done2"><div class="ok" data-check></div><div class="n">Remo al mentón<span class="vs">primera vez</span></div><div class="v">15 kg · 3×12<small class="new">nuevo</small></div></div>
+          <div class="sugg">
+            <div class="small" style="margin-top:16px">Sugeridos de tu última vez · 27 sep</div>
+            <div class="ref-row"><div class="dot"></div><div class="n">Laterales con pecho en rodillas</div><div class="v">12 kg · 4×12</div></div>
+            <div class="ref-row"><div class="dot"></div><div class="n">Tríceps en polea, barra V</div><div class="v">30 kg · 4×10</div></div>
+            <div class="ref-row"><div class="dot"></div><div class="n">Tríceps sobre la cabeza</div><div class="v">20 kg · 3×10</div></div>
+          </div>
+        </div>
+        <div class="h">¿Qué sigue?</div>
+        <div class="input-card">
+          <div class="txt ph">Escribe o dicta el siguiente</div>
+          <div class="ibtn" data-mic></div>
+        </div>
+      </div>
+      <div class="content closed p6-sum" style="justify-content:flex-start; padding-top:18px">
+          <div class="small">Lunes 28 · Hombro · 58 min</div>
+          <div class="tally">
+            <div class="t up">2 subieron</div>
+            <div class="t">1 igual</div>
+            <div class="t dim">1 nuevo</div>
+          </div>
+          <div class="sum">
+            <div class="sum-row"><div class="n">Press de hombro con mancuernas</div><div class="cmp"><span class="rd">27 sep</span><span class="o">4×8</span><span class="a">→</span><span class="w">24 kg · 4×9</span><small class="up">+1</small></div></div>
+            <div class="sum-row"><div class="n">Laterales en polea</div><div class="cmp"><span class="rd">27 sep</span><span class="o">4×10</span><span class="a">→</span><span class="w">7.5 kg · 3×11·1×9</span><small class="up">+2</small></div></div>
+            <div class="sum-row"><div class="n">Press de hombro en máquina</div><div class="cmp"><span class="rd">17 sep</span><span class="o">4×12</span><span class="a">→</span><span class="w">20 kg/lado · 4×12</span><small class="same">=</small></div></div>
+            <div class="sum-row"><div class="n">Remo al mentón</div><div class="cmp"><span class="rd">primera vez</span><span class="w">15 kg · 3×12</span><small class="new">nuevo</small></div></div>
+          </div>
+          <div class="nexttime">
+            <div class="small">La próxima vez</div>
+            <div class="nt">Press en máquina: llegaste a 4×12, el tope. <b>Sube a 22.5 kg/lado</b> y vuelve a 8.</div>
+          </div>
+        <div class="btn ghost" style="margin-top:auto">Cerrar</div>
+      </div>
+      <div class="home"></div>
+    </div>
+  </div>
+
+  <!-- 7. Resumen -->
+  <div class="step">
+    <div class="step-label">7 · Resumen <span>— cada ejercicio contra su propio último registro</span></div>
+    <div class="phone">
+      <div class="status" data-status></div>
+      <div class="content closed" style="justify-content:flex-start; padding-top:18px">
+          <div class="small">Lunes 28 · Hombro · 58 min</div>
+          <div class="tally">
+            <div class="t up">2 subieron</div>
+            <div class="t">1 igual</div>
+            <div class="t dim">1 nuevo</div>
+          </div>
+          <div class="sum">
+            <div class="sum-row"><div class="n">Press de hombro con mancuernas</div><div class="cmp"><span class="rd">27 sep</span><span class="o">4×8</span><span class="a">→</span><span class="w">24 kg · 4×9</span><small class="up">+1</small></div></div>
+            <div class="sum-row"><div class="n">Laterales en polea</div><div class="cmp"><span class="rd">27 sep</span><span class="o">4×10</span><span class="a">→</span><span class="w">7.5 kg · 3×11·1×9</span><small class="up">+2</small></div></div>
+            <div class="sum-row"><div class="n">Press de hombro en máquina</div><div class="cmp"><span class="rd">17 sep</span><span class="o">4×12</span><span class="a">→</span><span class="w">20 kg/lado · 4×12</span><small class="same">=</small></div></div>
+            <div class="sum-row"><div class="n">Remo al mentón</div><div class="cmp"><span class="rd">primera vez</span><span class="w">15 kg · 3×12</span><small class="new">nuevo</small></div></div>
+          </div>
+          <div class="nexttime">
+            <div class="small">La próxima vez</div>
+            <div class="nt">Press en máquina: llegaste a 4×12, el tope. <b>Sube a 22.5 kg/lado</b> y vuelve a 8.</div>
+          </div>
+        <div class="btn ghost" style="margin-top:auto">Cerrar</div>
+      </div>
+      <div class="home"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const status = `<span>9:41</span><svg width="46" height="12" viewBox="0 0 46 12" fill="#FCF9FC"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="5.5" width="3" height="6.5" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/><rect x="21.5" y="0.5" width="21" height="11" rx="3" fill="none" stroke="#FCF9FC" opacity="0.5"/><rect x="23" y="2" width="18" height="8" rx="2"/><rect x="43.5" y="4" width="1.5" height="4" rx="0.7" opacity="0.5"/></svg>`;
+  const mic = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>`;
+  const send = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>`;
+  const check = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
+  const row = k => `<div class="kb-row">${k.map(x => `<div class="key">${x}</div>`).join('')}</div>`;
+  const kb = row('QWERTYUIOP'.split('')) +
+    `<div class="kb-row r2">${'ASDFGHJKL'.split('').map(x => `<div class="key">${x}</div>`).join('')}</div>` +
+    `<div class="kb-row"><div class="key fn">⇧</div>${'ZXCVBNM'.split('').map(x => `<div class="key">${x}</div>`).join('')}<div class="key fn">⌫</div></div>` +
+    `<div class="kb-row"><div class="key fn">123</div><div class="key fn">🌐</div><div class="key space">espacio</div><div class="key fn ret">intro</div></div>`;
+  document.querySelectorAll('[data-status]').forEach(e => e.innerHTML = status);
+  document.querySelectorAll('[data-mic]').forEach(e => e.innerHTML = mic);
+  document.querySelectorAll('[data-send]').forEach(e => e.innerHTML = send);
+  document.querySelectorAll('[data-check]').forEach(e => e.innerHTML = check);
+  document.querySelectorAll('[data-kb]').forEach(e => e.innerHTML = kb);
+  const order = ['Hombro', 'Tríceps'];
+  function toggleMus(el) {
+    if (el.classList.contains('other')) return;
+    const name = el.querySelector('.mn').textContent;
+    const i = order.indexOf(name);
+    if (i >= 0) order.splice(i, 1); else order.push(name);
+    document.querySelectorAll('#p1 .mus').forEach(m => {
+      const n = m.querySelector('.mn').textContent, k = order.indexOf(n), mk = m.querySelector('.mk');
+      m.classList.toggle('on', k >= 0);
+      if (mk && k >= 0) mk.textContent = k + 1;
+    });
+    const b = document.getElementById('goBtn');
+    b.classList.toggle('off', order.length === 0);
+    if (order.length) b.textContent = 'Empezar · ' + order.join(' + ');
+  }
+  // Animación de la pantalla 4: escrito → enviado (sube y confirma) → se va a la lista
+  const p4 = document.getElementById('p4'), hint = p4.querySelector('.a-hint');
+  function cycle() {
+    p4.classList.remove('sent', 'gone'); hint.textContent = '¿Con qué empiezas?';
+    setTimeout(() => { p4.classList.add('sent'); hint.textContent = '¿Qué sigue?'; }, 1600);
+    setTimeout(() => { p4.classList.remove('sent'); p4.classList.add('gone'); }, 6100);
+    setTimeout(cycle, 9600);
+  }
+  if (new URLSearchParams(location.search).get('state') === 'sent') { p4.classList.add('sent'); hint.textContent = '¿Qué sigue?'; }
+  else if (new URLSearchParams(location.search).get('state') === 'gone') { p4.classList.add('gone'); hint.textContent = '¿Qué sigue?'; }
+  else cycle();
+
+
+  // Mantener el stop 1.5 s: la pantalla se inunda de verde; al completar, resumen
+  const p6 = document.getElementById('p6'), endBtn = document.getElementById('endBtn'), tip = document.getElementById('tip');
+  let holdT = null, downAt = 0, tipT = null, buzz = null;
+  endBtn.addEventListener('pointerdown', e => {
+    e.preventDefault(); downAt = Date.now();
+    p6.classList.remove('drain'); endBtn.classList.remove('release');
+    endBtn.classList.add('holding'); p6.classList.add('holding'); tip.classList.remove('show');
+    let k = 0; buzz = setInterval(() => { if (navigator.vibrate) navigator.vibrate(8 + k * 6); k++; }, 250);
+    holdT = setTimeout(() => {
+      clearInterval(buzz); if (navigator.vibrate) navigator.vibrate([60, 40, 120]);
+      endBtn.classList.remove('holding'); p6.classList.remove('holding'); p6.classList.add('flooded');
+      setTimeout(() => { p6.classList.add('done', 'recede'); }, 2100);
+      setTimeout(() => { p6.classList.remove('flooded', 'recede'); }, 2800);
+    }, 1500);
+  });
+  const cancel = () => {
+    if (!endBtn.classList.contains('holding')) return;
+    clearTimeout(holdT); clearInterval(buzz);
+    endBtn.classList.remove('holding'); endBtn.classList.add('release');
+    p6.classList.remove('holding'); p6.classList.add('drain');
+    if (Date.now() - downAt < 400) { tip.classList.add('show'); clearTimeout(tipT); tipT = setTimeout(() => tip.classList.remove('show'), 2200); }
+  };
+  endBtn.addEventListener('pointerup', cancel); endBtn.addEventListener('pointerleave', cancel); endBtn.addEventListener('pointercancel', cancel);
+  function resetP6() { p6.className = 'phone'; endBtn.className = 'stop'; }
+  if (new URLSearchParams(location.search).get('p6') === 'tip') tip.classList.add('show');
+</script>
+</body>
+</html>

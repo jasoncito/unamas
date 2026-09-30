@@ -1,0 +1,897 @@
+{
+  "exercises": [
+    {
+      "id": "curl_barra_z",
+      "canonical_name": "Curl con barra Z",
+      "aliases": [
+        "bicep curl barra z",
+        "curl barra z"
+      ],
+      "muscle_groups": [
+        "bíceps"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 1.25,
+      "load_basis": "per_side",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "curl_inclinado_mancuernas",
+      "canonical_name": "Curl inclinado con mancuernas",
+      "aliases": [
+        "curl mancuernas banco inclinado"
+      ],
+      "muscle_groups": [
+        "bíceps"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 2,
+      "load_basis": "per_dumbbell",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "curl_martillo_polea",
+      "canonical_name": "Curl martillo en polea",
+      "aliases": [
+        "curl martillo"
+      ],
+      "muscle_groups": [
+        "bíceps"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 2.5,
+      "load_basis": "stack",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "curl_concentracion",
+      "canonical_name": "Curl de concentración",
+      "aliases": [
+        "curl concentrado sentado"
+      ],
+      "muscle_groups": [
+        "bíceps"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 2,
+      "load_basis": "per_dumbbell",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "preacher_curl_z",
+      "canonical_name": "Curl predicador con barra Z",
+      "aliases": [
+        "preacher curl",
+        "banco scott"
+      ],
+      "muscle_groups": [
+        "bíceps"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 1.25,
+      "load_basis": "per_side",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "low_row_maquina",
+      "canonical_name": "Remo bajo en máquina (low row)",
+      "aliases": [
+        "low row",
+        "remo bajo"
+      ],
+      "muscle_groups": [
+        "espalda"
+      ],
+      "kind": "compound",
+      "rep_floor": 8,
+      "rep_top": 12,
+      "step_kg": 5,
+      "load_basis": "stack",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "jalon_pecho_maquina",
+      "canonical_name": "Jalón al pecho en máquina",
+      "aliases": [
+        "jalón al pecho",
+        "lat pulldown"
+      ],
+      "muscle_groups": [
+        "espalda"
+      ],
+      "kind": "compound",
+      "rep_floor": 8,
+      "rep_top": 12,
+      "step_kg": 5,
+      "load_basis": "stack",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "lumbar_maquina",
+      "canonical_name": "Extensión lumbar en máquina",
+      "aliases": [
+        "máquina lumbar",
+        "lumbar technogym"
+      ],
+      "muscle_groups": [
+        "espalda"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 5,
+      "load_basis": "stack",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "press_hombro_mancuernas",
+      "canonical_name": "Press de hombro con mancuernas",
+      "aliases": [
+        "press de hombros",
+        "press hombro mancuernas",
+        "press militar mancuernas"
+      ],
+      "muscle_groups": [
+        "hombro"
+      ],
+      "kind": "compound",
+      "rep_floor": 8,
+      "rep_top": 12,
+      "step_kg": 2,
+      "load_basis": "per_dumbbell",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "press_hombro_maquina",
+      "canonical_name": "Press de hombro en máquina",
+      "aliases": [
+        "press hombro technogym",
+        "press militar máquina"
+      ],
+      "muscle_groups": [
+        "hombro"
+      ],
+      "kind": "compound",
+      "rep_floor": 8,
+      "rep_top": 12,
+      "step_kg": 2.5,
+      "load_basis": "per_side",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "laterales_pie_mancuernas",
+      "canonical_name": "Elevaciones laterales de pie con mancuernas",
+      "aliases": [
+        "laterales de pie",
+        "elevaciones laterales"
+      ],
+      "muscle_groups": [
+        "hombro"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 2,
+      "load_basis": "per_dumbbell",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "laterales_polea",
+      "canonical_name": "Elevaciones laterales en polea",
+      "aliases": [
+        "laterales en polea"
+      ],
+      "muscle_groups": [
+        "hombro"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 2.5,
+      "load_basis": "stack",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "laterales_pecho_rodillas",
+      "canonical_name": "Elevaciones laterales con pecho en rodillas",
+      "aliases": [
+        "pájaros",
+        "laterales inclinado",
+        "deltoide posterior mancuernas"
+      ],
+      "muscle_groups": [
+        "hombro"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 2,
+      "load_basis": "per_dumbbell",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "face_pull",
+      "canonical_name": "Face pull en polea alta",
+      "aliases": [
+        "jalón a la cara",
+        "jalones polea deltoide posterior"
+      ],
+      "muscle_groups": [
+        "hombro"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 2.5,
+      "load_basis": "stack",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "frontales_mancuernas",
+      "canonical_name": "Elevaciones frontales con mancuernas",
+      "aliases": [
+        "frontales"
+      ],
+      "muscle_groups": [
+        "hombro"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 2,
+      "load_basis": "per_dumbbell",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "triceps_polea_tras_cabeza",
+      "canonical_name": "Extensión de tríceps en polea por detrás de la cabeza",
+      "aliases": [
+        "tríceps polea detrás de la cabeza",
+        "overhead polea"
+      ],
+      "muscle_groups": [
+        "tríceps"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 2.5,
+      "load_basis": "stack",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "pushdown_barra_v",
+      "canonical_name": "Tríceps en polea con barra V (pushdown)",
+      "aliases": [
+        "pushdown",
+        "tríceps polea barra v",
+        "tríceps arriba hacia abajo"
+      ],
+      "muscle_groups": [
+        "tríceps"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 2.5,
+      "load_basis": "stack",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "triceps_mancuerna_cabeza",
+      "canonical_name": "Extensión de tríceps sobre la cabeza con mancuerna",
+      "aliases": [
+        "tríceps sobre la cabeza",
+        "copa con mancuerna"
+      ],
+      "muscle_groups": [
+        "tríceps"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 2,
+      "load_basis": "total",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "press_banca_barra",
+      "canonical_name": "Press de banca plano con barra",
+      "aliases": [
+        "press banca",
+        "bench press"
+      ],
+      "muscle_groups": [
+        "pecho"
+      ],
+      "kind": "compound_heavy",
+      "rep_floor": 6,
+      "rep_top": 10,
+      "step_kg": 2.5,
+      "load_basis": "per_side",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "press_pecho_maquina",
+      "canonical_name": "Press de pecho en máquina",
+      "aliases": [
+        "press pecho technogym"
+      ],
+      "muscle_groups": [
+        "pecho"
+      ],
+      "kind": "compound",
+      "rep_floor": 8,
+      "rep_top": 12,
+      "step_kg": 2.5,
+      "load_basis": "per_side",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "sentadilla_smith",
+      "canonical_name": "Sentadilla en máquina Smith",
+      "aliases": [
+        "sentadilla smith",
+        "squat smith"
+      ],
+      "muscle_groups": [
+        "pierna",
+        "glúteo"
+      ],
+      "kind": "compound_heavy",
+      "rep_floor": 6,
+      "rep_top": 10,
+      "step_kg": 2.5,
+      "load_basis": "per_side",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "zancadas_barra",
+      "canonical_name": "Zancadas alternas con barra",
+      "aliases": [
+        "lunges",
+        "zancadas en el sitio"
+      ],
+      "muscle_groups": [
+        "pierna",
+        "glúteo"
+      ],
+      "kind": "compound",
+      "rep_floor": 8,
+      "rep_top": 12,
+      "step_kg": 2.5,
+      "load_basis": "per_side",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "leg_extension",
+      "canonical_name": "Extensión de pierna en máquina",
+      "aliases": [
+        "leg extension"
+      ],
+      "muscle_groups": [
+        "pierna"
+      ],
+      "kind": "isolation",
+      "rep_floor": 10,
+      "rep_top": 15,
+      "step_kg": 5,
+      "load_basis": "stack",
+      "confirm_mode": false,
+      "fast_progress": false
+    },
+    {
+      "id": "pantorrilla_pie_mancuerna",
+      "canonical_name": "Elevación de pantorrilla de pie con mancuerna",
+      "aliases": [
+        "pantorrilla de pie"
+      ],
+      "muscle_groups": [
+        "pantorrilla"
+      ],
+      "kind": "calf",
+      "rep_floor": 12,
+      "rep_top": 20,
+      "step_kg": 2,
+      "load_basis": "total",
+      "confirm_mode": false,
+      "fast_progress": false
+    }
+  ],
+  "sessions": [
+    {
+      "id": "s1",
+      "date": "2026-09-15",
+      "muscle_groups": [
+        "bíceps",
+        "espalda"
+      ],
+      "duration_min": 61,
+      "avg_bpm": 118
+    },
+    {
+      "id": "s2",
+      "date": "2026-09-16",
+      "muscle_groups": [
+        "hombro",
+        "tríceps"
+      ],
+      "duration_min": 62,
+      "avg_bpm": 116
+    },
+    {
+      "id": "s3",
+      "date": "2026-09-17",
+      "muscle_groups": [
+        "pecho",
+        "hombro",
+        "bíceps",
+        "espalda"
+      ],
+      "duration_min": null,
+      "avg_bpm": null
+    },
+    {
+      "id": "s4",
+      "date": "2026-09-24",
+      "muscle_groups": [
+        "pierna",
+        "pantorrilla"
+      ],
+      "duration_min": null,
+      "avg_bpm": null
+    },
+    {
+      "id": "s5",
+      "date": "2026-09-27",
+      "muscle_groups": [
+        "hombro",
+        "tríceps"
+      ],
+      "duration_min": null,
+      "avg_bpm": null
+    }
+  ],
+  "entries": [
+    {
+      "id": "s1e1",
+      "session_id": "s1",
+      "exercise_id": "curl_barra_z",
+      "load_kg": 11.5,
+      "reps": [
+        11,
+        11,
+        11,
+        11
+      ],
+      "raw_text": "bicep curl con barra z 11.5 kilos a cada lado, 11 repeticiones 4 series"
+    },
+    {
+      "id": "s1e2",
+      "session_id": "s1",
+      "exercise_id": "curl_inclinado_mancuernas",
+      "load_kg": 14,
+      "reps": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "raw_text": "bicep curl mancuernas de 14kg en banco inclinado 4 de 8"
+    },
+    {
+      "id": "s1e3",
+      "session_id": "s1",
+      "exercise_id": "curl_martillo_polea",
+      "load_kg": null,
+      "reps": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "raw_text": "curl martillo en la polea 4 de 10"
+    },
+    {
+      "id": "s1e4",
+      "session_id": "s1",
+      "exercise_id": "low_row_maquina",
+      "load_kg": 40,
+      "reps": [
+        15,
+        15,
+        15,
+        15
+      ],
+      "raw_text": "maquina de espalda low row, 4 de 15, 40 kilos"
+    },
+    {
+      "id": "s1e5",
+      "session_id": "s1",
+      "exercise_id": "curl_concentracion",
+      "load_kg": 12,
+      "reps": [
+        10,
+        10,
+        10
+      ],
+      "raw_text": "bíceps un brazo sentado con el codo en la rodilla, 12 kilos, 3 de 10"
+    },
+    {
+      "id": "s1e6",
+      "session_id": "s1",
+      "exercise_id": "lumbar_maquina",
+      "load_kg": null,
+      "reps": [
+        15,
+        15,
+        15
+      ],
+      "raw_text": "máquina lumbar technogym número 44, 3 de 15"
+    },
+    {
+      "id": "s2e1",
+      "session_id": "s2",
+      "exercise_id": "press_hombro_mancuernas",
+      "load_kg": 24,
+      "reps": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "raw_text": "press de hombros con mancuernas en banco, 24 kilos por mancuerna, 4 de 8"
+    },
+    {
+      "id": "s2e2",
+      "session_id": "s2",
+      "exercise_id": "laterales_pie_mancuernas",
+      "load_kg": 16,
+      "reps": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "raw_text": "elevaciones laterales de pie con mancuernas, 16 kilos, 4 de 10"
+    },
+    {
+      "id": "s2e3",
+      "session_id": "s2",
+      "exercise_id": "laterales_pecho_rodillas",
+      "load_kg": 12,
+      "reps": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "raw_text": "elevaciones laterales con el pecho topando las rodillas, mancuernas de 12, 4 de 10"
+    },
+    {
+      "id": "s2e4",
+      "session_id": "s2",
+      "exercise_id": "triceps_polea_tras_cabeza",
+      "load_kg": 25,
+      "reps": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "raw_text": "tríceps en polea con barra en v por detrás de la cabeza, 25 kilos, 4 de 10"
+    },
+    {
+      "id": "s2e5",
+      "session_id": "s2",
+      "exercise_id": "pushdown_barra_v",
+      "load_kg": 25,
+      "reps": [
+        10,
+        10,
+        10
+      ],
+      "raw_text": "tríceps de arriba hacia abajo, 3 de 10, 25"
+    },
+    {
+      "id": "s3e1",
+      "session_id": "s3",
+      "exercise_id": "press_banca_barra",
+      "load_kg": 20,
+      "reps": [
+        12,
+        12,
+        12,
+        12
+      ],
+      "raw_text": "press banca plano con barra 20 kilos a cada lado, 4 de 12"
+    },
+    {
+      "id": "s3e2",
+      "session_id": "s3",
+      "exercise_id": "laterales_pie_mancuernas",
+      "load_kg": 16,
+      "reps": [
+        12,
+        12,
+        12,
+        10
+      ],
+      "raw_text": "elevaciones laterales con mancuerna, 16 kilos, 3 de 12 y 1 de 10"
+    },
+    {
+      "id": "s3e3",
+      "session_id": "s3",
+      "exercise_id": "press_hombro_maquina",
+      "load_kg": 20,
+      "reps": [
+        12,
+        12,
+        12,
+        12
+      ],
+      "raw_text": "máquina de hombro, press, 20 kilos a cada lado, 4 de 12"
+    },
+    {
+      "id": "s3e4",
+      "session_id": "s3",
+      "exercise_id": "face_pull",
+      "load_kg": 25,
+      "reps": [
+        12,
+        12,
+        12,
+        12
+      ],
+      "raw_text": "jalones en la polea arriba para hombro posterior, con 25, 4 de 12"
+    },
+    {
+      "id": "s3e5",
+      "session_id": "s3",
+      "exercise_id": "frontales_mancuernas",
+      "load_kg": 12,
+      "reps": [
+        10,
+        10,
+        10
+      ],
+      "raw_text": "elevaciones frontales con mancuernas, 12 kilos cada una, 3 de 10"
+    },
+    {
+      "id": "s3e6",
+      "session_id": "s3",
+      "exercise_id": "press_pecho_maquina",
+      "load_kg": 25,
+      "reps": [
+        10,
+        10,
+        10
+      ],
+      "raw_text": "máquina de pecho, 25 kilos a cada lado, 3 de 10"
+    },
+    {
+      "id": "s3e7",
+      "session_id": "s3",
+      "exercise_id": "curl_barra_z",
+      "load_kg": 12.5,
+      "reps": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "raw_text": "curl barra z 12,5 kilos por lado 4 de 10"
+    },
+    {
+      "id": "s3e8",
+      "session_id": "s3",
+      "exercise_id": "curl_inclinado_mancuernas",
+      "load_kg": 14,
+      "reps": [
+        10,
+        10,
+        10
+      ],
+      "raw_text": "mancuernas bíceps en banca inclinada, 14 kilos por lado 3 de 10"
+    },
+    {
+      "id": "s3e9",
+      "session_id": "s3",
+      "exercise_id": "curl_martillo_polea",
+      "load_kg": 25,
+      "reps": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "raw_text": "curl martillo en poleas 25k 4x10"
+    },
+    {
+      "id": "s3e10",
+      "session_id": "s3",
+      "exercise_id": "preacher_curl_z",
+      "load_kg": 10,
+      "reps": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "raw_text": "preacher con barra z 10 kilos cada lado 4 de 8"
+    },
+    {
+      "id": "s3e11",
+      "session_id": "s3",
+      "exercise_id": "jalon_pecho_maquina",
+      "load_kg": 40,
+      "reps": [
+        12,
+        12,
+        12,
+        12
+      ],
+      "raw_text": "jalón al pecho de espalda en máquina 4 de 12 con 40k"
+    },
+    {
+      "id": "s3e12",
+      "session_id": "s3",
+      "exercise_id": "low_row_maquina",
+      "load_kg": 45,
+      "reps": [
+        12,
+        12,
+        12,
+        12
+      ],
+      "raw_text": "low row en máquina 45k 4 de 12"
+    },
+    {
+      "id": "s4e1",
+      "session_id": "s4",
+      "exercise_id": "sentadilla_smith",
+      "load_kg": 30,
+      "reps": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "raw_text": "sentadilla en la smith 4 de 10 30 kilos a cada lado"
+    },
+    {
+      "id": "s4e2",
+      "session_id": "s4",
+      "exercise_id": "zancadas_barra",
+      "load_kg": 10,
+      "reps": [
+        16,
+        16,
+        16
+      ],
+      "raw_text": "lunges en el mismo sitio alternando, barra 10 kilos a cada lado 3 de 16"
+    },
+    {
+      "id": "s4e3",
+      "session_id": "s4",
+      "exercise_id": "leg_extension",
+      "load_kg": 70,
+      "reps": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "raw_text": "leg extension 70 4 de 10"
+    },
+    {
+      "id": "s4e4",
+      "session_id": "s4",
+      "exercise_id": "pantorrilla_pie_mancuerna",
+      "load_kg": 18,
+      "reps": [
+        16,
+        16,
+        16,
+        16
+      ],
+      "raw_text": "pantorrilla de pie, 18 kilos una mancuerna, 4 de 16"
+    },
+    {
+      "id": "s5e1",
+      "session_id": "s5",
+      "exercise_id": "press_hombro_mancuernas",
+      "load_kg": 24,
+      "reps": [
+        8,
+        8,
+        8,
+        8
+      ],
+      "raw_text": "press de hombros con mancuernas de 24 4 de 8"
+    },
+    {
+      "id": "s5e2",
+      "session_id": "s5",
+      "exercise_id": "laterales_polea",
+      "load_kg": 7.5,
+      "reps": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "raw_text": "elevaciones laterales de hombros en polea con 7,5. 4 de 10 cada hombro"
+    },
+    {
+      "id": "s5e3",
+      "session_id": "s5",
+      "exercise_id": "laterales_pecho_rodillas",
+      "load_kg": 12,
+      "reps": [
+        12,
+        12,
+        12,
+        12
+      ],
+      "raw_text": "elevaciones laterales con pecho en rodillas, mancuernas de 12k, 4 de 12"
+    },
+    {
+      "id": "s5e4",
+      "session_id": "s5",
+      "exercise_id": "pushdown_barra_v",
+      "load_kg": 30,
+      "reps": [
+        10,
+        10,
+        10,
+        10
+      ],
+      "raw_text": "tríceps en polea alta con barra en v con 30 kilos 4 de 10"
+    },
+    {
+      "id": "s5e5",
+      "session_id": "s5",
+      "exercise_id": "triceps_mancuerna_cabeza",
+      "load_kg": 20,
+      "reps": [
+        10,
+        10,
+        10
+      ],
+      "raw_text": "tríceps por encima de la cabeza con una mancuerna de 20, 3 de 10"
+    }
+  ]
+}
