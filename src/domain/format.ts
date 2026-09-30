@@ -1,3 +1,5 @@
+import type { LoadBasis } from './types';
+
 /** 7.5 → "7.5", 24 → "24", 13.75 → "13.75". */
 export function formatKg(kg: number): string {
   return String(Math.round(kg * 1000) / 1000);
@@ -24,4 +26,9 @@ const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', '
 export function formatShortDate(date: string): string {
   const [, m, d] = date.split('-').map(Number);
   return `${d} ${MONTHS[m - 1]}`;
+}
+
+/** "24 kg", or "20 kg/lado" for loads said per side. */
+export function formatLoad(loadKg: number, basis: LoadBasis): string {
+  return `${formatKg(loadKg)} kg${basis === 'per_side' ? '/lado' : ''}`;
 }
