@@ -100,6 +100,7 @@ El `with check` impide que alguien escriba filas con un `user_id` ajeno aunque l
 3. Si responde bien, marcar esas filas como `dirty = 0`, **solo si no cambiaron mientras subían** (mismo `updated_at` que se envió). Si el usuario editó una fila durante la subida, queda `dirty = 1` para la próxima.
 4. Mientras haya un cambio de cuenta pendiente (§2, plan B), no se sube nada.
 5. **El servidor también aplica "gana el último"** (migración `last_write_wins`): como se sube antes de bajar, un teléfono con una edición vieja sin subir pisaría una más nueva. Si llega una escritura con `updated_at` más viejo que el guardado, se conserva la fila guardada, pero igual se renueva `server_updated_at`, para que ese teléfono baje la ganadora en el próximo pull.
+6. **El reloj del teléfono no manda:** `updated_at` viene del teléfono, y uno adelantado ganaría siempre. Si llega un `updated_at` más de **5 minutos** en el futuro respecto a `now()` del servidor, se reemplaza por `now()` antes de comparar (migración `clamp_future_updated_at`). Hasta 5 minutos se tolera como desfase normal.
 
 **Bajar (pull):**
 1. Por tabla: `select <columnas locales> where server_updated_at > cursor − margen order by server_updated_at, id`, paginado por `(server_updated_at, id)`, así no se pierden filas con la misma hora entre páginas. RLS ya limita a las filas del usuario, y `user_id` no se guarda en el teléfono.

@@ -86,6 +86,15 @@ describe('RLS on the real project', { skip: !url || !key ? 'EXPO_PUBLIC_SUPABASE
     assertDenied(error, /permission denied/);
   });
 
+  it('a phone clock more than 5 minutes ahead is replaced by the server time', async () => {
+    const ahead = new Date(Date.now() + 365 * 24 * 3600 * 1000).toISOString();
+    const { error } = await a.from('exercise').update({ updated_at: ahead }).eq('id', exA);
+    assert.ifError(error);
+    const { data } = await a.from('exercise').select('updated_at').eq('id', exA);
+    const drift = Math.abs(Date.parse(data![0].updated_at) - Date.now()) / 1000;
+    assert.ok(drift < 120, `updated_at should be about now, is ${drift} s off`);
+  });
+
   it('without a session nothing is readable', async () => {
     for (const table of ['exercise', 'session', 'entry']) {
       const { error } = await client().from(table).select('id');

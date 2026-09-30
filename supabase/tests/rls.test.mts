@@ -53,7 +53,7 @@ const insertExercise = (user: string, id: string, extra = '') =>
 beforeEach(async () => {
   db = new PGlite();
   await db.exec(SUPABASE_STUB);
-  for (const f of fs.readdirSync(MIGRATIONS).sort()) {
+  for (const f of fs.readdirSync(MIGRATIONS).filter((f) => f.endsWith('.sql')).sort()) {
     await db.exec(fs.readFileSync(path.join(MIGRATIONS, f), 'utf8'));
   }
   await db.query('insert into auth.users (id) values ($1), ($2)', [A, B]);
@@ -227,6 +227,48 @@ describe('last write wins on the server', () => {
     await upsert('newer', '2026-09-29T20:00:00Z');
     await upsert('stale', '2026-09-29T19:00:00Z');
     assert.equal((await read()).canonical_name, 'newer');
+  });
+});
+
+describe("a phone clock running ahead", () => {
+  const updatedAt = async () =>
+    (await as<{ updated_at: Date }>(A, 'select updated_at from public.exercise where id = $1', [EX_A])).rows[0].updated_at;
+  const secondsFromNow = (d: Date) => (d.getTime() - Date.now()) / 1000;
+
+  it('more than 5 minutes in the future becomes the server time', async () => {
+    await as(A, "update public.exercise set updated_at = now() + interval '1 year' where id = $1", [EX_A]);
+    assert.ok(Math.abs(secondsFromNow(await updatedAt())) < 60);
+  });
+
+  it('30 minutes ahead is already too much', async () => {
+    await as(A, "update public.exercise set updated_at = now() + interval '30 minutes' where id = $1", [EX_A]);
+    assert.ok(Math.abs(secondsFromNow(await updatedAt())) < 60);
+  });
+
+  it('also on insert', async () => {
+    const id = 'eeeeeeee-0000-4000-8000-00000000000c';
+    await as(
+      A,
+      `insert into public.exercise (id, canonical_name, muscle_groups, kind, rep_floor, rep_top, step_kg, load_basis,
+         created_at, updated_at)
+       values ($1, 'x', '[]', 'compound', 8, 12, 2, 'total', now(), now() + interval '1 day')`,
+      [id],
+    );
+    const { rows } = await as<{ updated_at: Date }>(A, 'select updated_at from public.exercise where id = $1', [id]);
+    assert.ok(Math.abs(secondsFromNow(rows[0].updated_at)) < 60);
+  });
+
+  it('up to 5 minutes ahead is normal clock drift and is kept', async () => {
+    await as(A, "update public.exercise set updated_at = now() + interval '4 minutes' where id = $1", [EX_A]);
+    const s = secondsFromNow(await updatedAt());
+    assert.ok(s > 200 && s < 250, `expected ~240 s ahead, got ${s}`);
+  });
+
+  it("can't block later writes: after clamping, a normal write from another phone wins", async () => {
+    await as(A, "update public.exercise set canonical_name = 'fast clock', updated_at = now() + interval '1 year' where id = $1", [EX_A]);
+    await as(A, "update public.exercise set canonical_name = 'normal clock', updated_at = now() where id = $1", [EX_A]);
+    const { rows } = await as<{ canonical_name: string }>(A, 'select canonical_name from public.exercise');
+    assert.deepEqual(rows, [{ canonical_name: 'normal clock' }]);
   });
 });
 
