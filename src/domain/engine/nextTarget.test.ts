@@ -1,6 +1,7 @@
 import { formatExposure } from '../format';
 import type { ExerciseConfig, ExerciseKind, Exposure } from '../types';
-import { isNextLoadAbsorbable, nextTarget } from './nextTarget';
+import { nextTarget } from './nextTarget';
+import { isNextLoadAbsorbable } from './rules';
 import { REP_RANGES } from './params';
 
 // Cases ported from dev/progression_sim.py; expectations are that script's output.
@@ -122,10 +123,11 @@ describe('nextTarget · edge cases (PROGRESSION.md §7)', () => {
     expect(nextTarget(high, press, TODAY)!.reps).toEqual([9, 9]);
   });
 
-  it('below the floor at the same load is a bad day, not a failed jump → even out', () => {
-    const history = [x('2026-09-20', 24, sets(4, 8)), x('2026-09-27', 24, [8, 8, 7, 7])];
+  it('below the floor at the same load is not a failed jump', () => {
+    // More total reps than last time (so not a bad day), but two sets under the floor of 8.
+    const history = [x('2026-09-20', 24, sets(4, 8)), x('2026-09-27', 24, [12, 12, 7, 7])];
     const t = nextTarget(history, press, TODAY)!;
-    expect(t).toMatchObject({ reason: 'even_out_sets', reps: [8, 8, 8, 8] });
+    expect(t).toMatchObject({ reason: 'even_out_sets', reps: [12, 12, 9, 9] });
   });
 
   it('load arithmetic does not drift with a learned step (5.1 + 1.1)', () => {

@@ -1,4 +1,6 @@
 export { epley } from './epley';
-export { isNextLoadAbsorbable, isStalled, nextTarget } from './nextTarget';
-export type { Target, TargetReason } from './nextTarget';
+export { nextTarget } from './nextTarget';
 export * from './params';
+export { learnProfile } from './profile';
+export { isNextLoadAbsorbable, isStalled, type Profile } from './rules';
+export type { Target, TargetReason } from './target';
