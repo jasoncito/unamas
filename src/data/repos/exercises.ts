@@ -1,6 +1,7 @@
 import type { ExerciseConfig, ExerciseKind, LoadBasis } from '@/domain/types';
 
 import type { Db } from '../db';
+import { nowIso } from '../ids';
 
 export interface Exercise extends ExerciseConfig {
   id: string;
@@ -39,22 +40,31 @@ function fromRow(r: ExerciseRow): Exercise {
   };
 }
 
-export async function getAllExercises(db: Db): Promise<Exercise[]> {
-  const rows = await db.getAllAsync<ExerciseRow>('SELECT * FROM exercise ORDER BY canonical_name', []);
+export async function getAllExercises(db: Db, userId: string): Promise<Exercise[]> {
+  const rows = await db.getAllAsync<ExerciseRow>(
+    'SELECT * FROM exercise WHERE user_id = ? AND deleted_at IS NULL ORDER BY canonical_name',
+    [userId],
+  );
   return rows.map(fromRow);
 }
 
-export async function getExercise(db: Db, id: string): Promise<Exercise | null> {
-  const row = await db.getFirstAsync<ExerciseRow>('SELECT * FROM exercise WHERE id = ?', [id]);
+export async function getExercise(db: Db, userId: string, id: string): Promise<Exercise | null> {
+  const row = await db.getFirstAsync<ExerciseRow>(
+    'SELECT * FROM exercise WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
+    [id, userId],
+  );
   return row && fromRow(row);
 }
 
-export async function insertExercise(db: Db, x: Exercise): Promise<void> {
+/** New exercise for `userId`, marked dirty so sync uploads it. */
+export async function insertExercise(db: Db, userId: string, x: Exercise): Promise<void> {
   await db.runAsync(
-    `INSERT INTO exercise (id, canonical_name, aliases, muscle_groups, kind, rep_floor, rep_top, step_kg, load_basis, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO exercise (id, user_id, canonical_name, aliases, muscle_groups, kind, rep_floor, rep_top, step_kg,
+       load_basis, created_at, updated_at, dirty)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
     [
       x.id,
+      userId,
       x.canonicalName,
       JSON.stringify(x.aliases),
       JSON.stringify(x.muscleGroups),
@@ -64,6 +74,7 @@ export async function insertExercise(db: Db, x: Exercise): Promise<void> {
       x.stepKg,
       x.loadBasis,
       x.createdAt,
+      nowIso(),
     ],
   );
 }

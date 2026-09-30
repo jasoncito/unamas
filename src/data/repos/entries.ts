@@ -19,12 +19,13 @@ interface LoggedRow {
  * Every resolved entry of an exercise with a known load, oldest first: the input for the engine.
  * Entries without a load (the user didn't say it) can't be compared, so they're left out.
  */
-export async function getExerciseHistory(db: Db, exerciseId: string): Promise<LoggedSet[]> {
+export async function getExerciseHistory(db: Db, userId: string, exerciseId: string): Promise<LoggedSet[]> {
   const rows = await db.getAllAsync<LoggedRow>(
     `SELECT session_id, load_kg, reps, created_at FROM entry
-     WHERE exercise_id = ? AND status = 'ok' AND load_kg IS NOT NULL AND reps IS NOT NULL
+     WHERE user_id = ? AND exercise_id = ? AND deleted_at IS NULL
+       AND status = 'ok' AND load_kg IS NOT NULL AND reps IS NOT NULL
      ORDER BY created_at`,
-    [exerciseId],
+    [userId, exerciseId],
   );
   return rows.map((r) => ({
     sessionId: r.session_id,
