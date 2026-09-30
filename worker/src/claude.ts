@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 
 import { ParseResponse, UNCLEAR, type ContextExercise, type ParseRequest } from '../../shared/contract';
+import { nameHasAllWords, significantWords } from '../../shared/names';
 import { SYSTEM_PROMPT } from './prompt';
 
 /** Pinned snapshot (CLAUDE.md §3): the same phrases keep parsing the same way. */
@@ -33,6 +34,10 @@ export async function parseWithClaude(client: Anthropic, request: ParseRequest):
 		},
 		{ timeout: TIMEOUT_MS, maxRetries: 0 },
 	);
+	// Token usage per call, for cost tracking in the Worker's logs (numbers only, never the user's text).
+	console.log(
+		JSON.stringify({ event: 'claude_usage', model: MODEL, input_tokens: message.usage.input_tokens, output_tokens: message.usage.output_tokens }),
+	);
 	if (message.stop_reason !== 'end_turn') return UNCLEAR;
 
 	const text = message.content.find((b) => b.type === 'text')?.text;
@@ -42,7 +47,7 @@ export async function parseWithClaude(client: Anthropic, request: ParseRequest):
 	} catch {
 		return UNCLEAR;
 	}
-	return parsed.success ? sanitize(parsed.data, request.context.exercises) : UNCLEAR;
+	return parsed.success ? sanitize(parsed.data, request.context.exercises, request.text) : UNCLEAR;
 }
 
 /**
@@ -77,7 +82,7 @@ function toStructuredOutputSchema(schema: Record<string, unknown>): Record<strin
  * Structured outputs guarantee the shape, not the meaning. Keeps only what's consistent with the
  * user's exercises; anything that would make the app invent data becomes `unclear`.
  */
-export function sanitize(response: ParseResponse, exercises: readonly ContextExercise[]): ParseResponse {
+export function sanitize(response: ParseResponse, exercises: readonly ContextExercise[], text: string): ParseResponse {
 	const known = new Set(exercises.map((e) => e.id));
 
 	switch (response.intent) {
@@ -100,6 +105,8 @@ export function sanitize(response: ParseResponse, exercises: readonly ContextExe
 		case 'ambiguous': {
 			if (!response.ambiguity?.question) return UNCLEAR;
 			const options = response.ambiguity.options.filter((o) => known.has(o.exercise_id));
+			// "Which one?" (not "how much weight?"): make sure every exercise the words fit is offered.
+			if (options.length > 0) options.push(...missingCandidates(options, exercises, text));
 			return { intent: 'ambiguous', entries: [], ambiguity: { question: response.ambiguity.question, options }, reply: null };
 		}
 		case 'end_session':
@@ -112,4 +119,24 @@ export function sanitize(response: ParseResponse, exercises: readonly ContextExe
 
 function askFor(question: string): ParseResponse {
 	return { intent: 'ambiguous', entries: [], ambiguity: { question, options: [] }, reply: null };
+}
+
+/** At most this many options in a "which one?" question; Claude's own options are never removed. */
+export const MAX_OPTIONS = 5;
+
+/**
+ * Exercises whose name or an alias contains every significant word of the phrase and that Claude
+ * didn't offer (it sometimes lists only some). Only adds, up to MAX_OPTIONS in total.
+ */
+function missingCandidates(
+	offered: readonly { exercise_id: string }[],
+	exercises: readonly ContextExercise[],
+	text: string,
+): { exercise_id: string; label: string }[] {
+	const words = significantWords(text);
+	const taken = new Set(offered.map((o) => o.exercise_id));
+	return exercises
+		.filter((e) => !taken.has(e.id) && nameHasAllWords([e.name, ...e.aliases], words))
+		.slice(0, Math.max(0, MAX_OPTIONS - offered.length))
+		.map((e) => ({ exercise_id: e.id, label: e.name }));
 }

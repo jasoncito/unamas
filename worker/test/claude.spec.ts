@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { UNCLEAR, type ContextExercise, type ParseRequest, type ParseResponse } from '../../shared/contract';
 import { MAX_TOKENS, MODEL, OUTPUT_SCHEMA, parseWithClaude, sanitize } from '../src/claude';
@@ -60,6 +60,18 @@ describe('parseWithClaude', () => {
 		expect(body.output_config.format.schema.properties.intent.enum).toContain('ambiguous');
 		expect(body.system).toMatch(/exercise_id is copied exactly from context\.exercises/);
 		expect(JSON.parse(body.messages[0].content.at(-1).text)).toEqual({ context: REQ.context, text: REQ.text });
+	});
+
+	it('logs the token usage (numbers only, not the text)', async () => {
+		const logs: string[] = [];
+		const spy = vi.spyOn(console, 'log').mockImplementation((line: string) => void logs.push(line));
+		const { client } = fakeClient(() => message(JSON.stringify(log())));
+		await parseWithClaude(client, REQ);
+		spy.mockRestore();
+		expect(logs.map((l) => JSON.parse(l))).toEqual([
+			{ event: 'claude_usage', model: MODEL, input_tokens: 1500, output_tokens: 80 },
+		]);
+		expect(logs.join()).not.toContain('laterales');
 	});
 
 	it('a photo goes first, as a base64 JPEG image block', async () => {
@@ -123,31 +135,93 @@ describe('OUTPUT_SCHEMA', () => {
 	});
 });
 
+describe('completing "which one?" options', () => {
+	const LATERALES: ContextExercise[] = [
+		{ id: 'laterales_pie', name: 'Elevaciones laterales de pie con mancuernas', aliases: ['laterales de pie'], muscle_groups: ['hombro'], last: null },
+		{ id: 'laterales_polea', name: 'Elevaciones laterales en polea', aliases: ['laterales en polea'], muscle_groups: ['hombro'], last: null },
+		{ id: 'laterales_rodillas', name: 'Elevaciones laterales con pecho en rodillas', aliases: ['pájaros'], muscle_groups: ['hombro'], last: null },
+		{ id: 'face_pull', name: 'Face pull en polea alta', aliases: ['jalones polea deltoide posterior'], muscle_groups: ['hombro'], last: null },
+		{ id: 'press', name: 'Press de hombro con mancuernas', aliases: [], muscle_groups: ['hombro'], last: null },
+	];
+	const asked = (ids: string[]): ParseResponse => ({
+		intent: 'ambiguous',
+		entries: [],
+		ambiguity: { question: '¿Cuáles laterales?', options: ids.map((id) => ({ exercise_id: id, label: id })) },
+		reply: null,
+	});
+	const ids = (r: ParseResponse) => r.ambiguity!.options.map((o) => o.exercise_id);
+
+	it('adds the one Claude left out, after Claude’s own', () => {
+		const res = sanitize(asked(['laterales_pie', 'laterales_polea']), LATERALES, 'laterales con 10, 4 de 11');
+		expect(ids(res)).toEqual(['laterales_pie', 'laterales_polea', 'laterales_rodillas']);
+		expect(res.ambiguity!.options[2].label).toBe('Elevaciones laterales con pecho en rodillas');
+	});
+
+	it('needs every significant word: "laterales en polea" only fits the polea one', () => {
+		const res = sanitize(asked(['laterales_pie']), LATERALES, 'laterales en polea 10 4 de 11');
+		expect(ids(res)).toEqual(['laterales_pie', 'laterales_polea']);
+	});
+
+	it('singular/plural and accents: "lateral" and "pájaro" match "laterales" and "pájaros"', () => {
+		expect(ids(sanitize(asked(['press']), LATERALES, 'lateral 10 4 de 11'))).toEqual(['press', 'laterales_pie', 'laterales_polea', 'laterales_rodillas']);
+		expect(ids(sanitize(asked(['press']), LATERALES, 'pajaro con 8'))).toEqual(['press', 'laterales_rodillas']);
+	});
+
+	it('ignores empty words: "laterales de polea" fits "Elevaciones laterales en polea"', () => {
+		expect(ids(sanitize(asked(['press']), LATERALES, 'laterales de la polea 10'))).toEqual(['press', 'laterales_polea']);
+	});
+
+	it('uses aliases too', () => {
+		expect(ids(sanitize(asked(['press']), LATERALES, 'jalon polea deltoide posterior 25'))).toEqual(['press', 'face_pull']);
+	});
+
+	it("never removes Claude's options, even ones the words don't fit", () => {
+		expect(ids(sanitize(asked(['press', 'face_pull']), LATERALES, 'laterales 10'))).toEqual([
+			'press', 'face_pull', 'laterales_pie', 'laterales_polea', 'laterales_rodillas',
+		]);
+	});
+
+	it('at most 5 in total, and never trims Claude below its own count', () => {
+		const many: ContextExercise[] = Array.from({ length: 8 }, (_, i) => ({ id: `lat${i}`, name: `Laterales variante ${i}`, aliases: [], muscle_groups: [], last: null }));
+		expect(ids(sanitize(asked(['lat0', 'lat1']), many, 'laterales 10'))).toHaveLength(5);
+		expect(ids(sanitize(asked(['lat0', 'lat1', 'lat2', 'lat3', 'lat4', 'lat5']), many, 'laterales 10'))).toHaveLength(6);
+	});
+
+	it('a "how much weight?" question (no options) stays as it is', () => {
+		const res = sanitize({ ...asked([]), ambiguity: { question: '¿Con cuánto peso?', options: [] } }, LATERALES, 'laterales 4 de 11');
+		expect(res.ambiguity!.options).toEqual([]);
+	});
+
+	it('a phrase with no significant words adds nothing', () => {
+		expect(ids(sanitize(asked(['press']), LATERALES, 'con 10, 4 de 11'))).toEqual(['press']);
+	});
+});
+
 describe('sanitize', () => {
 	it('keeps a valid log', () => {
-		expect(sanitize(log(), EXERCISES)).toEqual(log());
+		expect(sanitize(log(), EXERCISES, REQ.text)).toEqual(log());
 	});
 
 	it('an id that is not one of the user’s exercises is unclear (never invented)', () => {
-		expect(sanitize(log([entry({ exercise_id: 'laterales_maquina' })]), EXERCISES)).toEqual(UNCLEAR);
+		expect(sanitize(log([entry({ exercise_id: 'laterales_maquina' })]), EXERCISES, REQ.text)).toEqual(UNCLEAR);
 	});
 
 	it('a new exercise needs new_exercise', () => {
-		expect(sanitize(log([entry({ exercise_id: null })]), EXERCISES)).toEqual(UNCLEAR);
+		expect(sanitize(log([entry({ exercise_id: null })]), EXERCISES, REQ.text)).toEqual(UNCLEAR);
 		const newOne = entry({
 			exercise_id: null,
 			new_exercise: { canonical_name: 'Remo al mentón', muscle_groups: ['hombro'], kind: 'compound', load_basis: 'total' },
 		});
-		expect(sanitize(log([newOne]), EXERCISES)).toEqual(log([newOne]));
+		expect(sanitize(log([newOne]), EXERCISES, REQ.text)).toEqual(log([newOne]));
 	});
 
 	it('a known id drops a stray new_exercise', () => {
 		const both = entry({ new_exercise: { canonical_name: 'x', muscle_groups: [], kind: 'compound', load_basis: 'total' } });
-		expect(sanitize(log([both]), EXERCISES).entries[0].new_exercise).toBeNull();
+		expect(sanitize(log([both]), EXERCISES, REQ.text).entries[0].new_exercise).toBeNull();
 	});
 
 	it('a log with the exercise but no load asks for the load (never invents it)', () => {
-		expect(sanitize(log([entry({ load_kg: null })]), EXERCISES)).toEqual({
+		expect(sanitize(log([entry({ load_kg: null })]), EXERCISES, REQ.text)).toEqual({
 			intent: 'ambiguous',
 			entries: [],
 			ambiguity: { question: '¿Con cuánto peso?', options: [] },
@@ -156,12 +230,12 @@ describe('sanitize', () => {
 	});
 
 	it('a log with the exercise but no reps asks for them', () => {
-		expect(sanitize(log([entry({ reps: [] })]), EXERCISES).ambiguity?.question).toBe('¿Cuántas series y repeticiones?');
+		expect(sanitize(log([entry({ reps: [] })]), EXERCISES, REQ.text).ambiguity?.question).toBe('¿Cuántas series y repeticiones?');
 	});
 
 	it('an unidentified exercise is still unclear, even without a load', () => {
-		expect(sanitize(log([entry({ exercise_id: 'invented', load_kg: null })]), EXERCISES)).toEqual(UNCLEAR);
-		expect(sanitize(log([]), EXERCISES)).toEqual(UNCLEAR);
+		expect(sanitize(log([entry({ exercise_id: 'invented', load_kg: null })]), EXERCISES, REQ.text)).toEqual(UNCLEAR);
+		expect(sanitize(log([]), EXERCISES, REQ.text)).toEqual(UNCLEAR);
 	});
 
 	it('ambiguity options keep only real exercises; entries are dropped', () => {
@@ -179,6 +253,7 @@ describe('sanitize', () => {
 				reply: null,
 			},
 			EXERCISES,
+			REQ.text, // "laterales en polea…": the options can't grow beyond the polea one
 		);
 		expect(res).toEqual({
 			intent: 'ambiguous',
@@ -189,12 +264,12 @@ describe('sanitize', () => {
 	});
 
 	it('ambiguous without a question is unclear', () => {
-		expect(sanitize({ intent: 'ambiguous', entries: [], ambiguity: null, reply: null }, EXERCISES)).toEqual(UNCLEAR);
+		expect(sanitize({ intent: 'ambiguous', entries: [], ambiguity: null, reply: null }, EXERCISES, REQ.text)).toEqual(UNCLEAR);
 	});
 
 	it('end_session and question carry no entries', () => {
-		expect(sanitize({ ...log(), intent: 'end_session' }, EXERCISES)).toEqual({ intent: 'end_session', entries: [], ambiguity: null, reply: null });
-		expect(sanitize({ intent: 'question', entries: [entry()], ambiguity: null, reply: 'Hola' }, EXERCISES)).toEqual({
+		expect(sanitize({ ...log(), intent: 'end_session' }, EXERCISES, REQ.text)).toEqual({ intent: 'end_session', entries: [], ambiguity: null, reply: null });
+		expect(sanitize({ intent: 'question', entries: [entry()], ambiguity: null, reply: 'Hola' }, EXERCISES, REQ.text)).toEqual({
 			intent: 'question',
 			entries: [],
 			ambiguity: null,
