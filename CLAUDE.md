@@ -214,7 +214,7 @@ Response (esquema JSON con structured outputs):
   "entries": [
     { "exercise_id": "laterales_polea",
       "new_exercise": null,
-      "load_kg": 10, "reps": [11,11,11,11], "rir_note": null }
+      "load_kg": 10, "reps": [11,11,11,11], "rir_note": null, "easy": false }
   ],
   "ambiguity": { "question": "¿Cuáles laterales?", "options": [ { "exercise_id": "laterales_polea", "label": "En polea" } ] },
   "reply": null
@@ -224,7 +224,10 @@ Response (esquema JSON con structured outputs):
 - **Unificación de nombres:** variaciones del mismo ejercicio ("press de hombros", "press hombro mancuernas") → mismo `exercise_id`. Si la frase sirve para **dos o más** ejercicios distintos del usuario → `intent: "ambiguous"` con opciones. Nunca fusionar historiales dudosos.
 - Normalizar: "4 de 9" → `[9,9,9,9]`; "3 de 11 y la última de 9" → `[11,11,11,9]`; "a cada lado" → `load_basis: per_side`; "7,5" → 7.5. Si no dicen kg, se asume kg.
 - Si falta el peso o las reps → `ambiguous` con una pregunta concreta. No inventar valores.
+- `easy`: `true` solo si dicen "fácil" o que les sobraron 3 o más reps; es la señal que usa el motor para saltarse el modo confirmar (PROGRESSION.md §6). `rir_note` guarda sus palabras tal cual.
 - Si el JSON no valida en la app → se trata como `unclear`.
+- El Worker, además, revisa el sentido de la respuesta: un `exercise_id` que no está en el contexto, un `log` sin peso o sin reps, o un `new_exercise` vacío → `unclear`. Las opciones de ambigüedad con ids inventados se descartan.
+- El esquema de structured outputs se arma en `worker/src/claude.ts` a partir de `shared/contract.ts`, conservando los `enum` (el helper `zodOutputFormat` del SDK los pasa a la descripción).
 - Verifica en la documentación qué subconjunto de JSON Schema soporta structured outputs (por ejemplo, nulos y `anyOf`) antes de fijar el esquema.
 
 ### Seguridad y costo
@@ -237,8 +240,9 @@ Response (esquema JSON con structured outputs):
   con `env.PARSE_LIMITER.limit({ key: payload.sub })`, es decir, por usuario.
 - **Autenticación:** el JWT de Supabase se verifica con `jose` (`createRemoteJWKSet` sobre `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` + `jwtVerify`). El proyecto de Supabase usa claves de firma asimétricas. Sin token o con uno inválido → 401.
 - **Cuentas anónimas:** Supabase limita su creación a 30 por hora por IP. Si hay abuso, se agrega Cloudflare Turnstile.
-- **`POST /account/delete`:** verifica el JWT y borra el usuario con `SUPABASE_SERVICE_ROLE_KEY` (secreto del Worker, nunca en la app). Obligatorio por Apple 5.1.1(v).
-- `max_tokens` bajo (~400) y un timeout de 15 s.
+- **`POST /account/delete`:** verifica el JWT y borra el usuario con `SUPABASE_SERVICE_ROLE_KEY` (secreto del Worker, nunca en la app), que contiene una **clave secreta nueva `sb_secret_…`** en el header `apikey`: Supabase deja de aceptar la `service_role` legacy a fines de 2026. Si el usuario ya no existe responde bien igual (idempotente, para que un plan B reintentado termine). Obligatorio por Apple 5.1.1(v).
+- `max_tokens` bajo (400), timeout de 15 s y **sin reintentos en el Worker**: si Claude falla, responde 502 y la app deja la entrada `pending` y reintenta.
+- Tests: `npm test` en `worker/` (sin red, dentro de workerd) y `npm run eval` (las 32 frases contra la API real, ~$0.08 por corrida).
 
 ### Tests del worker
 
