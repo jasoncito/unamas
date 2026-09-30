@@ -311,8 +311,10 @@ Las mismas tablas, con `user_id uuid not null default auth.uid() references auth
 
 ### 2 · Primer ejercicio
 - El teclado se abre solo (`autoFocus`). Título "¿Con qué empiezas?" pegado al input.
-- Arriba, en muted: "<grupos> · tu última vez, <fecha>" con la lista de ejercicios de la última sesión que tuvo esos grupos (nombre izquierda, "peso · series×reps" derecha).
-- Placeholder: "press de hombro, 24 kg, 4 de 8". Micrófono dentro del input.
+- Arriba, la **meta de hoy** (decidido con Jason, ver `design/meta.html`): encabezado "<grupos> · hoy te toca" (13/600, muted) y columnas fijas **PESO** y **SERIES** (11/600, mayúsculas, muted), alineadas a la derecha y con números tabulares. Una fila por ejercicio de la última sesión que tuvo esos grupos: el nombre a la izquierda (15, text) y la meta que calcula el motor en las dos columnas (16/700).
+  - **Solo el valor que sube va en verde**, con "antes X" debajo en gris (11/500): si sube el peso, PESO en verde ("32.5 kg", "antes 30") y SERIES en blanco sin "antes" (aunque las reps vuelvan al piso); si suben las reps, SERIES en verde ("4×9", "antes 4×8") y PESO en blanco. Lo que no cambia va en blanco y sin "antes".
+  - **Si no hay historial para esos grupos, no hay lista.**
+- Placeholder del input: **la meta del primer ejercicio sugerido**, en el formato en que se dicta ("press de hombros, 24 kg, 4 de 9"). Sin lista, el genérico "press de hombro, 24 kg, 4 de 8". Micrófono dentro del input.
 
 ### 3 · Escribiendo
 - Sugerencias **locales** (SQLite, búsqueda difusa sobre nombre y alias, priorizando los grupos elegidos). **Sin IA por tecla.**
@@ -403,7 +405,7 @@ Jason quiere **aprender a hacer funciones** con el worker (M3) y a usar Supabase
 
 ## 11. Decisiones pendientes (preguntar a Jason, no asumir)
 
-1. **Dónde se muestra la meta del motor.** Los mockups muestran "tu última vez" en la lista de sugeridos, pero no la meta de hoy. Propuesta: en cada fila sugerida, la meta de hoy como valor principal y la última vez en pequeño. Hay que confirmarlo antes de M4.
+1. ~~**Dónde se muestra la meta del motor.**~~ **Resuelto** (`design/meta.html`, §8 pantalla 2): columnas PESO y SERIES con la meta de hoy; solo lo que sube va en verde con "antes X".
 2. Duración de la burbuja de "Anotado" (4.5 s) y del mantener (1.5 s): validar en el gym.
 3. Animación de terminar: aceptada "por ahora".
 4. Idioma y variante del reconocimiento de voz (`es-419`, `es-EC` o el locale del dispositivo).
