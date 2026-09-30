@@ -3,7 +3,7 @@ import { v1 } from './v1';
 
 /**
  * Ordered by version. Append new ones; never edit one that has shipped.
- * (v1 was rewritten for multi-user on 29 sep 2026, before any install outside development.)
+ * (v1 was rewritten for sync on 29 sep 2026, before any install outside development.)
  */
 const MIGRATIONS: readonly { version: number; sql: string }[] = [v1];
 

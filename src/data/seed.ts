@@ -38,14 +38,12 @@ const SEED_START_HOUR = 18;
 const SEED_DEFAULT_DURATION_MIN = 60;
 
 /**
- * Loads the seed as `userId`'s history, if that user has no exercises yet. The seed's readable ids
- * (curl_barra_z, s1, s1e1…) become fresh UUIDs, keeping the relations (MULTIUSER.md §3).
- * Returns seed id → UUID, or null if nothing was loaded.
+ * Loads the seed into an empty database. The seed's readable ids (curl_barra_z, s1, s1e1…) become
+ * fresh UUIDs, keeping the relations (MULTIUSER.md §3). Every row stays dirty, so sync uploads it.
+ * Returns seed id → UUID, or null if the database already had exercises.
  */
-export async function loadSeed(db: Db, seed: Seed, userId: string): Promise<Map<string, string> | null> {
-  const row = await db.getFirstAsync<{ n: number }>('SELECT count(*) AS n FROM exercise WHERE user_id = ?', [
-    userId,
-  ]);
+export async function loadSeed(db: Db, seed: Seed): Promise<Map<string, string> | null> {
+  const row = await db.getFirstAsync<{ n: number }>('SELECT count(*) AS n FROM exercise', []);
   if (row && row.n > 0) return null;
 
   const ids = new Map<string, string>();
@@ -71,12 +69,11 @@ export async function loadSeed(db: Db, seed: Seed, userId: string): Promise<Map<
     for (const x of seed.exercises) {
       const createdAt = (firstSeen.get(x.id) ?? sessionStart.get(seed.sessions[0].id)!).toISOString();
       await db.runAsync(
-        `INSERT INTO exercise (id, user_id, canonical_name, aliases, muscle_groups, kind, rep_floor, rep_top, step_kg,
+        `INSERT INTO exercise (id, canonical_name, aliases, muscle_groups, kind, rep_floor, rep_top, step_kg,
            load_basis, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           uuid(x.id),
-          userId,
           x.canonical_name,
           JSON.stringify(x.aliases),
           JSON.stringify(x.muscle_groups),
@@ -94,9 +91,9 @@ export async function loadSeed(db: Db, seed: Seed, userId: string): Promise<Map<
       const start = sessionStart.get(s.id)!;
       const end = addMinutes(start, sessionMinutes.get(s.id)!);
       await db.runAsync(
-        `INSERT INTO session (id, user_id, muscle_groups, started_at, ended_at, avg_bpm, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [uuid(s.id), userId, JSON.stringify(s.muscle_groups), start.toISOString(), end.toISOString(), s.avg_bpm, end.toISOString()],
+        `INSERT INTO session (id, muscle_groups, started_at, ended_at, avg_bpm, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [uuid(s.id), JSON.stringify(s.muscle_groups), start.toISOString(), end.toISOString(), s.avg_bpm, end.toISOString()],
       );
     }
     // Entries spread evenly across their session.
@@ -106,11 +103,10 @@ export async function loadSeed(db: Db, seed: Seed, userId: string): Promise<Map<
       for (const [i, e] of entries.entries()) {
         const createdAt = addMinutes(sessionStart.get(s.id)!, gap * i).toISOString();
         await db.runAsync(
-          `INSERT INTO entry (id, user_id, session_id, exercise_id, load_kg, reps, raw_text, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'ok', ?, ?)`,
+          `INSERT INTO entry (id, session_id, exercise_id, load_kg, reps, raw_text, status, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, 'ok', ?, ?)`,
           [
             uuid(e.id),
-            userId,
             uuid(e.session_id),
             uuid(e.exercise_id),
             e.load_kg,

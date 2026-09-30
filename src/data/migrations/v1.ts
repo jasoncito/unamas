@@ -1,11 +1,11 @@
-// Initial schema (CLAUDE.md §7, MULTIUSER.md §3). Every data table carries user_id and the sync
-// columns: updated_at (client clock), deleted_at (soft delete) and dirty (1 = not uploaded yet).
+// Initial schema (CLAUDE.md §7, MULTIUSER.md §3). The phone's database belongs to a single user, so there
+// is no user_id: the server sets it. Every data table carries the sync columns: updated_at (client clock),
+// deleted_at (soft delete) and dirty (1 = not uploaded yet).
 export const v1 = {
   version: 1,
   sql: `
 CREATE TABLE exercise (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
   canonical_name TEXT NOT NULL,
   aliases TEXT NOT NULL DEFAULT '[]',
   muscle_groups TEXT NOT NULL,
@@ -21,7 +21,6 @@ CREATE TABLE exercise (
 );
 CREATE TABLE session (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
   muscle_groups TEXT NOT NULL,
   started_at TEXT,
   ended_at TEXT,
@@ -32,7 +31,6 @@ CREATE TABLE session (
 );
 CREATE TABLE entry (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
   session_id TEXT NOT NULL REFERENCES session(id),
   exercise_id TEXT REFERENCES exercise(id),
   load_kg REAL,
@@ -49,8 +47,7 @@ CREATE TABLE sync_state (
   table_name TEXT PRIMARY KEY,
   cursor TEXT
 );
-CREATE INDEX exercise_user ON exercise(user_id);
-CREATE INDEX session_user_ended ON session(user_id, ended_at);
-CREATE INDEX entry_user_exercise_created ON entry(user_id, exercise_id, created_at);
+CREATE INDEX session_ended ON session(ended_at);
+CREATE INDEX entry_exercise_created ON entry(exercise_id, created_at);
 `,
 };

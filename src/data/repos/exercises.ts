@@ -40,31 +40,27 @@ function fromRow(r: ExerciseRow): Exercise {
   };
 }
 
-export async function getAllExercises(db: Db, userId: string): Promise<Exercise[]> {
+export async function getAllExercises(db: Db): Promise<Exercise[]> {
   const rows = await db.getAllAsync<ExerciseRow>(
-    'SELECT * FROM exercise WHERE user_id = ? AND deleted_at IS NULL ORDER BY canonical_name',
-    [userId],
+    'SELECT * FROM exercise WHERE deleted_at IS NULL ORDER BY canonical_name',
+    [],
   );
   return rows.map(fromRow);
 }
 
-export async function getExercise(db: Db, userId: string, id: string): Promise<Exercise | null> {
-  const row = await db.getFirstAsync<ExerciseRow>(
-    'SELECT * FROM exercise WHERE id = ? AND user_id = ? AND deleted_at IS NULL',
-    [id, userId],
-  );
+export async function getExercise(db: Db, id: string): Promise<Exercise | null> {
+  const row = await db.getFirstAsync<ExerciseRow>('SELECT * FROM exercise WHERE id = ? AND deleted_at IS NULL', [id]);
   return row && fromRow(row);
 }
 
-/** New exercise for `userId`, marked dirty so sync uploads it. */
-export async function insertExercise(db: Db, userId: string, x: Exercise): Promise<void> {
+/** New exercise, marked dirty so sync uploads it. */
+export async function insertExercise(db: Db, x: Exercise): Promise<void> {
   await db.runAsync(
-    `INSERT INTO exercise (id, user_id, canonical_name, aliases, muscle_groups, kind, rep_floor, rep_top, step_kg,
+    `INSERT INTO exercise (id, canonical_name, aliases, muscle_groups, kind, rep_floor, rep_top, step_kg,
        load_basis, created_at, updated_at, dirty)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
     [
       x.id,
-      userId,
       x.canonicalName,
       JSON.stringify(x.aliases),
       JSON.stringify(x.muscleGroups),

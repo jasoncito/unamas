@@ -4,14 +4,12 @@ import { StatusBar } from 'expo-status-bar';
 
 import { initDb } from '@/data/init';
 import type { Seed } from '@/data/seed';
-import { PROVISIONAL_USER_ID } from '@/services/auth';
 import { color } from '@/ui/tokens';
 
 // Development history (dev/seed.json), loaded into an empty database with EXPO_PUBLIC_SEED=1.
 const seed: Seed | null = process.env.EXPO_PUBLIC_SEED === '1' ? require('../dev/seed.json') : null;
 
-// TODO(M2b): seed for the Supabase user once the session exists.
-const onInit = (db: SQLiteDatabase) => initDb(db, seed, PROVISIONAL_USER_ID);
+const onInit = (db: SQLiteDatabase) => initDb(db, seed);
 
 export default function RootLayout() {
   return (
