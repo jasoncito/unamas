@@ -1,0 +1,22 @@
+/**
+ * unamas API: POST /parse (Claude) and POST /account/delete. See CLAUDE.md §6 and docs/MULTIUSER.md §5.
+ * Secrets are not here: `wrangler secret put` in the cloud, `.dev.vars` locally (git-ignored).
+ *   ANTHROPIC_API_KEY          Claude API key
+ *   SUPABASE_SERVICE_ROLE_KEY  Supabase secret key (sb_secret_…), only for deleting accounts
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "unamas-api",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-09-26",
+	"observability": { "enabled": true },
+	"upload_source_maps": true,
+	// Development Supabase project. Production gets its own environment before launch (MULTIUSER.md §6).
+	"vars": {
+		"SUPABASE_URL": "https://eybbfdqbqkajcbzeprsp.supabase.co"
+	},
+	// 30 requests per minute per user (the key is the Supabase user id). Per Cloudflare location, approximate.
+	"ratelimits": [
+		{ "name": "PARSE_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } }
+	]
+}
