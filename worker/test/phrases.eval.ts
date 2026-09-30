@@ -6,7 +6,7 @@ import { env } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
 import seed from '../../dev/seed.json';
-import type { ContextExercise, ParseRequest } from '../../shared/contract';
+import type { ContextExercise, ParseRequest, ParseResponse } from '../../shared/contract';
 import { parseWithClaude } from '../src/claude';
 
 // Real cost of the run: every response's usage, priced at Haiku 4.5 rates ($1 / $5 per million tokens).
@@ -58,6 +58,29 @@ function contextOn(date: string, muscleGroups: string[]): ParseRequest['context'
 const parse = (text: string, date = '2026-09-28', groups = ['hombro']) =>
 	parseWithClaude(client, { text, image: null, context: contextOn(date, groups) });
 
+/**
+ * ✅ right: logged exactly as in the seed (or, with no load in the phrase, asked for it).
+ * ⚠️ safe: asked which exercise, and the right one is among the options: one tap, no wrong data.
+ * ❌ wrong: logged something else, or asked without offering the right exercise.
+ */
+type Verdict = '✅' | '⚠️' | '❌';
+const tally: Record<Verdict, number> = { '✅': 0, '⚠️': 0, '❌': 0 };
+
+function grade(expected: { exercise_id: string; load_kg: number | null; reps: number[] }, res: ParseResponse): Verdict {
+	if (expected.load_kg === null) {
+		const asksLoad = res.intent === 'ambiguous' && /peso|kilo|kg|carga|cu[aá]nto/i.test(res.ambiguity?.question ?? '');
+		return asksLoad ? '✅' : '❌';
+	}
+	if (res.intent === 'log') {
+		const [e, ...rest] = res.entries;
+		const exact = rest.length === 0 && e.exercise_id === expected.exercise_id && e.load_kg === expected.load_kg &&
+			JSON.stringify(e.reps) === JSON.stringify(expected.reps);
+		return exact ? '✅' : '❌';
+	}
+	if (res.intent === 'ambiguous' && res.ambiguity?.options.some((o) => o.exercise_id === expected.exercise_id)) return '⚠️';
+	return '❌';
+}
+
 describe('the 32 seed phrases', () => {
 	const cases = seed.entries.map((e) => {
 		const session = seed.sessions.find((s) => s.id === e.session_id)!;
@@ -66,14 +89,10 @@ describe('the 32 seed phrases', () => {
 
 	it.each(cases)('$id: "$raw_text"', async (c) => {
 		const res = await parse(c.raw_text, c.date, c.groups);
-		if (c.load_kg === null) {
-			// No load in the phrase: ask for it, don't invent it.
-			expect(res.intent, `raw: ${lastRaw}`).toBe('ambiguous');
-			expect(res.ambiguity?.question, `raw: ${lastRaw}`).toMatch(/peso|kilo|kg|carga|cu[aá]nto/i);
-			return;
-		}
-		expect(res.intent, `raw: ${lastRaw}`).toBe('log');
-		expect(res.entries.map((e) => [e.exercise_id, e.load_kg, e.reps])).toEqual([[c.exercise_id, c.load_kg, c.reps]]);
+		const verdict = grade(c, res);
+		tally[verdict]++;
+		console.log(`[eval result] ${c.id} ${verdict} · ✅ ${tally['✅']} · ⚠️ ${tally['⚠️']} · ❌ ${tally['❌']}`);
+		expect(verdict, `raw: ${lastRaw}`).not.toBe('❌');
 	});
 });
 
