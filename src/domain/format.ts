@@ -17,3 +17,11 @@ export function formatSets(reps: readonly number[]): string {
 export function formatExposure(loadKg: number, reps: readonly number[]): string {
   return `${formatKg(loadKg)} kg · ${formatSets(reps)}`;
 }
+
+const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+
+/** '2026-09-17' → "17 sep" */
+export function formatShortDate(date: string): string {
+  const [, m, d] = date.split('-').map(Number);
+  return `${d} ${MONTHS[m - 1]}`;
+}

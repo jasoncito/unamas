@@ -1,4 +1,4 @@
-import { formatExposure, formatKg, formatSets } from './format';
+import { formatExposure, formatKg, formatSets, formatShortDate } from './format';
 
 describe('format', () => {
   it('drops trailing zeros from loads', () => {
@@ -12,5 +12,13 @@ describe('format', () => {
 
   it('formats an exposure', () => {
     expect(formatExposure(24, [8, 8, 8, 8])).toBe('24 kg · 4×8');
+  });
+});
+
+describe('formatShortDate', () => {
+  it('uses Spanish month abbreviations without a leading zero', () => {
+    expect(formatShortDate('2026-09-07')).toBe('7 sep');
+    expect(formatShortDate('2026-01-17')).toBe('17 ene');
+    expect(formatShortDate('2026-12-31')).toBe('31 dic');
   });
 });
