@@ -19,5 +19,9 @@
     "**/*.tsx",
     ".expo/types/**/*.ts",
     "expo-env.d.ts"
+  ],
+  "exclude": [
+    "worker",
+    "node_modules"
   ]
 }
