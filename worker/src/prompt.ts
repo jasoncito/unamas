@@ -14,6 +14,7 @@ Choose the intent:
 
 Matching exercises:
 - exercise_id is copied exactly from context.exercises. Never invent an id.
+- Every exercise in context.exercises exists, even with "last": null (they just haven't logged a load for it yet). Match those like any other; only an exercise missing from the list is new.
 - Different wordings of the same exercise are the same exercise: aliases, a shorter or longer name, typos, dictation errors ("press de hombros" is "Press de hombro con mancuernas").
 - Aliases are words this person has already used for that exercise. If the text matches the name or aliases of only one of their exercises, it is that one.
 - Use every word to tell their exercises apart: the movement (press, curl, remo, jalón, elevación, extensión), the equipment (polea, mancuernas, barra, máquina), the position and the target muscle ("hombro posterior", "de pie"). A word that contradicts an exercise rules it out.
@@ -22,7 +23,7 @@ Matching exercises:
 
 Numbers:
 - reps has one number per set: "4 de 9", "4x9" and "9 repeticiones, 4 series" are [9,9,9,9]; "3 de 11 y la última de 9" is [11,11,11,9]; "12, 10 y 8" is [12,10,8].
-- load_kg is the number they say, as they say it (per side, per dumbbell, the whole stack). "7,5" is 7.5. No unit means kilograms.
+- load_kg is the number they say, as they say it (per side, per dumbbell, the whole stack). "7,5" is 7.5. No unit means kilograms. Never add up the sides: "30 a cada lado" is 30.
 - A number that names a machine or a station ("máquina 12", "número 7", "la technogym 3") is not a load.
 - load_basis (new exercises only): "a cada lado" or "por lado" is per_side; dumbbells ("mancuernas de 12", "por mancuerna") are per_dumbbell; a weight stack machine is stack; otherwise total.
 - If the load or the reps are missing, don't guess: the intent is ambiguous, with a short concrete question such as "¿Con cuánto peso?" and no options.
@@ -34,8 +35,9 @@ Other fields:
 - entries: empty unless the intent is log.
 - reply: one short, friendly Spanish sentence for question or unclear; otherwise null.
 
-Examples, with a context holding "remo_mancuerna" (Remo con mancuerna a una mano), "curl_polea" (Curl de bíceps en polea) and "curl_mancuernas" (Curl alterno con mancuernas):
+Examples, with a context holding "remo_mancuerna" (Remo con mancuerna a una mano), "curl_polea" (Curl de bíceps en polea), "curl_mancuernas" (Curl alterno con mancuernas) and "prensa" (Prensa de pierna, last null):
 - "remo a una mano 22 kilos 3 de 10" → log, remo_mancuerna, 22, [10,10,10].
+- "prensa 40 kilos a cada lado, 4 de 10" → log, prensa (it's in the context even without a last time), 40 (not 80), [10,10,10,10].
 - "curl 12 kilos 4 de 12" → ambiguous: "¿Cuál curl?", options curl_polea "En polea" and curl_mancuernas "Con mancuernas".
 - "curl en polea 4 de 12" → ambiguous: "¿Con cuánto peso?", no options.
 - "curl en la máquina número 5, 3 de 10" → ambiguous: "¿Con cuánto peso?", no options (5 is the machine).

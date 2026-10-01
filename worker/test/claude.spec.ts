@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import { UNCLEAR, type ContextExercise, type ParseRequest, type ParseResponse } from '../../shared/contract';
-import { MAX_TOKENS, MODEL, OUTPUT_SCHEMA, parseWithClaude, sanitize } from '../src/claude';
+import { MAX_TOKENS, MODEL, numbersIn, OUTPUT_SCHEMA, parseWithClaude, sanitize } from '../src/claude';
 
 const EXERCISES: ContextExercise[] = [
 	{ id: 'laterales_polea', name: 'Elevaciones laterales en polea', aliases: [], muscle_groups: ['hombro'], last: null },
@@ -194,6 +194,62 @@ describe('completing "which one?" options', () => {
 
 	it('a phrase with no significant words adds nothing', () => {
 		expect(ids(sanitize(asked(['press']), LATERALES, 'con 10, 4 de 11'))).toEqual(['press']);
+	});
+});
+
+describe('duplicate net: a "new" exercise named like an existing one is that one', () => {
+	const CTX: ContextExercise[] = [
+		{ id: 'banca', name: 'Press de banca con barra', aliases: ['press banca', 'Press de banca plano con barra'], muscle_groups: ['pecho'], last: null },
+		{ id: 'pecho_maq', name: 'Press de pecho en máquina', aliases: [], muscle_groups: ['pecho'], last: null },
+	];
+	const asNew = (canonical_name: string, load_kg = 20) =>
+		log([entry({ exercise_id: null, load_kg, new_exercise: { canonical_name, muscle_groups: ['pecho'], kind: 'compound', load_basis: 'per_side' } })]);
+
+	it('eval s3e6: exactly the name of an existing exercise → that exercise', () => {
+		const res = sanitize(asNew('Press de pecho en máquina', 25), CTX, 'máquina de pecho, 25 kilos a cada lado, 3 de 10');
+		expect(res.entries[0]).toMatchObject({ exercise_id: 'pecho_maq', new_exercise: null });
+	});
+
+	it('eval s3e1: exactly one of its aliases (case and accents aside) → that exercise', () => {
+		const res = sanitize(asNew('press de BANCA plano con barra'), CTX, 'press banca plano con barra 20 kilos a cada lado, 4 de 12');
+		expect(res.entries[0]).toMatchObject({ exercise_id: 'banca', new_exercise: null });
+	});
+
+	it('only exact matches: a merely similar name stays a new exercise', () => {
+		const res = sanitize(asNew('Press de banca inclinado'), CTX, 'press de banca inclinado 20, 4 de 12');
+		expect(res.entries[0]).toMatchObject({ exercise_id: null, new_exercise: { canonical_name: 'Press de banca inclinado' } });
+	});
+
+	it('a name shared by two exercises → asks which one', () => {
+		const both: ContextExercise[] = [...CTX, { id: 'otro', name: 'Otro press', aliases: ['press de pecho en maquina'], muscle_groups: ['pecho'], last: null }];
+		const res = sanitize(asNew('Press de pecho en máquina'), both, 'press de pecho en máquina 20, 3 de 10');
+		expect(res.intent).toBe('ambiguous');
+		expect(res.ambiguity!.options.map((o) => o.exercise_id)).toEqual(['pecho_maq', 'otro']);
+	});
+});
+
+describe('load net: the load must be a number they said', () => {
+	it('eval s4e1: both sides added up (60 for "30 a cada lado") → the half they said', () => {
+		const res = sanitize(log([entry({ load_kg: 60 })]), EXERCISES, 'sentadilla en la smith 4 de 10 30 kilos a cada lado');
+		expect(res.entries[0].load_kg).toBe(30);
+	});
+
+	it('a load they never said → asks for it', () => {
+		const res = sanitize(log([entry({ load_kg: 44 })]), EXERCISES, 'laterales en polea 4 de 11');
+		expect(res).toMatchObject({ intent: 'ambiguous', ambiguity: { question: '¿Con cuánto peso?', options: [] } });
+	});
+
+	it('decimals with a comma or a dot', () => {
+		expect(sanitize(log([entry({ load_kg: 7.5 })]), EXERCISES, 'laterales en polea con 7,5. 4 de 10').entries[0].load_kg).toBe(7.5);
+		expect(sanitize(log([entry({ load_kg: 12.5 })]), EXERCISES, 'curl 12.5 kilos 4 de 10').entries[0].load_kg).toBe(12.5);
+	});
+
+	it('the load as said is kept as is', () => {
+		expect(sanitize(log([entry({ load_kg: 24 })]), EXERCISES, 'press 24 4 de 9').entries[0].load_kg).toBe(24);
+	});
+
+	it('numbersIn reads every number', () => {
+		expect(numbersIn('7,5 kilos, 4 de 10 y 12.5')).toEqual([7.5, 4, 10, 12.5]);
 	});
 });
 

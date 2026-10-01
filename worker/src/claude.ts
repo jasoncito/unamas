@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 
 import { ParseResponse, UNCLEAR, type ContextExercise, type ParseRequest } from '../../shared/contract';
-import { nameHasAllWords, significantWords } from '../../shared/names';
+import { nameHasAllWords, normalizeName, significantWords } from '../../shared/names';
 import { SYSTEM_PROMPT } from './prompt';
 
 /** Pinned snapshot (CLAUDE.md §3): the same phrases keep parsing the same way. */
@@ -88,19 +88,28 @@ export function sanitize(response: ParseResponse, exercises: readonly ContextExe
 	switch (response.intent) {
 		case 'log': {
 			if (response.entries.length === 0) return UNCLEAR;
-			for (const e of response.entries) {
+			const entries = [];
+			for (const raw of response.entries) {
+				// A "new" exercise named exactly like one of theirs is that one: never a duplicate.
+				const same = raw.exercise_id === null && raw.new_exercise ? exactlyNamed(raw.new_exercise.canonical_name, exercises) : [];
+				if (same.length > 1) return whichOf(same);
+				const e = same.length === 1 ? { ...raw, exercise_id: same[0].id, new_exercise: null } : raw;
 				const identified = e.exercise_id !== null ? known.has(e.exercise_id) : e.new_exercise !== null;
 				if (!identified) return UNCLEAR;
+				entries.push(e.exercise_id !== null ? { ...e, new_exercise: null } : e);
 			}
 			// Exercise known but a number missing: ask for it instead of inventing it (CLAUDE.md §6).
-			if (response.entries.some((e) => e.load_kg === null)) return askFor('¿Con cuánto peso?');
-			if (response.entries.some((e) => e.reps.length === 0)) return askFor('¿Cuántas series y repeticiones?');
-			return {
-				intent: 'log',
-				entries: response.entries.map((e) => (e.exercise_id !== null ? { ...e, new_exercise: null } : e)),
-				ambiguity: null,
-				reply: null,
-			};
+			if (entries.some((e) => e.load_kg === null)) return askFor('¿Con cuánto peso?');
+			if (entries.some((e) => e.reps.length === 0)) return askFor('¿Cuántas series y repeticiones?');
+			// The load must be a number they said. Claude sometimes adds both sides up ("30 a cada lado" → 60).
+			const said = numbersIn(text);
+			for (const e of entries) {
+				const load = e.load_kg!;
+				if (said.includes(load)) continue;
+				if (said.includes(load / 2)) e.load_kg = load / 2;
+				else return askFor('¿Con cuánto peso?');
+			}
+			return { intent: 'log', entries, ambiguity: null, reply: null };
 		}
 		case 'ambiguous': {
 			if (!response.ambiguity?.question) return UNCLEAR;
@@ -139,4 +148,24 @@ function missingCandidates(
 		.filter((e) => !taken.has(e.id) && nameHasAllWords([e.name, ...e.aliases], words))
 		.slice(0, Math.max(0, MAX_OPTIONS - offered.length))
 		.map((e) => ({ exercise_id: e.id, label: e.name }));
+}
+
+/** Their exercises whose name or an alias is exactly this name, once normalized (no fuzzy matching). */
+function exactlyNamed(name: string, exercises: readonly ContextExercise[]): ContextExercise[] {
+	const key = normalizeName(name);
+	return exercises.filter((e) => [e.name, ...e.aliases].some((n) => normalizeName(n) === key));
+}
+
+function whichOf(candidates: readonly ContextExercise[]): ParseResponse {
+	return {
+		intent: 'ambiguous',
+		entries: [],
+		ambiguity: { question: '¿Cuál de estos?', options: candidates.slice(0, MAX_OPTIONS).map((e) => ({ exercise_id: e.id, label: e.name })) },
+		reply: null,
+	};
+}
+
+/** Every number written in the text: "7,5" and "7.5" are 7.5. */
+export function numbersIn(text: string): number[] {
+	return [...text.matchAll(/\d+(?:[.,]\d+)?/g)].map((m) => Number(m[0].replace(',', '.')));
 }
