@@ -5,7 +5,9 @@ import { create } from 'zustand';
 import { newId, nowIso } from '@/data/ids';
 import { localDateOf } from '@/domain/dates';
 import { requestSync } from '@/features/sync/useSync';
+import { getPhotosInUse } from '@/data/repos/entries';
 import { ai } from '@/services/aiClient';
+import { photos } from '@/services/image';
 import { onReconnectOrForeground } from '@/services/network';
 import { copy } from '@/ui/copy';
 
@@ -28,7 +30,7 @@ let actions: SessionActions | null = null;
 
 /** Screen 1 answers the doubt through these. */
 export const pastSessionActions = {
-  send: (text: string) => void actions?.send(text),
+  send: (text: string, photo: string | null = null) => void actions?.send(text, photo),
   choose: (exerciseId: string) => void actions?.choose(exerciseId),
   dismiss: () => actions?.dismissDoubt(),
   setText: (text: string) => usePastSessionStore.getState().dispatch({ type: 'TYPE', text }),
@@ -42,7 +44,7 @@ export function usePastSessionsRetry(): void {
   useEffect(() => {
     const store = usePastSessionStore;
     actions = createSessionActions(
-      { db, ai, newId, now: nowIso, today: () => localDateOf(nowIso()), requestSync },
+      { db, ai, newId, now: nowIso, today: () => localDateOf(nowIso()), requestSync, photos },
       { sessionId: null, groups: [] },
       () => store.getState().state,
       (e) => store.getState().dispatch(e),
@@ -51,6 +53,8 @@ export function usePastSessionsRetry(): void {
       'ended',
     );
     void actions.retryPending();
+    // Photos of entries already understood (or gone) aren't needed anymore.
+    void getPhotosInUse(db).then((inUse) => photos.prune(inUse)).catch(() => {});
     const stop = onReconnectOrForeground(() => void actions?.retryPending());
 
     // "Anotado" stays FEEDBACK_MS on screen 1 too; then the next doubt, if any.

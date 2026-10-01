@@ -7,6 +7,7 @@ import { formatShortDate } from '@/domain/format';
 import { usePicker } from '@/features/picker/store';
 import { useMuscleGroups } from '@/features/picker/useMuscleGroups';
 import { pastSessionActions, usePastDoubt } from '@/features/session/pastSessions';
+import { useComposer } from '@/features/session/useComposer';
 import { useOpenSessionRedirect } from '@/features/session/useOpenSessionRedirect';
 import { PastDoubt } from '@/ui/components/PastDoubt';
 import { copy } from '@/ui/copy';
@@ -21,6 +22,7 @@ export default function PickerScreen() {
   const [writingOther, setWritingOther] = useState(false);
   const [other, setOther] = useState('');
   const past = usePastDoubt();
+  const composer = useComposer({ send: pastSessionActions.send, setText: pastSessionActions.setText, hints: [] });
 
   const rows = [
     ...(groups ?? []),
@@ -41,7 +43,10 @@ export default function PickerScreen() {
             origin={past.origin}
             onChoose={pastSessionActions.choose}
             onChangeText={pastSessionActions.setText}
-            onSend={pastSessionActions.send}
+            onSend={() => composer.submit(past.state.text)}
+            onMic={composer.toggleMic}
+            listening={composer.listening}
+            notice={composer.notice}
             onNotNow={pastSessionActions.dismiss}
           />
         </KeyboardAvoidingView>

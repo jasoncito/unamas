@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { suggestionsFor, textAfterPicking } from '@/features/session/controller';
 import { pastSessionActions } from '@/features/session/pastSessions';
+import { useComposer } from '@/features/session/useComposer';
 import { useSessionScreen } from '@/features/session/useSessionScreen';
 import { copy } from '@/ui/copy';
 import { AmbiguityPanel } from '@/ui/components/AmbiguityPanel';
@@ -40,6 +41,9 @@ export default function SessionRoute() {
   const pending = params.groups ? (JSON.parse(params.groups) as string[]) : null;
   const { screen, state, setText, send, choose, end, close } = useSessionScreen(pending, () => router.replace('/'));
   const flood = useSharedValue(0);
+  // Their exercise names and aliases help the recognizer with "jalón", "Smith"…
+  const hints = useMemo(() => (screen ? screen.exercises.flatMap((e) => [e.canonicalName, ...e.aliases]) : []), [screen]);
+  const composer = useComposer({ send, setText, hints });
 
   // While the stop is held the content moves away and blurs (the bar stays sharp); the green covers it once it ends.
   const contentStyle = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(flood.value, [0, 1], [1, 0.94]) }] }));
@@ -61,9 +65,9 @@ export default function SessionRoute() {
   const started = screen.sessionId !== null;
   const hasToday = screen.today.length + screen.pending.length > 0;
   const onSend = () => {
-    if (!state.text.trim()) return;
+    if (!state.text.trim() && !composer.photo) return;
     Keyboard.dismiss();
-    send(state.text);
+    composer.submit(state.text);
   };
   const onEnd = async () => {
     Keyboard.dismiss();
@@ -113,21 +117,30 @@ export default function SessionRoute() {
 
                 {(state.phase === 'sending' || state.phase === 'feedback') && (
                   <Bubble
-                    key={state.bubble}
+                    key={state.bubble + (state.image ?? '')}
                     text={state.bubble}
+                    image={state.image}
                     pending={state.phase === 'sending'}
                     feedback={state.phase === 'feedback' ? state.feedback : null}
                   />
                 )}
 
                 {state.phase === 'disambiguating' ? (
-                  <AmbiguityPanel said={state.said} question={state.question} options={state.options} onChoose={choose} />
+                  <AmbiguityPanel said={state.said} image={state.image} question={state.question} options={state.options} onChoose={choose} />
                 ) : suggestions.length > 0 ? (
                   <SuggestionList items={suggestions} onPick={(s) => setText(textAfterPicking(s.exercise))} />
                 ) : (
                   <>
-                    {state.phase === 'ready' && state.reply && <Text style={styles.reply}>{state.reply}</Text>}
-                    <Text style={styles.title}>{started ? copy.session.nextTitle : copy.session.firstTitle}</Text>
+                    {composer.notice ? (
+                      <Text style={styles.reply}>{composer.notice}</Text>
+                    ) : (
+                      state.phase === 'ready' && state.reply && <Text style={styles.reply}>{state.reply}</Text>
+                    )}
+                    {composer.photo ? (
+                      <Text style={styles.hint}>{copy.session.photoHint}</Text>
+                    ) : (
+                      <Text style={styles.title}>{started ? copy.session.nextTitle : copy.session.firstTitle}</Text>
+                    )}
                   </>
                 )}
 
@@ -135,6 +148,11 @@ export default function SessionRoute() {
                   value={state.text}
                   onChangeText={setText}
                   onSend={onSend}
+                  onMic={composer.toggleMic}
+                  listening={composer.listening}
+                  onCamera={composer.takePhoto}
+                  photo={composer.photo}
+                  onRemovePhoto={composer.removePhoto}
                   placeholder={
                     state.phase === 'disambiguating'
                       ? copy.session.otherPlaceholder
@@ -163,4 +181,5 @@ const styles = StyleSheet.create({
   planContent: { flexGrow: 1 },
   title: { ...font('title'), color: color.text },
   reply: { ...font('body'), color: color.muted, lineHeight: 21 },
+  hint: { ...font('label'), fontWeight: '400', color: color.muted },
 });

@@ -35,6 +35,14 @@ export const copy = {
     offline: 'Sin señal: lo guardé y lo anoto cuando vuelva.',
     unclearRetry: (said: string) => `No entendí “${said}”. Dímelo de nuevo.`,
     planTitleStarted: 'Hoy te toca',
+    // M7: voice and photo (design/photo.html)
+    camera: 'Foto de la máquina',
+    removePhoto: 'Quitar la foto',
+    photoHint: 'Dile peso y series; la máquina la reconoce de la foto.',
+    listening: 'Escuchando… toca para enviar',
+    micPermission: 'Para dictar, activa el micrófono y el reconocimiento de voz para unamas en Ajustes.',
+    micUnavailable: 'El dictado no está disponible en este teléfono.',
+    cameraPermission: 'Para la foto, activa la cámara para unamas en Ajustes.',
     // Screen 6
     holdToEnd: 'Mantén para terminar',
     stopLabel: 'Terminar la sesión',

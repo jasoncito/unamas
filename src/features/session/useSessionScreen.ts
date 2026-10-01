@@ -5,6 +5,7 @@ import { newId, nowIso } from '@/data/ids';
 import { localDateOf } from '@/domain/dates';
 import { requestSync } from '@/features/sync/useSync';
 import { ai } from '@/services/aiClient';
+import { photos } from '@/services/image';
 import { onReconnectOrForeground } from '@/services/network';
 import { copy } from '@/ui/copy';
 
@@ -48,7 +49,7 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
       if (!s || cancelled) return;
       const ctx: SessionContext = { sessionId: s.sessionId, groups: s.groups };
       actions.current = createSessionActions(
-        { db, ai, newId, now: nowIso, today, requestSync },
+        { db, ai, newId, now: nowIso, today, requestSync, photos },
         ctx,
         () => useSessionStore.getState().state,
         useSessionStore.getState().dispatch,
@@ -98,7 +99,7 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
     screen,
     state,
     setText: (text: string) => dispatch({ type: 'TYPE', text }),
-    send: (text: string) => void actions.current?.send(text),
+    send: (text: string, photo: string | null = null) => void actions.current?.send(text, photo),
     choose: (exerciseId: string) => void actions.current?.choose(exerciseId),
     /** The stop completed. Null if there was nothing to end. */
     end: () => actions.current?.end() ?? Promise.resolve(null),

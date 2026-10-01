@@ -169,11 +169,14 @@ describe('PastDoubt (screen 1)', () => {
     const onChoose = jest.fn();
     await render(
       <PastDoubt
-        state={{ phase: 'disambiguating', text: '', logged: 0, entryId: 'e', said: 'laterales con 10, 4 de 11', question: '¿Cuáles laterales?', options: [{ exerciseId: 'polea', label: 'En polea', lastLoadKg: 7.5 }] }}
+        state={{ phase: 'disambiguating', text: '', logged: 0, entryId: 'e', said: 'laterales con 10, 4 de 11', image: null, question: '¿Cuáles laterales?', options: [{ exerciseId: 'polea', label: 'En polea', lastLoadKg: 7.5 }] }}
         origin={{ dayLabel: 'Lunes 28', groupsLabel: 'Hombro' }}
         onChoose={onChoose}
         onChangeText={jest.fn()}
         onSend={jest.fn()}
+        onMic={jest.fn()}
+        listening={false}
+        notice={null}
         onNotNow={onNotNow}
       />,
     );

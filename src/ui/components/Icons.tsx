@@ -1,4 +1,4 @@
-import Svg, { Line, Path, Polyline } from 'react-native-svg';
+import Svg, { Circle, Line, Path, Polyline } from 'react-native-svg';
 
 // Same icons as design/flow.html.
 
@@ -27,6 +27,16 @@ export function CheckIcon({ color, size = 11 }: { color: string; size?: number }
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={3.6} strokeLinecap="round" strokeLinejoin="round">
       <Polyline points="20 6 9 17 4 12" />
+    </Svg>
+  );
+}
+
+/** design/photo.html's camera, always next to the mic. */
+export function CameraIcon({ color, size = 22 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+      <Circle cx={12} cy={13} r={4} />
     </Svg>
   );
 }

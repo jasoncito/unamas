@@ -80,6 +80,31 @@ describe('InputBar', () => {
     await render(<InputBar value="" placeholder="press de hombros, 24 kg, 4 de 9" onChangeText={() => {}} />);
     expect(screen.getByPlaceholderText('press de hombros, 24 kg, 4 de 9')).toBeTruthy();
   });
+
+  it('the camera stays visible, empty or with text (design/photo.html)', async () => {
+    const onCamera = jest.fn();
+    const { rerender } = await render(<InputBar value="" placeholder="p" onChangeText={() => {}} onCamera={onCamera} />);
+    expect(screen.getByLabelText('Foto de la máquina')).toBeTruthy();
+    await rerender(<InputBar value="press" placeholder="p" onChangeText={() => {}} onCamera={onCamera} />);
+    await fireEvent.press(screen.getByLabelText('Foto de la máquina'));
+    expect(onCamera).toHaveBeenCalled();
+  });
+
+  it('a photo attached: its × removes it, and it can be sent without text', async () => {
+    const onRemove = jest.fn();
+    await render(<InputBar value="" placeholder="p" onChangeText={() => {}} onCamera={() => {}} photo="file:///p.jpg" onRemovePhoto={onRemove} />);
+    expect(screen.getByLabelText('Enviar')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Quitar la foto'));
+    expect(onRemove).toHaveBeenCalled();
+  });
+
+  it('listening: the placeholder says so, and the mic (now green) sends', async () => {
+    const onMic = jest.fn();
+    await render(<InputBar value="" placeholder="p" onChangeText={() => {}} onMic={onMic} listening />);
+    expect(screen.getByPlaceholderText('Escuchando… toca para enviar')).toBeTruthy();
+    await fireEvent.press(screen.getByLabelText('Enviar'));
+    expect(onMic).toHaveBeenCalled();
+  });
 });
 
 describe('GroupsTitle', () => {
@@ -131,6 +156,14 @@ describe('TodayList (screen 4)', () => {
 });
 
 describe('Bubble (screen 4)', () => {
+  it('with a photo: the thumbnail, and the text if any', async () => {
+    await render(<Bubble text="" image="file:///p.jpg" pending feedback={null} />);
+    expect(screen.queryByText(/./)).toBeNull();
+    await screen.rerender(<Bubble text="esta, 25 a cada lado, 3 de 10" image="file:///p.jpg" pending={false} feedback={{ text: 'Anotado · Press de pecho en máquina · primera vez', tone: 'muted' }} />);
+    expect(screen.getByText('esta, 25 a cada lado, 3 de 10')).toBeTruthy();
+    expect(screen.getByText('Anotado · Press de pecho en máquina · primera vez')).toHaveStyle({ color: color.muted });
+  });
+
   it('pending: dimmed and without a line; then "Anotado" in green only if it went up', async () => {
     await render(<Bubble text="press 24 4 de 9" pending feedback={null} />);
     expect(screen.queryByText(/Anotado/)).toBeNull();

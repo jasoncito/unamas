@@ -1,3 +1,4 @@
+import { Image } from 'expo-image';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 
@@ -10,16 +11,19 @@ import { color } from '../tokens';
 
 interface Props {
   said: string;
+  /** A photo sent with it: shown instead of (or with) their words. */
+  image?: string | null;
   question: string;
   options: readonly AmbiguityOption[];
   onChoose(exerciseId: string): void;
 }
 
 /** Screen 5: it asks instead of guessing. Their phrase, the question and a button per option. */
-export function AmbiguityPanel({ said, question, options, onChoose }: Props) {
+export function AmbiguityPanel({ said, image, question, options, onChoose }: Props) {
   return (
     <Animated.View entering={FadeIn.duration(250)} style={styles.panel}>
-      <Text style={styles.said}>{`“${said}”`}</Text>
+      {image && <Image source={{ uri: image }} style={styles.image} contentFit="cover" accessibilityIgnoresInvertColors />}
+      {!!said && <Text style={styles.said}>{`“${said}”`}</Text>}
       <Text style={styles.ask}>{question}</Text>
       <View style={styles.options}>
         {options.map((o) => (
@@ -43,6 +47,7 @@ export function AmbiguityPanel({ said, question, options, onChoose }: Props) {
 const styles = StyleSheet.create({
   panel: { paddingTop: 14, borderTopWidth: StyleSheet.hairlineWidth * 2, borderTopColor: color.divider },
   said: { fontSize: 14, color: color.muted, lineHeight: 19, marginBottom: 8 },
+  image: { width: 120, height: 86, borderRadius: 13, marginBottom: 8, backgroundColor: color.raised },
   ask: { fontSize: 17, fontWeight: '700', color: color.text, marginTop: 4, marginBottom: 10 },
   options: { gap: 8 },
   option: {
