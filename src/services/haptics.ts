@@ -1,0 +1,14 @@
+import * as Haptics from 'expo-haptics';
+
+/** The stop's haptics (CLAUDE.md §8, screen 6). Silent when the Taptic Engine is off (Low Power Mode). */
+export const haptics = {
+  /** Every 250 ms while holding the stop, stronger as it goes: Light → Medium → Heavy. */
+  holdTick(step: number): void {
+    const style = step < 2 ? Haptics.ImpactFeedbackStyle.Light : step < 4 ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Heavy;
+    void Haptics.impactAsync(style).catch(() => {});
+  },
+  /** The stop completed. */
+  success(): void {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+  },
+};
