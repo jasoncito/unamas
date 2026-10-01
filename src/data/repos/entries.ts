@@ -105,14 +105,31 @@ export async function resolveEntry(
   e: { exerciseId: string; loadKg: number; reps: number[]; rirNote: string | null; easy: boolean },
 ): Promise<void> {
   await db.runAsync(
-    `UPDATE entry SET exercise_id = ?, load_kg = ?, reps = ?, rir_note = ?, easy = ?, status = 'ok', updated_at = ?, dirty = 1
+    `UPDATE entry SET exercise_id = ?, load_kg = ?, reps = ?, rir_note = ?, easy = ?, status = 'ok', ambiguity = NULL,
+       updated_at = ?, dirty = 1
      WHERE id = ?`,
     [e.exerciseId, e.loadKg, JSON.stringify(e.reps), e.rirNote, e.easy ? 1 : 0, nowIso(), id],
   );
 }
 
-export async function setEntryStatus(db: Db, id: string, status: 'pending' | 'ambiguous'): Promise<void> {
-  await db.runAsync('UPDATE entry SET status = ?, updated_at = ? WHERE id = ?', [status, nowIso(), id]);
+/** Back to waiting for /parse (an answer joined the phrase, or a retry): the old question no longer applies. */
+export async function setEntryPending(db: Db, id: string): Promise<void> {
+  await db.runAsync("UPDATE entry SET status = 'pending', ambiguity = NULL, updated_at = ? WHERE id = ?", [nowIso(), id]);
+}
+
+/** A doubt as /parse asked it, kept with the entry so it can be shown again without the AI. */
+export interface StoredAmbiguity {
+  question: string;
+  options: { exerciseId: string; label: string }[];
+}
+
+/** /parse asked "which one?" or "how much?": the entry waits for the answer, with the question. */
+export async function setEntryAmbiguous(db: Db, id: string, ambiguity: StoredAmbiguity): Promise<void> {
+  await db.runAsync("UPDATE entry SET status = 'ambiguous', ambiguity = ?, updated_at = ? WHERE id = ?", [
+    JSON.stringify(ambiguity),
+    nowIso(),
+    id,
+  ]);
 }
 
 /** Their answer to "¿Con cuánto peso?" joins the original phrase, which is parsed again. */
@@ -162,6 +179,8 @@ export interface UnresolvedEntry {
   sessionId: string;
   /** Its session's groups, to put those exercises first in the context. */
   groups: string[];
+  /** A doubt's question and options, if they were kept (null for pending entries and older doubts). */
+  ambiguity: StoredAmbiguity | null;
 }
 
 interface UnresolvedRow {
@@ -169,6 +188,7 @@ interface UnresolvedRow {
   raw_text: string;
   session_id: string;
   muscle_groups: string;
+  ambiguity: string | null;
 }
 
 const fromUnresolvedRow = (r: UnresolvedRow): UnresolvedEntry => ({
@@ -176,6 +196,7 @@ const fromUnresolvedRow = (r: UnresolvedRow): UnresolvedEntry => ({
   rawText: r.raw_text,
   sessionId: r.session_id,
   groups: JSON.parse(r.muscle_groups),
+  ambiguity: r.ambiguity ? JSON.parse(r.ambiguity) : null,
 });
 
 /**
@@ -184,7 +205,7 @@ const fromUnresolvedRow = (r: UnresolvedRow): UnresolvedEntry => ({
  */
 export async function getAllPendingEntries(db: Db, scope: 'open' | 'ended'): Promise<UnresolvedEntry[]> {
   const rows = await db.getAllAsync<UnresolvedRow>(
-    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups FROM entry e JOIN session s ON s.id = e.session_id
+    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups, e.ambiguity FROM entry e JOIN session s ON s.id = e.session_id
      WHERE e.status = 'pending' AND e.deleted_at IS NULL AND s.ended_at IS ${scope === 'open' ? '' : 'NOT '}NULL
      ORDER BY e.created_at, e.id`,
     [],
@@ -195,7 +216,7 @@ export async function getAllPendingEntries(db: Db, scope: 'open' | 'ended'): Pro
 /** The oldest doubt left in a session already stopped, except `skip` ("Ahora no"): asked on screen 1 (decided with Jason). */
 export async function getEndedSessionDoubt(db: Db, skip: readonly string[] = []): Promise<UnresolvedEntry | null> {
   const row = await db.getFirstAsync<UnresolvedRow>(
-    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups FROM entry e JOIN session s ON s.id = e.session_id
+    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups, e.ambiguity FROM entry e JOIN session s ON s.id = e.session_id
      WHERE e.status = 'ambiguous' AND e.deleted_at IS NULL AND s.ended_at IS NOT NULL AND s.deleted_at IS NULL
        AND e.id NOT IN (SELECT value FROM json_each(?))
      ORDER BY e.created_at, e.id LIMIT 1`,
@@ -207,7 +228,7 @@ export async function getEndedSessionDoubt(db: Db, skip: readonly string[] = [])
 /** The session's latest entry waiting for an answer to "which one?" or "how much?", if any. */
 export async function getDoubtEntry(db: Db, sessionId: string): Promise<UnresolvedEntry | null> {
   const row = await db.getFirstAsync<UnresolvedRow>(
-    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups FROM entry e JOIN session s ON s.id = e.session_id
+    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups, e.ambiguity FROM entry e JOIN session s ON s.id = e.session_id
      WHERE e.session_id = ? AND e.status = 'ambiguous' AND e.deleted_at IS NULL
      ORDER BY e.created_at DESC LIMIT 1`,
     [sessionId],

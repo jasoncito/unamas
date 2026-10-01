@@ -1,12 +1,13 @@
 import type { Db } from '../db';
 import { v1 } from './v1';
 import { v2 } from './v2';
+import { v3 } from './v3';
 
 /**
  * Ordered by version. Append new ones; never edit one that has shipped.
  * (v1 was rewritten for sync on 29 sep 2026, before any install outside development.)
  */
-const MIGRATIONS: readonly { version: number; sql: string }[] = [v1, v2];
+const MIGRATIONS: readonly { version: number; sql: string }[] = [v1, v2, v3];
 
 export const SCHEMA_VERSION = MIGRATIONS.at(-1)!.version;
 

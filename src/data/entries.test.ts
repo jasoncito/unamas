@@ -12,15 +12,17 @@ import {
   insertPendingEntry,
   resolveEntry,
   setEntryRawText,
-  setEntryStatus,
+  setEntryAmbiguous,
+  setEntryPending,
 } from './repos/entries';
 import { createSession, deleteSessionIfEmpty, endSession, getOpenSession } from './repos/sessions';
 import { loadSeed, type Seed } from './seed';
-import { sync } from './sync';
+import { sync, TABLES } from './sync';
 import { FakeServer } from './testing/fakeServer';
 import { openMemoryDb } from './testing/memoryDb';
 
 const S = 'f0000000-0000-4000-8000-0000000000a1';
+const ASK = { question: '¿Cuáles laterales?', options: [{ exerciseId: 'x', label: 'En polea' }] };
 const E = 'f0000000-0000-4000-8000-0000000000e1';
 let db: Db;
 let ids: Map<string, string>;
@@ -33,15 +35,15 @@ beforeEach(async () => {
 });
 
 const row = (id = E) =>
-  db.getFirstAsync<{ status: string; exercise_id: string | null; load_kg: number | null; easy: number; raw_text: string; dirty: number }>(
-    'SELECT status, exercise_id, load_kg, easy, raw_text, dirty FROM entry WHERE id = ?',
+  db.getFirstAsync<{ status: string; exercise_id: string | null; load_kg: number | null; easy: number; raw_text: string; dirty: number; ambiguity: string | null }>(
+    'SELECT status, exercise_id, load_kg, easy, raw_text, dirty, ambiguity FROM entry WHERE id = ?',
     [id],
   );
 
 describe('entry lifecycle (screen 4)', () => {
   it('a pending entry has the text and nothing else yet, and is waiting to be retried', async () => {
     expect(await row()).toMatchObject({ status: 'pending', exercise_id: null, load_kg: null, raw_text: 'press de hombro 24 4 de 9, fácil' });
-    expect(await getAllPendingEntries(db, 'open')).toEqual([{ id: E, rawText: 'press de hombro 24 4 de 9, fácil', sessionId: S, groups: ['hombro'] }]);
+    expect(await getAllPendingEntries(db, 'open')).toEqual([{ id: E, rawText: 'press de hombro 24 4 de 9, fácil', sessionId: S, groups: ['hombro'], ambiguity: null }]);
     expect(await getDoubtEntry(db, S)).toBeNull();
   });
 
@@ -54,7 +56,7 @@ describe('entry lifecycle (screen 4)', () => {
     await add('e3', S, '2026-09-29T19:00:00.000Z');
     await add('e4', S, '2026-09-29T19:30:00.000Z');
     await add('e5', S, '2026-09-29T20:00:00.000Z');
-    await setEntryStatus(db, 'f0000000-0000-4000-8000-0000000000e4', 'ambiguous');
+    await setEntryAmbiguous(db, 'f0000000-0000-4000-8000-0000000000e4', ASK);
     await db.runAsync("UPDATE entry SET deleted_at = '2026-09-29T21:00:00Z' WHERE id = ?", ['f0000000-0000-4000-8000-0000000000e5']);
     expect((await getAllPendingEntries(db, 'open')).map((e) => [e.rawText, e.groups])).toEqual([
       ['e2', ['pierna']],
@@ -80,8 +82,8 @@ describe('entry lifecycle (screen 4)', () => {
     await at('e2', '2026-09-28T18:00:00.000Z');
     await at('e3', '2026-09-28T18:05:00.000Z');
     await at('e4', '2026-09-28T18:10:00.000Z');
-    await setEntryStatus(db, 'f0000000-0000-4000-8000-0000000000e3', 'ambiguous');
-    await setEntryStatus(db, 'f0000000-0000-4000-8000-0000000000e4', 'ambiguous');
+    await setEntryAmbiguous(db, 'f0000000-0000-4000-8000-0000000000e3', ASK);
+    await setEntryAmbiguous(db, 'f0000000-0000-4000-8000-0000000000e4', ASK);
     await endSession(db, S2, '2026-09-28T19:00:00.000Z');
 
     expect((await getAllPendingEntries(db, 'open')).map((e) => e.sessionId)).toEqual([S]);
@@ -92,8 +94,25 @@ describe('entry lifecycle (screen 4)', () => {
     expect(await getOpenSession(db)).toMatchObject({ id: S });
   });
 
+  it('a doubt keeps its question and options; answering it, or resolving it, drops them', async () => {
+    await setEntryAmbiguous(db, E, ASK);
+    expect(await getDoubtEntry(db, S)).toMatchObject({ id: E, ambiguity: ASK });
+    expect((await row())!.status).toBe('ambiguous');
+
+    await setEntryPending(db, E);
+    expect(await row()).toMatchObject({ status: 'pending', ambiguity: null });
+
+    await setEntryAmbiguous(db, E, ASK);
+    await resolveEntry(db, E, { exerciseId: ids.get('laterales_polea')!, loadKg: 10, reps: [11, 11, 11, 11], rirNote: null, easy: false });
+    expect(await row()).toMatchObject({ status: 'ok', ambiguity: null });
+  });
+
+  it('the question never goes up: it is not among the synced columns', () => {
+    expect(TABLES.entry.columns).not.toContain('ambiguity');
+  });
+
   it('ambiguous, then their answer joins the phrase', async () => {
-    await setEntryStatus(db, E, 'ambiguous');
+    await setEntryAmbiguous(db, E, ASK);
     await setEntryRawText(db, E, 'press de hombro 24 4 de 9, fácil (con mancuernas)');
     expect(await getDoubtEntry(db, S)).toMatchObject({ id: E, rawText: 'press de hombro 24 4 de 9, fácil (con mancuernas)' });
     expect(await getAllPendingEntries(db, 'open')).toEqual([]);
