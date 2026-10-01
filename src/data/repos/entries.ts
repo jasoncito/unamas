@@ -42,14 +42,20 @@ export async function getExerciseHistory(db: Db, exerciseId: string): Promise<Lo
  * Screen 2's list: for each chosen group (in order), the exercises of the last session that worked it,
  * keeping only exercises of the chosen groups, in the order they were logged. No repeats.
  */
-export async function getPlanExerciseIds(db: Db, groups: readonly string[]): Promise<string[]> {
+export async function getPlanExerciseIds(
+  db: Db,
+  groups: readonly string[],
+  /** Today's session: the plan comes from the ones before it. */
+  excludeSessionId: string | null = null,
+): Promise<string[]> {
   const ids: string[] = [];
   for (const group of groups) {
     const last = await db.getFirstAsync<{ session_id: string }>(
       `SELECT e.session_id FROM entry e JOIN exercise x ON x.id = e.exercise_id, json_each(x.muscle_groups) g
        WHERE g.value = ? AND e.status = 'ok' AND e.deleted_at IS NULL AND x.deleted_at IS NULL
+         AND e.session_id IS NOT ?
        ORDER BY e.created_at DESC LIMIT 1`,
-      [group],
+      [group, excludeSessionId],
     );
     if (!last) continue;
     const rows = await db.getAllAsync<{ exercise_id: string }>(

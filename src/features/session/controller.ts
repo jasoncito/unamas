@@ -1,8 +1,9 @@
 import type { Db } from '@/data/db';
 import { getAllExercises, type Exercise } from '@/data/repos/exercises';
-import { getExerciseHistory, getLastExposures, getPlanExerciseIds, type LoggedSet } from '@/data/repos/entries';
+import { getExerciseHistory, getLastExposures, getPlanExerciseIds, getSessionEntries, type LoggedSet } from '@/data/repos/entries';
 import { getOpenSession } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
+import { deltaOf, type Delta } from '@/domain/delta';
 import { searchExercises } from '@/domain/match';
 import { dictationOf, groupsLabel, planRow, type PlanRow } from '@/domain/plan';
 import type { IsoDate } from '@/domain/types';
@@ -10,6 +11,19 @@ import type { IsoDate } from '@/domain/types';
 export interface PlanLine extends PlanRow {
   name: string;
   loadBasis: Exercise['loadBasis'];
+}
+
+/** A row of "Hoy": what they logged, against that exercise's own previous entry (CLAUDE.md §8). */
+export interface TodayLine {
+  entryId: string;
+  exerciseId: string;
+  name: string;
+  loadBasis: Exercise['loadBasis'];
+  loadKg: number;
+  reps: number[];
+  /** The date it's compared with, or null the first time. */
+  comparedTo: IsoDate | null;
+  delta: Delta;
 }
 
 export interface SessionScreen {
@@ -20,7 +34,9 @@ export interface SessionScreen {
   groups: string[];
   /** "Hombro y tríceps" */
   groupsLabel: string;
-  /** "Hoy te toca": empty when those groups have no history (then there's no list). */
+  /** What's logged so far, oldest first. */
+  today: TodayLine[];
+  /** "Hoy te toca": what's left of the last time. Empty when those groups have no history. */
   plan: PlanLine[];
   /** The first plan line as it would be dictated, or null to use the generic placeholder. */
   placeholder: string | null;
@@ -43,10 +59,12 @@ export async function loadSessionScreen(
 
   const exercises = await getAllExercises(db);
   const byId = new Map(exercises.map((e) => [e.id, e]));
+  const logged = open ? await todayLines(db, open.id, byId) : [];
+  const done = new Set(logged.map((t) => t.exerciseId));
   const plan: PlanLine[] = [];
-  for (const id of await getPlanExerciseIds(db, groups)) {
+  for (const id of await getPlanExerciseIds(db, groups, open?.id ?? null)) {
     const ex = byId.get(id);
-    if (!ex) continue;
+    if (!ex || done.has(id)) continue;
     const history = (await getExerciseHistory(db, id)).map((h) => ({
       date: localDateOf(h.createdAt),
       loadKg: h.loadKg,
@@ -62,11 +80,34 @@ export async function loadSessionScreen(
     canGoBack: !open,
     groups,
     groupsLabel: groupsLabel(groups),
+    today: logged,
     plan,
     placeholder: first ? dictationOf(spokenName(byId.get(first.exerciseId)!), first.loadKg, first.reps) : null,
     exercises,
     lastSets: await getLastExposures(db),
   };
+}
+
+async function todayLines(db: Db, sessionId: string, byId: Map<string, Exercise>): Promise<TodayLine[]> {
+  const lines: TodayLine[] = [];
+  for (const e of await getSessionEntries(db, sessionId)) {
+    const ex = byId.get(e.exerciseId);
+    if (!ex) continue;
+    const history = await getExerciseHistory(db, e.exerciseId);
+    const previous = history.filter((h) => h.createdAt < e.createdAt).at(-1);
+    const prev = previous ? { date: localDateOf(previous.createdAt), loadKg: previous.loadKg, reps: previous.reps } : null;
+    lines.push({
+      entryId: e.id,
+      exerciseId: e.exerciseId,
+      name: ex.canonicalName,
+      loadBasis: ex.loadBasis,
+      loadKg: e.loadKg,
+      reps: e.reps,
+      comparedTo: prev?.date ?? null,
+      delta: deltaOf(prev, { date: localDateOf(e.createdAt), loadKg: e.loadKg, reps: e.reps }, ex.repFloor),
+    });
+  }
+  return lines;
 }
 
 export interface Suggestion {

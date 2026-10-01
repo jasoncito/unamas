@@ -4,6 +4,7 @@ import type { Db } from '@/data/db';
 import { initDb } from '@/data/init';
 import { loadSeed, type Seed } from '@/data/seed';
 import { openMemoryDb } from '@/data/testing/memoryDb';
+import { insertExercise } from '@/data/repos/exercises';
 import { createSession } from '@/data/repos/sessions';
 import { formatSets } from '@/domain/format';
 
@@ -110,5 +111,59 @@ describe('suggestionsFor (screen 3)', () => {
   it('picking one leaves its name and a comma, ready for the numbers', async () => {
     const s = await screenFor(['hombro']);
     expect(textAfterPicking(suggestionsFor('press de hom', s)[0].exercise)).toBe('Press de hombro con mancuernas, ');
+  });
+});
+
+describe('"Hoy" (screen 4)', () => {
+  const log = async (sessionId: string, exerciseName: string, loadKg: number, reps: number[], at: string) => {
+    const ex = await db.getFirstAsync<{ id: string }>('SELECT id FROM exercise WHERE canonical_name = ?', [exerciseName]);
+    await db.runAsync(
+      `INSERT INTO entry (id, session_id, exercise_id, load_kg, reps, raw_text, status, created_at, updated_at, dirty)
+       VALUES (?, ?, ?, ?, ?, 'x', 'ok', ?, ?, 1)`,
+      [`f0000000-0000-4000-8000-${at.slice(11, 13)}${at.slice(14, 16)}00000000`, sessionId, ex!.id, loadKg, JSON.stringify(reps), at, at],
+    );
+  };
+  const S = 'f0000000-0000-4000-8000-0000000000aa';
+
+  it('what they logged, each against its own last time; the plan keeps only what is left, from the session before', async () => {
+    await createSession(db, S, ['hombro', 'tríceps'], '2026-09-29T18:00:00.000Z');
+    await insertExercise(db, {
+      id: 'f0000000-0000-4000-8000-0000000000bb', canonicalName: 'Remo al mentón', aliases: [], muscleGroups: ['hombro'],
+      kind: 'compound', repFloor: 8, repTop: 12, stepKg: 2.5, loadBasis: 'total', createdAt: '2026-09-29T18:10:00.000Z',
+    });
+    await log(S, 'Press de hombro con mancuernas', 24, [9, 9, 9, 9], '2026-09-29T18:00:00.000Z');
+    await log(S, 'Remo al mentón', 15, [12, 12, 12], '2026-09-29T18:10:00.000Z');
+    const s = (await loadSessionScreen(db, TODAY, null))!;
+
+    expect(s.today.map((t) => [t.name, t.loadKg, formatSets(t.reps), t.comparedTo, t.delta])).toEqual([
+      ['Press de hombro con mancuernas', 24, '4×9', '2026-09-27', { kind: 'reps_per_set', diff: 1, tone: 'up' }],
+      ['Remo al mentón', 15, '3×12', null, { kind: 'new' }],
+    ]);
+    expect(lines(s)).toEqual([
+      ['Laterales en polea', 7.5, '4×11', 'SERIES↑'],
+      ['Laterales con pecho en rodillas', 12, '4×13', 'SERIES↑'],
+      ['Tríceps en polea, barra V', 30, '4×11', 'SERIES↑'],
+      ['Tríceps sobre la cabeza', 20, '3×11', 'SERIES↑'],
+    ]);
+  });
+
+  it('the same exercise twice today: the second is compared with the first', async () => {
+    await createSession(db, S, ['hombro'], '2026-09-29T18:00:00.000Z');
+    await log(S, 'Press de hombro con mancuernas', 24, [9, 9, 9, 9], '2026-09-29T18:00:00.000Z');
+    await log(S, 'Press de hombro con mancuernas', 26, [6, 6], '2026-09-29T18:20:00.000Z');
+    const s = (await loadSessionScreen(db, TODAY, null))!;
+    expect(s.today.map((t) => [t.comparedTo, t.delta.kind])).toEqual([['2026-09-27', 'reps_per_set'], ['2026-09-29', 'load']]);
+  });
+
+  it('a new exercise first does not make today the "last time" of the group: the plan still comes from 27 sep', async () => {
+    await createSession(db, S, ['hombro'], '2026-09-29T18:00:00.000Z');
+    await db.runAsync(
+      `INSERT INTO entry (id, session_id, exercise_id, load_kg, reps, raw_text, status, created_at, updated_at, dirty)
+       SELECT 'f0000000-0000-4000-8000-0000000000cc', ?, id, 7.5, '[11,11,11,11]', 'x', 'ok', '2026-09-29T18:00:00.000Z', '2026-09-29T18:00:00.000Z', 1
+       FROM exercise WHERE canonical_name = 'Laterales en polea'`,
+      [S],
+    );
+    const s = (await loadSessionScreen(db, TODAY, null))!;
+    expect(s.plan.map((l) => l.name)).toEqual(['Press de hombro con mancuernas', 'Laterales con pecho en rodillas']);
   });
 });
