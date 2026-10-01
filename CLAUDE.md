@@ -235,6 +235,7 @@ Response (esquema JSON con structured outputs):
 - `exercise_id` sale **solo** de `context.exercises`. Si no hay coincidencia, va `null` y se llena `new_exercise: { canonical_name, muscle_groups[], kind, load_basis }`, con un `canonical_name` corto (~28 caracteres, §7).
 - **Unificación de nombres:** variaciones del mismo ejercicio ("press de hombros", "press hombro mancuernas") → mismo `exercise_id`. Si la frase sirve para **dos o más** ejercicios distintos del usuario → `intent: "ambiguous"` con opciones. Nunca fusionar historiales dudosos.
 - **Alias aprendidos:** cuando el usuario elige una opción en una pregunta de "¿cuál ejercicio?" (pantalla 5), su frase **sin números** se guarda como alias del ejercicio elegido (`src/domain/names.ts` → `phraseToAlias`, `src/features/session/aliases.ts`): minúsculas, sin tildes, sin pesos, unidades, series×reps, "a cada lado" ni notas de esfuerzo ("jalones en la polea arriba para hombro posterior, con 25, 4 de 12" → "jalones en la polea arriba para hombro posterior"). Así la próxima vez esas palabras se resuelven directo. No se agrega si ya es el nombre o un alias de **otro** ejercicio (un alias apunta a un solo ejercicio), ni cuando la pregunta era por el peso. El ejercicio queda `dirty` y se sincroniza.
+- **Foto:** muestra la máquina; "esta" apunta a ella. El ejercicio sale de la foto y el texto; el peso y las reps, **solo del texto** (nunca de números que se vean en la foto). Con foto pero sin peso o reps → `ambiguous` sin opciones, con una pregunta que empieza por el ejercicio reconocido. Si no se reconoce → "¿Qué ejercicio haces en esta máquina?".
 - Normalizar: "4 de 9" → `[9,9,9,9]`; "3 de 11 y la última de 9" → `[11,11,11,9]`; "a cada lado" → `load_basis: per_side`; "7,5" → 7.5. Si no dicen kg, se asume kg.
 - Si falta el peso o las reps → `ambiguous` con una pregunta concreta. No inventar valores.
 - `easy`: `true` solo si dicen "fácil" o que les sobraron 3 o más reps; es la señal que usa el motor para saltarse el modo confirmar (PROGRESSION.md §6). `rir_note` guarda sus palabras tal cual.
@@ -292,6 +293,7 @@ CREATE TABLE entry (
   status TEXT NOT NULL DEFAULT 'ok' CHECK (status IN ('ok','pending','ambiguous')),
   created_at TEXT NOT NULL,
   ambiguity TEXT,                                          -- JSON {question, options[]} mientras está en duda; solo local (v3)
+  image_uri TEXT,                                          -- foto de la máquina hasta que se entienda; solo local (v4)
   updated_at TEXT NOT NULL, deleted_at TEXT, dirty INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE sync_state (table_name TEXT PRIMARY KEY, cursor TEXT);
@@ -302,6 +304,7 @@ CREATE TABLE sync_state (table_name TEXT PRIMARY KEY, cursor TEXT);
 - Toda consulta del motor y de las pantallas filtra `deleted_at IS NULL`.
 - `reps` siempre como lista por serie.
 - `entry.ambiguity` no se sincroniza (las entradas en duda no suben) y se limpia al resolverse o al volver a `pending`.
+- `entry.image_uri`: la foto vive en `Documents/photos/<entry>.jpg` (≤ 1024 px, JPEG 0,6) hasta que la entrada se entiende; se reenvía en reintentos y respuestas. Al abrir la app se borran las fotos que ninguna entrada necesita. No se sincroniza.
 - La fila de `session` se crea **con la primera entrada**: `started_at` = hora de esa entrada. `ended_at` = cuando se completa el stop. No hay sesiones vacías.
 - `canonical_name` es **corto** (~28 caracteres, "Laterales en polea"); el detalle ("Elevaciones laterales en polea con cuerda") va en `aliases`. Sin campo nuevo. Para ejercicios nuevos, la IA propone el nombre corto (regla en el prompt) y la app guarda la frase del usuario sin números como alias (M5).
 - `dev/seed.json` usa ids de texto legibles. Al cargarlo (solo en desarrollo, con `EXPO_PUBLIC_SEED=1`), cada id se cambia por un UUID nuevo, manteniendo las relaciones. Queda todo `dirty = 1`.
@@ -338,12 +341,19 @@ Las mismas tablas, con `user_id uuid not null default auth.uid() references auth
 ### 4 · Anotado (animado)
 Secuencia al enviar:
 1. El texto **sube desde el input** como burbuja alineada a la derecha (surface, radio 18/18/6/18). El input se vacía, el teclado se cierra, el título cambia a "¿Qué sigue?" y vuelve el micrófono.
-2. Bajo la burbuja: "✓ Anotado · +1 rep por serie vs. el 27" (verde si subió, muted si igual/bajó, "primera vez, queda como referencia" si es nuevo).
+2. Bajo la burbuja: "✓ Anotado · +1 rep por serie vs. el 27" (check y texto en verde si subió; check en surface y texto muted si igual o bajó). Un ejercicio nuevo: "Anotado · Press de pecho en máquina · primera vez", con el nombre que recibió y **en gris, nunca en verde** (no es progreso).
 3. A los **4.5 s** (parámetro) la burbuja se desvanece y en la lista de arriba ese ejercicio pasa a check verde con la marca de hoy y el delta.
 
 Mientras espera la respuesta de la función: la burbuja aparece enseguida con un estado de "pendiente" sutil.
 
 La lista tiene dos secciones: **"Hoy"** (lo anotado, cada uno con "vs. <fecha de su último registro>") y **"Sugeridos de tu última vez"** (lo que falta, en muted). Un ejercicio anotado que no estaba en la lista se agrega a "Hoy".
+
+### Voz y foto (M7, ver `design/photo.html`)
+- **Micrófono:** tocarlo empieza a dictar; lo que oye aparece en el input. Se envía solo tras **1,5 s sin palabras nuevas**, o al tocarlo otra vez (mientras escucha, el botón es verde con el micrófono en tinta). Idioma del reconocimiento: **el del teléfono** si es un español que el reconocedor tiene; si no, `es-419` (decidido con Jason). Sus nombres de ejercicios van como pistas al reconocedor.
+- **Cámara siempre visible** junto al micrófono o al enviar (no desaparece al escribir). Abre la cámara (en el simulador, la fototeca). La foto queda como **miniatura con × dentro del input** y se envía junto con el texto. Mientras hay foto, en lugar del título: "Dile peso y series; la máquina la reconoce de la foto." Con foto, enviar se activa aunque no haya texto.
+- **Burbuja con foto:** miniatura arriba y el texto debajo (o solo la miniatura).
+- **Foto sin peso o series:** la IA nombra el ejercicio y pregunta lo que falta ("Press de pecho en máquina. ¿Con cuánto peso y cuántas series?"); la respuesta se envía con la misma foto.
+- Las palabras de un mensaje con foto ("esta, 25 a cada lado") no se guardan como alias: apuntan a la foto.
 
 ### 5 · Si hay duda
 - Tu frase entre comillas, la pregunta ("¿Cuáles laterales?") y **botones con cada opción** mostrando su última carga. Abajo: "U otra cosa, dímelo".
@@ -423,7 +433,7 @@ Jason quiere **aprender a hacer funciones** con el worker (M3) y a usar Supabase
 1. ~~**Dónde se muestra la meta del motor.**~~ **Resuelto** (`design/meta.html`, §8 pantalla 2): columnas PESO y SERIES con la meta de hoy; solo lo que sube va en verde con "antes X".
 2. Duración de la burbuja de "Anotado" (4.5 s) y del mantener (1.5 s): validar en el gym.
 3. Animación de terminar: aceptada "por ahora".
-4. Idioma y variante del reconocimiento de voz (`es-419`, `es-EC` o el locale del dispositivo).
+4. ~~Idioma del reconocimiento de voz.~~ **Resuelto:** el del teléfono, con `es-419` de respaldo (§8, "Voz y foto").
 5. Mascota: fuera del MVP; la línea de feedback es su lugar futuro.
 6. **Pantallas de cuenta** ("Guarda tu cuenta", acceso a la cuenta, "Borrar cuenta"): ninguna pantalla aprobada las tiene. **No diseñarlas ni construirlas sin Jason.** Propuesta a validar en `docs/MULTIUSER.md` §9.
 
