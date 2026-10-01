@@ -12,7 +12,9 @@ import {
   insertPendingEntry,
   resolveEntry,
   setEntryRawText,
-  setEntryStatus,
+  setEntryAmbiguous,
+  setEntryPending,
+  type StoredAmbiguity,
   type UnresolvedEntry,
 } from '@/data/repos/entries';
 import { createSession, deleteSessionIfEmpty, endSession } from '@/data/repos/sessions';
@@ -143,13 +145,14 @@ export function createSessionActions(
     }
 
     if (res.intent === 'ambiguous' && res.ambiguity) {
-      await setEntryStatus(deps.db, entryId, 'ambiguous');
-      const lastSets = await getLastExposures(deps.db);
-      const byId = new Map(exercises.map((e) => [e.id, e]));
-      const options: AmbiguityOption[] = res.ambiguity.options
-        .filter((o) => byId.has(o.exercise_id))
-        .map((o) => ({ exerciseId: o.exercise_id, label: o.label, lastLoadKg: lastSets.get(o.exercise_id)?.loadKg ?? null }));
-      return { kind: 'ask', question: res.ambiguity.question, options };
+      // Kept with the entry: shown again later (app reopened, screen 1) without asking the AI again.
+      const known = new Set(exercises.map((e) => e.id));
+      const stored: StoredAmbiguity = {
+        question: res.ambiguity.question,
+        options: res.ambiguity.options.filter((o) => known.has(o.exercise_id)).map((o) => ({ exerciseId: o.exercise_id, label: o.label })),
+      };
+      await setEntryAmbiguous(deps.db, entryId, stored);
+      return { kind: 'ask', question: stored.question, options: await withLastLoad(stored.options) };
     }
 
     // Not an entry ("listo", a question, not understood): the message goes, and a session left
@@ -190,10 +193,29 @@ export function createSessionActions(
     return s.phase === 'ready' && s.text.trim() === '';
   };
 
+  /** The options as buttons, each with its last load as of now (it may have changed since it was asked). */
+  async function withLastLoad(options: StoredAmbiguity['options']): Promise<AmbiguityOption[]> {
+    const lastSets = await getLastExposures(deps.db);
+    return options.map((o) => ({ ...o, lastLoadKg: lastSets.get(o.exerciseId)?.loadKg ?? null }));
+  }
+
+  /** A doubt kept with its entry, shown again as it was asked: no AI, works without signal. Null if it can't be. */
+  async function storedDoubt(entry: UnresolvedEntry): Promise<Extract<Outcome, { kind: 'ask' }> | null> {
+    if (!entry.ambiguity) return null; // a doubt from before they were kept
+    const alive = new Set((await getAllExercises(deps.db)).map((e) => e.id));
+    const options = entry.ambiguity.options.filter((o) => alive.has(o.exerciseId));
+    // "Which one?" whose exercises are all gone since: it has to be asked anew.
+    if (entry.ambiguity.options.length > 0 && options.length === 0) return null;
+    return { kind: 'ask', question: entry.ambiguity.question, options: await withLastLoad(options) };
+  }
+
   /** One retried entry, quietly. False if there's still no signal. */
   async function retryOne(entry: UnresolvedEntry): Promise<boolean> {
-    await setEntryStatus(deps.db, entry.id, 'pending');
-    const out = await resolve(entry.id, entry.rawText, entry.sessionId, entry.groups);
+    let out: Outcome | null = await storedDoubt(entry);
+    if (!out) {
+      await setEntryPending(deps.db, entry.id);
+      out = await resolve(entry.id, entry.rawText, entry.sessionId, entry.groups);
+    }
     if (out.kind === 'offline') {
       events.onChanged();
       return false;
@@ -227,7 +249,7 @@ export function createSessionActions(
           const origin = originOf(state.entryId);
           const joined = state.options.length === 0 ? `${state.said}, ${said}` : `${state.said} (${said})`;
           await setEntryRawText(deps.db, state.entryId, joined);
-          await setEntryStatus(deps.db, state.entryId, 'pending');
+          await setEntryPending(deps.db, state.entryId);
           return process(state.entryId, joined, origin.sessionId, origin.groups, false);
         }
 
@@ -246,7 +268,7 @@ export function createSessionActions(
         dispatch({ type: 'SENT', text: state.said });
         // Their words become an alias of the chosen exercise: next time they resolve straight to it.
         await learnAliasFromChoice(deps.db, state.said, exerciseId);
-        await setEntryStatus(deps.db, state.entryId, 'pending');
+        await setEntryPending(deps.db, state.entryId);
         // Parsed again with only that exercise, to get the numbers for it.
         const origin = originOf(state.entryId);
         return process(state.entryId, state.said, origin.sessionId, origin.groups, false, exercise);

@@ -4,7 +4,7 @@ import type { ParseRequest, ParseResponse } from '../../../shared/contract';
 import type { Db } from '@/data/db';
 import { initDb } from '@/data/init';
 import { getAllExercises, getExercise } from '@/data/repos/exercises';
-import { insertPendingEntry, setEntryStatus } from '@/data/repos/entries';
+import { insertPendingEntry, setEntryAmbiguous } from '@/data/repos/entries';
 import { createSession, endSession, getOpenSession, getSession } from '@/data/repos/sessions';
 import { loadSeed, type Seed } from '@/data/seed';
 import { openMemoryDb } from '@/data/testing/memoryDb';
@@ -64,6 +64,11 @@ function harness(
   );
   return { actions, ctx, events, requests, created, dispatch, state: () => state, syncs: () => syncs, changes: () => changes };
 }
+
+/** A doubt saved before its question was kept with it (migration v3): only the status says it. */
+const legacyDoubt = (id: string) => db.runAsync("UPDATE entry SET status = 'ambiguous', ambiguity = NULL WHERE id = ?", [id]);
+const storedAmbiguity = async (id: string) =>
+  JSON.parse((await db.getFirstAsync<{ ambiguity: string | null }>('SELECT ambiguity FROM entry WHERE id = ?', [id]))!.ambiguity ?? 'null');
 
 const entries = () => db.getAllAsync<{ id: string; status: string; exercise_id: string | null; load_kg: number | null; raw_text: string }>(
   "SELECT id, status, exercise_id, load_kg, raw_text FROM entry WHERE created_at >= '2026-09-29' ORDER BY id", []);
@@ -329,18 +334,18 @@ describe('retryPending (on open, on foreground, when the signal returns)', () =>
       expect(h.state()).toMatchObject({ phase: 'disambiguating', said: 'laterales con 10, 4 de 11' });
     });
 
-    it('a doubt retried without signal goes back to a pending row (and the list hears of it)', async () => {
+    it('a doubt from before the options were kept, retried without signal, goes back to a pending row', async () => {
       await savedOffline('laterales con 10, 4 de 11');
-      await setEntryStatus(db, 'f0000000-0000-4000-8000-000000000100', 'ambiguous');
+      await legacyDoubt('f0000000-0000-4000-8000-000000000100');
       const h = open([new AiUnavailableError('offline')]);
       await h.actions.retryPending();
       expect(await statuses()).toEqual([['laterales con 10, 4 de 11', 'pending']]);
       expect(h.changes()).toBe(1);
     });
 
-    it('the app was closed on a doubt: opening asks it again', async () => {
+    it('the app was closed on a doubt from before the options were kept: opening asks the AI again', async () => {
       await savedOffline('laterales con 10, 4 de 11');
-      await setEntryStatus(db, 'f0000000-0000-4000-8000-000000000100', 'ambiguous');
+      await legacyDoubt('f0000000-0000-4000-8000-000000000100');
       const h = open([which()]);
       await h.actions.retryPending();
       expect(h.state()).toMatchObject({ phase: 'disambiguating', entryId: 'f0000000-0000-4000-8000-000000000100' });
@@ -401,6 +406,76 @@ describe('end (screen 6)', () => {
   });
 });
 
+describe('doubts kept with their entry: shown again without the AI', () => {
+  const S = 'f0000000-0000-4000-8000-0000000000aa';
+  const E = 'f0000000-0000-4000-8000-000000000100';
+  const open = (answers: (ParseResponse | Error)[]) => harness(answers, { sessionId: S, groups: ['hombro', 'tríceps'] });
+  beforeEach(async () => {
+    await createSession(db, S, ['hombro', 'tríceps'], '2026-09-29T18:00:00.000Z');
+    await insertPendingEntry(db, { id: E, sessionId: S, rawText: 'laterales con 10, 4 de 11', createdAt: '2026-09-29T18:00:00.000Z' });
+  });
+
+  it('when /parse asks, the question and the options it could name are kept with the entry', async () => {
+    const polea = ids.get('laterales_polea')!;
+    const first = harness([{ intent: 'ambiguous', entries: [], reply: null, ambiguity: { question: '¿Cuáles laterales?', options: [{ exercise_id: polea, label: 'En polea' }, { exercise_id: 'invented', label: 'Inventado' }] } }], { sessionId: S, groups: ['hombro'] });
+    await first.actions.send('laterales con 12, 4 de 10');
+    const asked = (await entries()).find((e) => e.raw_text === 'laterales con 12, 4 de 10')!;
+    expect(await storedAmbiguity(asked.id)).toEqual({ question: '¿Cuáles laterales?', options: [{ exerciseId: polea, label: 'En polea' }] });
+  });
+
+  it('the app reopened on it: the same question, no call, and without signal too', async () => {
+    const polea = ids.get('laterales_polea')!;
+    await setEntryAmbiguous(db, E, { question: '¿Cuáles laterales?', options: [{ exerciseId: polea, label: 'En polea' }] });
+    const h = open([]); // any call would fail: no scripted answer
+    await h.actions.retryPending();
+    expect(h.requests).toEqual([]);
+    expect(h.state()).toMatchObject({
+      phase: 'disambiguating',
+      entryId: E,
+      question: '¿Cuáles laterales?',
+      options: [{ exerciseId: polea, label: 'En polea', lastLoadKg: 7.5 }],
+    });
+  });
+
+  it('the last load on each button is as of now, not as when it was asked', async () => {
+    const polea = ids.get('laterales_polea')!;
+    await setEntryAmbiguous(db, E, { question: '¿Cuáles laterales?', options: [{ exerciseId: polea, label: 'En polea' }] });
+    await db.runAsync(
+      `INSERT INTO entry (id, session_id, exercise_id, load_kg, reps, raw_text, status, created_at, updated_at, dirty)
+       VALUES ('f0000000-0000-4000-8000-000000000101', ?, ?, 8.75, '[10,10,10,10]', 'x', 'ok', '2026-09-29T18:30:00.000Z', '2026-09-29T18:30:00.000Z', 1)`,
+      [S, polea],
+    );
+    const h = open([]);
+    await h.actions.retryPending();
+    expect(h.state()).toMatchObject({ options: [{ lastLoadKg: 8.75 }] });
+  });
+
+  it('"¿Con cuánto peso?" (no options) is shown again the same way', async () => {
+    await setEntryAmbiguous(db, E, { question: '¿Con cuánto peso?', options: [] });
+    const h = open([]);
+    await h.actions.retryPending();
+    expect(h.state()).toMatchObject({ phase: 'disambiguating', question: '¿Con cuánto peso?', options: [] });
+  });
+
+  it('its exercises were deleted since: it is asked anew', async () => {
+    await setEntryAmbiguous(db, E, { question: '¿Cuáles laterales?', options: [{ exerciseId: 'f0000000-0000-4000-8000-00000000dead', label: 'Borrado' }] });
+    const h = open([log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 10, reps: [11, 11, 11, 11] })])]);
+    await h.actions.retryPending();
+    expect(h.requests).toHaveLength(1);
+    expect(await storedAmbiguity(E)).toBeNull();
+  });
+
+  it('answered: the kept question is dropped', async () => {
+    const polea = ids.get('laterales_polea')!;
+    await setEntryAmbiguous(db, E, { question: '¿Cuáles laterales?', options: [{ exerciseId: polea, label: 'En polea' }] });
+    const h = open([log([entry({ exercise_id: polea, load_kg: 10, reps: [11, 11, 11, 11] })])]);
+    await h.actions.retryPending();
+    await h.actions.choose(polea);
+    expect(h.requests).toHaveLength(1); // only the answer is parsed
+    expect(await storedAmbiguity(E)).toBeNull();
+  });
+});
+
 describe('closed sessions (retried from the root; doubts on screen 1)', () => {
   const S = 'f0000000-0000-4000-8000-0000000000aa';
   const E1 = 'f0000000-0000-4000-8000-000000000301';
@@ -449,20 +524,21 @@ describe('closed sessions (retried from the root; doubts on screen 1)', () => {
     expect(await getOpenSession(db)).toBeNull();
   });
 
-  it('a doubt left from before is asked on open; "Ahora no" puts it off until the app opens again', async () => {
-    await setEntryStatus(db, E1, 'ambiguous');
-    const h = root([which()]);
+  it('a doubt left from before is asked on open, without the AI; "Ahora no" puts it off until the app opens again', async () => {
+    await setEntryAmbiguous(db, E1, { question: '¿Cuáles laterales?', options: [{ exerciseId: ids.get('laterales_polea')!, label: 'En polea' }] });
+    const h = root([]);
     await h.actions.retryPending();
     expect(h.state()).toMatchObject({ phase: 'disambiguating', entryId: E1 });
     h.actions.dismissDoubt();
     expect(h.state()).toMatchObject({ phase: 'ready' });
     await h.actions.retryPending(); // foreground: not asked again
-    expect(h.requests).toHaveLength(1);
+    expect(h.state()).toMatchObject({ phase: 'ready' });
     expect(await statusOf(E1)).toBe('ambiguous');
 
-    const reopened = root([which()]);
+    const reopened = root([]);
     await reopened.actions.retryPending();
     expect(reopened.state()).toMatchObject({ phase: 'disambiguating', entryId: E1 });
+    expect([...h.requests, ...reopened.requests]).toEqual([]);
   });
 
   it('screen 1 doesn\'t take new entries: only answers', async () => {

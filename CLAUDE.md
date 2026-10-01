@@ -117,7 +117,8 @@ UI: onSend(text | image | voz→texto)
                      → domain.compare(último registro, hoy) → delta
                      → domain.nextTarget(historial)        → meta para las sugeridas
                      → dispatch(FEEDBACK { delta, texto de plantilla })
-        ambiguous  → dispatch(DISAMBIGUATE { opciones })    (la entrada queda status='ambiguous')
+        ambiguous  → dispatch(DISAMBIGUATE { opciones })    (la entrada queda status='ambiguous', con la pregunta y
+                     las opciones en entry.ambiguity: una duda vieja se vuelve a mostrar desde ahí, sin IA ni señal)
                      → al elegir una opción: learnAliasFromChoice(frase, ejercicio)  (alias aprendido, §6)
         end_session→ dispatch(SHOW_STOP_TIP)
         unclear    → dispatch(REPLY) y la entrada pendiente se borra
@@ -290,6 +291,7 @@ CREATE TABLE entry (
   raw_text TEXT NOT NULL, rir_note TEXT,
   status TEXT NOT NULL DEFAULT 'ok' CHECK (status IN ('ok','pending','ambiguous')),
   created_at TEXT NOT NULL,
+  ambiguity TEXT,                                          -- JSON {question, options[]} mientras está en duda; solo local (v3)
   updated_at TEXT NOT NULL, deleted_at TEXT, dirty INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE sync_state (table_name TEXT PRIMARY KEY, cursor TEXT);
@@ -299,6 +301,7 @@ CREATE TABLE sync_state (table_name TEXT PRIMARY KEY, cursor TEXT);
 - `updated_at` lo pone el cliente en cada cambio. `deleted_at` = borrado suave (se sincroniza). `dirty = 1` = falta subir. Sin señal en el primer arranque se anota igual y se sube cuando exista la cuenta anónima.
 - Toda consulta del motor y de las pantallas filtra `deleted_at IS NULL`.
 - `reps` siempre como lista por serie.
+- `entry.ambiguity` no se sincroniza (las entradas en duda no suben) y se limpia al resolverse o al volver a `pending`.
 - La fila de `session` se crea **con la primera entrada**: `started_at` = hora de esa entrada. `ended_at` = cuando se completa el stop. No hay sesiones vacías.
 - `canonical_name` es **corto** (~28 caracteres, "Laterales en polea"); el detalle ("Elevaciones laterales en polea con cuerda") va en `aliases`. Sin campo nuevo. Para ejercicios nuevos, la IA propone el nombre corto (regla en el prompt) y la app guarda la frase del usuario sin números como alias (M5).
 - `dev/seed.json` usa ids de texto legibles. Al cargarlo (solo en desarrollo, con `EXPO_PUBLIC_SEED=1`), cada id se cambia por un UUID nuevo, manteniendo las relaciones. Queda todo `dirty = 1`.
@@ -310,7 +313,7 @@ Las mismas tablas, con `user_id uuid not null default auth.uid() references auth
 ## 8. Pantallas (ver `design/flow.html`)
 
 ### 1 · Elegir músculo
-- **Primero, una duda pendiente de una sesión ya terminada** (decidido con Jason, 1 oct 2026): si una entrada guardada sin señal se resuelve después de cerrar su sesión y sale ambigua, la pregunta aparece aquí antes de la lista, con "De tu sesión del lunes 28 · Hombro", las opciones y "U otra cosa, dímelo". La respuesta va a esa sesión cerrada. "Ahora no" la deja para la próxima vez que se abra la app.
+- **Primero, una duda pendiente de una sesión ya terminada** (decidido con Jason, 1 oct 2026): si una entrada guardada sin señal se resuelve después de cerrar su sesión y sale ambigua, la pregunta aparece aquí antes de la lista, con "De tu sesión del lunes 28 · Hombro", las opciones y "U otra cosa, dímelo". La respuesta va a esa sesión cerrada. "Ahora no" (aprobado por Jason) la deja para la próxima vez que se abra la app.
 - Título "¿Qué toca hoy?" y subtítulo "Primero lo que más tiempo lleva sin entrenar. El orden en que tocas es el orden de la sesión."
 - **Lista tipográfica** (no chips): nombre del grupo en 30/800, fecha de la última vez a la derecha (13/600, muted). Orden: fecha más antigua primero; los "sin registro" al final.
 - Tocar selecciona o deselecciona. El seleccionado se pone verde y muestra **su número de orden** grande en verde (1, 2…), sin check. Al quitar uno, los demás se renumeran.
