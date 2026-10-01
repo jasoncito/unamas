@@ -1,10 +1,9 @@
-import NetInfo from '@react-native-community/netinfo';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useEffect } from 'react';
-import { AppState } from 'react-native';
 
 import { sync } from '@/data/sync';
 import { ensureSession } from '@/services/auth';
+import { onReconnectOrForeground } from '@/services/network';
 import { pendingSwitchStore } from '@/services/pendingSwitchStore';
 import { supabase } from '@/services/supabase';
 import { supabaseRemote } from '@/services/supabaseRemote';
@@ -39,18 +38,10 @@ export function useSync(): void {
     current = scheduler;
     void scheduler.now();
 
-    const appState = AppState.addEventListener('change', (state) => {
-      if (state === 'active') void scheduler.now();
-    });
-    let online: boolean | null = null;
-    const unsubscribeNet = NetInfo.addEventListener(({ isConnected }) => {
-      if (isConnected && online === false) void scheduler.now();
-      online = isConnected;
-    });
+    const stopWatching = onReconnectOrForeground(() => void scheduler.now());
 
     return () => {
-      appState.remove();
-      unsubscribeNet();
+      stopWatching();
       scheduler.dispose();
       if (current === scheduler) current = null;
     };

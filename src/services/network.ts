@@ -1,0 +1,21 @@
+import NetInfo from '@react-native-community/netinfo';
+import { AppState } from 'react-native';
+
+/**
+ * Calls `onChance` whenever there's a new chance to reach the network: the app comes back to the
+ * foreground, or the signal returns after being lost. Returns the unsubscribe.
+ */
+export function onReconnectOrForeground(onChance: () => void): () => void {
+  const appState = AppState.addEventListener('change', (state) => {
+    if (state === 'active') onChance();
+  });
+  let online: boolean | null = null;
+  const unsubscribeNet = NetInfo.addEventListener(({ isConnected }) => {
+    if (isConnected && online === false) onChance();
+    online = isConnected;
+  });
+  return () => {
+    appState.remove();
+    unsubscribeNet();
+  };
+}
