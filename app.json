@@ -35,7 +35,26 @@
           "imageWidth": 76
         }
       ],
-      "expo-sqlite"
+      "expo-sqlite",
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "unamas usa el micrófono para que dictes tus series en vez de escribirlas.",
+          "speechRecognitionPermission": "unamas convierte lo que dictas en texto para anotar tus series.",
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
+        }
+      ],
+      "expo-localization",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "unamas usa la cámara para que fotografíes una máquina que no sabes nombrar.",
+          "photosPermission": "unamas abre tus fotos para que elijas la foto de una máquina.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
