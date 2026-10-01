@@ -42,7 +42,7 @@ Costo estimado de IA: ~1.500 tokens de entrada + ~150 de salida por mensaje ≈ 
 
 Antes de usar cualquier API, verifica en su documentación actual. Las notas de arriba se revisaron el 28 sep 2026.
 
-Librerías extra: `zustand` (estado de la sesión activa), `zod` (validar el contrato con el worker, en ambos lados), `react-native-reanimated` + `react-native-worklets` (animaciones, vienen en Expo), `react-native-svg` (anillo del stop), `@react-native-community/netinfo` (cola sin conexión y sincronizar al recuperar la red), `expo-crypto` (`randomUUID()` para todos los ids).
+Librerías extra: `zustand` (estado de la sesión activa), `zod` (validar el contrato con el worker, en ambos lados), `react-native-reanimated` + `react-native-worklets` (animaciones, vienen en Expo), `react-native-svg` (anillo del stop), `expo-blur` (desenfoque al mantener el stop), `@react-native-community/netinfo` (cola sin conexión y sincronizar al recuperar la red), `expo-crypto` (`randomUUID()` para todos los ids).
 
 **Sin ORM:** son 3 tablas (más `sync_state`), así que basta con repositorios tipados sobre expo-sqlite. Drizzle con expo-sqlite hoy se instala en versión RC y pide configuración extra de Babel para las migraciones; no compensa en el MVP.
 
@@ -355,7 +355,7 @@ La lista tiene dos secciones: **"Hoy"** (lo anotado, cada uno con "vs. <fecha de
 - Estado actual: "me sirve por ahora" según Jason. Es candidato a iterar.
 - Si la IA detecta "listo/terminamos", **no** termina la sesión: muestra el globo del stop para que el usuario lo mantenga.
 - Se puede terminar con entradas pendientes (decidido con Jason): el resumen cuenta solo lo anotado y muestra "1 pendiente, se anota cuando haya señal".
-- El desenfoque del contenido no existe en iOS con React Native (`filter: blur` es solo Android 12+): por ahora el contenido se aleja (scale .94) y se oscurece. El desenfoque real pediría `expo-blur`.
+- El desenfoque usa `expo-blur` (`BlurView` con la intensidad animada al ritmo del verde), porque `filter: blur` de React Native es solo Android 12+. La barra con el stop no se desenfoca.
 
 ### 7 · Resumen
 - "Lunes 28 · Hombro · 58 min" (muted), luego el conteo en 34/800: "**2 subieron**" (verde), "1 igual" (text), "1 nuevo/bajó" (muted).

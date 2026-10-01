@@ -1,7 +1,16 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { Easing, interpolate, LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
+import Animated, {
+  Easing,
+  interpolate,
+  LayoutAnimationConfig,
+  useAnimatedProps,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { suggestionsFor, textAfterPicking } from '@/features/session/controller';
@@ -21,6 +30,10 @@ import { TodayList } from '@/ui/components/TodayList';
 import { font } from '@/ui/text';
 import { color, space } from '@/ui/tokens';
 
+const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
+/** How blurred the content is when the stop completes (1–100; the mockup's 2 px is subtle). */
+const MAX_BLUR = 18;
+
 // Screens 2–7 are states of this one route (CLAUDE.md §4.2).
 export default function SessionRoute() {
   const params = useLocalSearchParams<{ groups?: string }>();
@@ -28,11 +41,9 @@ export default function SessionRoute() {
   const { screen, state, setText, send, choose, end, close } = useSessionScreen(pending, () => router.replace('/'));
   const flood = useSharedValue(0);
 
-  // While the stop is held the content moves away and dims; the green covers it once it ends.
-  const contentStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: interpolate(flood.value, [0, 1], [1, 0.94]) }],
-    opacity: interpolate(flood.value, [0, 1], [1, 0.35]),
-  }));
+  // While the stop is held the content moves away and blurs (the bar stays sharp); the green covers it once it ends.
+  const contentStyle = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(flood.value, [0, 1], [1, 0.94]) }] }));
+  const blurProps = useAnimatedProps(() => ({ intensity: flood.value * MAX_BLUR }));
 
   // The count was shown: the green recedes downwards and leaves the summary.
   useEffect(() => {
@@ -132,6 +143,7 @@ export default function SessionRoute() {
                         : (screen.placeholder ?? copy.session.genericPlaceholder)
                   }
                 />
+                {started && <AnimatedBlurView tint="dark" animatedProps={blurProps} style={StyleSheet.absoluteFill} pointerEvents="none" />}
               </Animated.View>
             </KeyboardAvoidingView>
           </LayoutAnimationConfig>
