@@ -6,7 +6,8 @@ import {
   deleteUnsyncedEntry,
   getExerciseHistory,
   getSessionEntries,
-  getUnresolvedEntry,
+  getAllPendingEntries,
+  getDoubtEntry,
   insertPendingEntry,
   resolveEntry,
   setEntryRawText,
@@ -37,16 +38,35 @@ const row = (id = E) =>
   );
 
 describe('entry lifecycle (screen 4)', () => {
-  it('a pending entry has the text and nothing else yet, and is the unresolved one', async () => {
+  it('a pending entry has the text and nothing else yet, and is waiting to be retried', async () => {
     expect(await row()).toMatchObject({ status: 'pending', exercise_id: null, load_kg: null, raw_text: 'press de hombro 24 4 de 9, fácil' });
-    expect(await getUnresolvedEntry(db, S)).toEqual({ id: E, rawText: 'press de hombro 24 4 de 9, fácil', status: 'pending' });
+    expect(await getAllPendingEntries(db)).toEqual([{ id: E, rawText: 'press de hombro 24 4 de 9, fácil', sessionId: S, groups: ['hombro'] }]);
+    expect(await getDoubtEntry(db, S)).toBeNull();
+  });
+
+  it('pending ones from every session come oldest first; a doubt or a deleted one is not retried', async () => {
+    const S2 = 'f0000000-0000-4000-8000-0000000000a2';
+    await createSession(db, S2, ['pierna'], '2026-09-28T18:00:00.000Z');
+    const add = (id: string, session: string, at: string) =>
+      insertPendingEntry(db, { id: `f0000000-0000-4000-8000-0000000000${id}`, sessionId: session, rawText: id, createdAt: at });
+    await add('e2', S2, '2026-09-28T18:00:00.000Z');
+    await add('e3', S, '2026-09-29T19:00:00.000Z');
+    await add('e4', S, '2026-09-29T19:30:00.000Z');
+    await add('e5', S, '2026-09-29T20:00:00.000Z');
+    await setEntryStatus(db, 'f0000000-0000-4000-8000-0000000000e4', 'ambiguous');
+    await db.runAsync("UPDATE entry SET deleted_at = '2026-09-29T21:00:00Z' WHERE id = ?", ['f0000000-0000-4000-8000-0000000000e5']);
+    expect((await getAllPendingEntries(db)).map((e) => [e.rawText, e.groups])).toEqual([
+      ['e2', ['pierna']],
+      ['press de hombro 24 4 de 9, fácil', ['hombro']],
+      ['e3', ['hombro']],
+    ]);
   });
 
   it('resolving stores exercise, numbers, note and easy, ready to sync', async () => {
     const press = ids.get('press_hombro_mancuernas')!;
     await resolveEntry(db, E, { exerciseId: press, loadKg: 24, reps: [9, 9, 9, 9], rirNote: 'fácil', easy: true });
     expect(await row()).toMatchObject({ status: 'ok', exercise_id: press, load_kg: 24, easy: 1, dirty: 1 });
-    expect(await getUnresolvedEntry(db, S)).toBeNull();
+    expect(await getAllPendingEntries(db)).toEqual([]);
     const history = await getExerciseHistory(db, press);
     expect(history.at(-1)).toMatchObject({ loadKg: 24, reps: [9, 9, 9, 9], easy: true });
     expect(history[0].easy).toBe(false);
@@ -55,7 +75,8 @@ describe('entry lifecycle (screen 4)', () => {
   it('ambiguous, then their answer joins the phrase', async () => {
     await setEntryStatus(db, E, 'ambiguous');
     await setEntryRawText(db, E, 'press de hombro 24 4 de 9, fácil (con mancuernas)');
-    expect(await getUnresolvedEntry(db, S)).toMatchObject({ status: 'ambiguous', rawText: 'press de hombro 24 4 de 9, fácil (con mancuernas)' });
+    expect(await getDoubtEntry(db, S)).toMatchObject({ id: E, rawText: 'press de hombro 24 4 de 9, fácil (con mancuernas)' });
+    expect(await getAllPendingEntries(db)).toEqual([]);
   });
 
   it('a message that was not an entry is removed; a logged entry never is', async () => {

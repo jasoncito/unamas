@@ -155,15 +155,47 @@ export async function getPendingEntries(
   return rows.map((r) => ({ id: r.id, rawText: r.raw_text, createdAt: r.created_at }));
 }
 
-/** The session's entry still waiting for /parse or for an answer, if any. */
-export async function getUnresolvedEntry(
-  db: Db,
-  sessionId: string,
-): Promise<{ id: string; rawText: string; status: 'pending' | 'ambiguous' } | null> {
-  const row = await db.getFirstAsync<{ id: string; raw_text: string; status: 'pending' | 'ambiguous' }>(
-    `SELECT id, raw_text, status FROM entry WHERE session_id = ? AND status <> 'ok' AND deleted_at IS NULL
-     ORDER BY created_at DESC LIMIT 1`,
+/** A message saved but not understood yet, with what /parse needs to try again. */
+export interface UnresolvedEntry {
+  id: string;
+  rawText: string;
+  sessionId: string;
+  /** Its session's groups, to put those exercises first in the context. */
+  groups: string[];
+}
+
+interface UnresolvedRow {
+  id: string;
+  raw_text: string;
+  session_id: string;
+  muscle_groups: string;
+}
+
+const fromUnresolvedRow = (r: UnresolvedRow): UnresolvedEntry => ({
+  id: r.id,
+  rawText: r.raw_text,
+  sessionId: r.session_id,
+  groups: JSON.parse(r.muscle_groups),
+});
+
+/** Every entry saved without signal, in any session, oldest first: the retry order. */
+export async function getAllPendingEntries(db: Db): Promise<UnresolvedEntry[]> {
+  const rows = await db.getAllAsync<UnresolvedRow>(
+    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups FROM entry e JOIN session s ON s.id = e.session_id
+     WHERE e.status = 'pending' AND e.deleted_at IS NULL
+     ORDER BY e.created_at, e.id`,
+    [],
+  );
+  return rows.map(fromUnresolvedRow);
+}
+
+/** The session's latest entry waiting for an answer to "which one?" or "how much?", if any. */
+export async function getDoubtEntry(db: Db, sessionId: string): Promise<UnresolvedEntry | null> {
+  const row = await db.getFirstAsync<UnresolvedRow>(
+    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups FROM entry e JOIN session s ON s.id = e.session_id
+     WHERE e.session_id = ? AND e.status = 'ambiguous' AND e.deleted_at IS NULL
+     ORDER BY e.created_at DESC LIMIT 1`,
     [sessionId],
   );
-  return row && { id: row.id, rawText: row.raw_text, status: row.status };
+  return row ? fromUnresolvedRow(row) : null;
 }
