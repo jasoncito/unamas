@@ -41,7 +41,7 @@ describe('PlanTable (design/meta.html)', () => {
 describe('SuggestionList (screen 3)', () => {
   const ex = { id: 'p', canonicalName: 'Press de hombro en máquina', loadBasis: 'per_side' } as Exercise;
   const items: Suggestion[] = [
-    { exercise: ex, highlight: [0, 12], last: { sessionId: 's', loadKg: 20, reps: [12, 12, 12, 12], createdAt: '2026-09-17T23:00:00.000Z' } },
+    { exercise: ex, highlight: [0, 12], last: { sessionId: 's', loadKg: 20, reps: [12, 12, 12, 12], createdAt: '2026-09-17T23:00:00.000Z', easy: false } },
   ];
 
   it('bolds the typed part and shows the last set with its per-side load', async () => {

@@ -93,8 +93,14 @@ async function push(db: Db, remote: RemoteStore): Promise<number> {
   let pushed = 0;
   for (const table of PARENTS_FIRST) {
     const { columns, json, bools = [] } = TABLES[table];
-    // Pending or ambiguous entries stay on the phone until they resolve.
-    const onlyResolved = table === 'entry' ? " AND status = 'ok'" : '';
+    // Pending or ambiguous entries stay on the phone until they resolve, and a session goes up only
+    // once it has a logged entry: a session that turns out empty never reaches the server.
+    const onlyResolved =
+      table === 'entry'
+        ? " AND status = 'ok'"
+        : table === 'session'
+          ? " AND EXISTS (SELECT 1 FROM entry e WHERE e.session_id = session.id AND e.status = 'ok')"
+          : '';
     const rows = await db.getAllAsync<Record<string, unknown>>(
       `SELECT ${columns.join(', ')} FROM ${table} WHERE dirty = 1${onlyResolved}`,
       [],

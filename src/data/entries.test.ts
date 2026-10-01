@@ -12,7 +12,7 @@ import {
   setEntryRawText,
   setEntryStatus,
 } from './repos/entries';
-import { createSession } from './repos/sessions';
+import { createSession, deleteSessionIfEmpty, getOpenSession } from './repos/sessions';
 import { loadSeed, type Seed } from './seed';
 import { sync } from './sync';
 import { FakeServer } from './testing/fakeServer';
@@ -86,5 +86,23 @@ describe('easy through sync', () => {
     await initDb(other, null);
     await sync(other, server.store());
     expect((await other.getFirstAsync<{ easy: number }>('SELECT easy FROM entry WHERE id = ?', [E]))!.easy).toBe(1);
+  });
+});
+
+describe('empty sessions', () => {
+  it('a session with only a pending entry does not sync; once it has a logged entry, it does', async () => {
+    const server = new FakeServer();
+    await sync(db, server.store());
+    expect(server.rows.session.has(S)).toBe(false);
+    await resolveEntry(db, E, { exerciseId: ids.get('press_hombro_mancuernas')!, loadKg: 24, reps: [9, 9, 9, 9], rirNote: null, easy: false });
+    await sync(db, server.store());
+    expect(server.rows.session.has(S)).toBe(true);
+  });
+
+  it('deleteSessionIfEmpty removes it only when no entry is left', async () => {
+    expect(await deleteSessionIfEmpty(db, S)).toBe(false);
+    await deleteUnsyncedEntry(db, E);
+    expect(await deleteSessionIfEmpty(db, S)).toBe(true);
+    expect(await getOpenSession(db)).toBeNull();
   });
 });

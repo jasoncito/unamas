@@ -69,3 +69,14 @@ export async function createSession(db: Db, id: string, muscleGroups: readonly s
     nowIso(),
   ]);
 }
+
+/**
+ * Removes a session that ended up with no entries (its only message wasn't an entry): there are no
+ * empty sessions (CLAUDE.md §4.2). It never synced, since sessions upload with their first logged entry.
+ */
+export async function deleteSessionIfEmpty(db: Db, id: string): Promise<boolean> {
+  const row = await db.getFirstAsync<{ n: number }>('SELECT count(*) AS n FROM entry WHERE session_id = ?', [id]);
+  if (row && row.n > 0) return false;
+  await db.runAsync('DELETE FROM session WHERE id = ?', [id]);
+  return true;
+}

@@ -72,7 +72,7 @@ describe('loadSessionScreen (design/meta.html)', () => {
   });
 
   it('a session open in the database (it has entries) wins over the groups in memory, and there is no going back', async () => {
-    await createSession(db, 'f0000000-0000-4000-8000-00000000000b', ['pierna']);
+    await createSession(db, 'f0000000-0000-4000-8000-00000000000b', ['pierna'], '2026-09-29T18:00:00.000Z');
     const s = (await loadSessionScreen(db, TODAY, ['hombro']))!;
     expect([s.sessionId, s.canGoBack, s.groups]).toEqual(['f0000000-0000-4000-8000-00000000000b', false, ['pierna']]);
   });
