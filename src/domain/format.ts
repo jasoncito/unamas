@@ -32,3 +32,27 @@ export function formatShortDate(date: string): string {
 export function formatLoad(loadKg: number, basis: LoadBasis): string {
   return `${formatKg(loadKg)} kg${basis === 'per_side' ? '/lado' : ''}`;
 }
+
+const WEEKDAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+/** '2026-09-28' → "Lunes 28" (screen 7's header). */
+export function formatDayLabel(date: string): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return `${WEEKDAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()]} ${d}`;
+}
+
+/** How long a session took: "58 min", "1 h 05 min"; never "0 min". */
+export function formatDuration(ms: number): string {
+  const minutes = Math.max(1, Math.round(ms / 60_000));
+  if (minutes < 60) return `${minutes} min`;
+  return `${Math.floor(minutes / 60)} h ${String(minutes % 60).padStart(2, '0')} min`;
+}
+
+/** The session bar's stopwatch: "4:07", "42:10", "1:02:05". */
+export function formatClock(ms: number): string {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = String(total % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
+}
