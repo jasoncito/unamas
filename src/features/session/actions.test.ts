@@ -207,6 +207,19 @@ describe('new exercises', () => {
   });
 });
 
+describe('two exercises in one message', () => {
+  it('saves both, each its own entry, and the line speaks of the first', async () => {
+    const press = ids.get('press_hombro_mancuernas')!;
+    const polea = ids.get('laterales_polea')!;
+    const h = harness([log([entry({ exercise_id: press }), entry({ exercise_id: polea, load_kg: 7.5, reps: [10, 10, 10, 10] })])]);
+    await h.actions.send('press 24 4 de 9 y laterales 7,5 4 de 10');
+    const saved = await entries();
+    expect(saved).toHaveLength(2);
+    expect(saved.map((e) => [e.status, e.exercise_id]).sort()).toEqual([['ok', polea], ['ok', press]].sort());
+    expect(h.state()).toMatchObject({ logged: 2, feedback: { text: 'Anotado · +1 rep por serie vs. el 27' } });
+  });
+});
+
 describe('order', () => {
   it('two messages sent at once are processed one after the other', async () => {
     const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })]), log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 7.5, reps: [11, 11, 11, 11] })])]);
