@@ -1,27 +1,43 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LayoutAnimationConfig } from 'react-native-reanimated';
+import Animated, { Easing, interpolate, LayoutAnimationConfig, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { suggestionsFor, textAfterPicking } from '@/features/session/controller';
+import { pastSessionActions } from '@/features/session/pastSessions';
 import { useSessionScreen } from '@/features/session/useSessionScreen';
 import { copy } from '@/ui/copy';
 import { AmbiguityPanel } from '@/ui/components/AmbiguityPanel';
 import { Bubble } from '@/ui/components/Bubble';
+import { Flood } from '@/ui/components/Flood';
 import { GroupsTitle } from '@/ui/components/GroupsTitle';
 import { InputBar } from '@/ui/components/InputBar';
 import { PlanTable } from '@/ui/components/PlanTable';
+import { SessionBar } from '@/ui/components/SessionBar';
 import { SuggestionList } from '@/ui/components/SuggestionList';
+import { SummaryView } from '@/ui/components/SummaryView';
 import { TodayList } from '@/ui/components/TodayList';
 import { font } from '@/ui/text';
 import { color, space } from '@/ui/tokens';
 
-// Screens 2–7 are states of this one route (CLAUDE.md §4.2). M5: screens 2–5.
+// Screens 2–7 are states of this one route (CLAUDE.md §4.2).
 export default function SessionRoute() {
   const params = useLocalSearchParams<{ groups?: string }>();
   const pending = params.groups ? (JSON.parse(params.groups) as string[]) : null;
-  const { screen, state, setText, send, choose } = useSessionScreen(pending, () => router.replace('/'));
+  const { screen, state, setText, send, choose, end, close } = useSessionScreen(pending, () => router.replace('/'));
+  const flood = useSharedValue(0);
+
+  // While the stop is held the content moves away and dims; the green covers it once it ends.
+  const contentStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: interpolate(flood.value, [0, 1], [1, 0.94]) }],
+    opacity: interpolate(flood.value, [0, 1], [1, 0.35]),
+  }));
+
+  // The count was shown: the green recedes downwards and leaves the summary.
+  useEffect(() => {
+    if (state.phase === 'summary') flood.value = withTiming(0, { duration: 600, easing: Easing.bezier(0.6, 0, 0.2, 1) });
+  }, [state.phase, flood]);
 
   const suggestions = useMemo(
     () => (screen && state.phase !== 'disambiguating' ? suggestionsFor(state.text, screen) : []),
@@ -38,64 +54,98 @@ export default function SessionRoute() {
     Keyboard.dismiss();
     send(state.text);
   };
+  const onEnd = async () => {
+    Keyboard.dismiss();
+    if (!(await end())) flood.value = withTiming(0, { duration: 350 });
+  };
+  const onClose = () => {
+    close();
+    router.replace('/');
+    pastSessionActions.retry();
+  };
 
   return (
-    <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
+    <View style={styles.screen}>
       <Stack.Screen options={{ gestureEnabled: screen.canGoBack }} />
-      <LayoutAnimationConfig skipEntering>
-        <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
+        {state.phase === 'summary' ? (
           <View style={styles.content}>
-            <ScrollView style={styles.planScroll} contentContainerStyle={styles.planContent} keyboardShouldPersistTaps="handled">
-              {hasToday && <TodayList lines={screen.today} pending={screen.pending} />}
-              {screen.plan.length > 0 ? (
-                <PlanTable title={`${screen.groupsLabel} · ${copy.session.planTitle}`} lines={screen.plan} onBack={onBack} />
-              ) : (
-                !hasToday && <GroupsTitle text={screen.groupsLabel} onBack={onBack} />
-              )}
-            </ScrollView>
-
-            {(state.phase === 'sending' || state.phase === 'feedback') && (
-              <Bubble
-                key={state.bubble}
-                text={state.bubble}
-                pending={state.phase === 'sending'}
-                feedback={state.phase === 'feedback' ? state.feedback : null}
-              />
-            )}
-
-            {state.phase === 'disambiguating' ? (
-              <AmbiguityPanel said={state.said} question={state.question} options={state.options} onChoose={choose} />
-            ) : suggestions.length > 0 ? (
-              <SuggestionList items={suggestions} onPick={(s) => setText(textAfterPicking(s.exercise))} />
-            ) : (
-              <>
-                {state.phase === 'ready' && state.reply && <Text style={styles.reply}>{state.reply}</Text>}
-                <Text style={styles.title}>{started ? copy.session.nextTitle : copy.session.firstTitle}</Text>
-              </>
-            )}
-
-            <InputBar
-              value={state.text}
-              onChangeText={setText}
-              onSend={onSend}
-              placeholder={
-                state.phase === 'disambiguating'
-                  ? copy.session.otherPlaceholder
-                  : started
-                    ? copy.session.nextPlaceholder
-                    : (screen.placeholder ?? copy.session.genericPlaceholder)
-              }
-            />
+            <SummaryView summary={state.summary} onClose={onClose} />
           </View>
-        </KeyboardAvoidingView>
-      </LayoutAnimationConfig>
-    </SafeAreaView>
+        ) : (
+          <LayoutAnimationConfig skipEntering>
+            <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+              {started && screen.startedAt && (
+                <View style={styles.bar}>
+                  <SessionBar
+                    groupsLabel={screen.groupsLabel}
+                    startedAt={screen.startedAt}
+                    flood={flood}
+                    onEnd={onEnd}
+                    stopTip={state.phase === 'ready' ? state.stopTip : undefined}
+                  />
+                </View>
+              )}
+              <Animated.View style={[styles.content, contentStyle]}>
+                <ScrollView style={styles.planScroll} contentContainerStyle={styles.planContent} keyboardShouldPersistTaps="handled">
+                  {hasToday && <TodayList lines={screen.today} pending={screen.pending} />}
+                  {screen.plan.length > 0 ? (
+                    <PlanTable
+                      title={started ? copy.session.planTitleStarted : `${screen.groupsLabel} · ${copy.session.planTitle}`}
+                      lines={screen.plan}
+                      onBack={onBack}
+                    />
+                  ) : (
+                    !hasToday && !started && <GroupsTitle text={screen.groupsLabel} onBack={onBack} />
+                  )}
+                </ScrollView>
+
+                {(state.phase === 'sending' || state.phase === 'feedback') && (
+                  <Bubble
+                    key={state.bubble}
+                    text={state.bubble}
+                    pending={state.phase === 'sending'}
+                    feedback={state.phase === 'feedback' ? state.feedback : null}
+                  />
+                )}
+
+                {state.phase === 'disambiguating' ? (
+                  <AmbiguityPanel said={state.said} question={state.question} options={state.options} onChoose={choose} />
+                ) : suggestions.length > 0 ? (
+                  <SuggestionList items={suggestions} onPick={(s) => setText(textAfterPicking(s.exercise))} />
+                ) : (
+                  <>
+                    {state.phase === 'ready' && state.reply && <Text style={styles.reply}>{state.reply}</Text>}
+                    <Text style={styles.title}>{started ? copy.session.nextTitle : copy.session.firstTitle}</Text>
+                  </>
+                )}
+
+                <InputBar
+                  value={state.text}
+                  onChangeText={setText}
+                  onSend={onSend}
+                  placeholder={
+                    state.phase === 'disambiguating'
+                      ? copy.session.otherPlaceholder
+                      : started
+                        ? copy.session.nextPlaceholder
+                        : (screen.placeholder ?? copy.session.genericPlaceholder)
+                  }
+                />
+              </Animated.View>
+            </KeyboardAvoidingView>
+          </LayoutAnimationConfig>
+        )}
+      </SafeAreaView>
+      <Flood flood={flood} summary={state.phase === 'ending' ? state.summary : null} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.bg },
   flex: { flex: 1 },
+  bar: { paddingHorizontal: space.screenX, paddingTop: 12 },
   content: { flex: 1, paddingHorizontal: space.screenX, paddingTop: 12, paddingBottom: 16, gap: 10 },
   planScroll: { flex: 1 },
   planContent: { flexGrow: 1 },

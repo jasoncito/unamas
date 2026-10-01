@@ -10,7 +10,7 @@ import { copy } from '@/ui/copy';
 
 import { createSessionActions, type SessionActions, type SessionContext } from './actions';
 import { loadSessionScreen, type SessionScreen } from './controller';
-import { FEEDBACK_MS, useSessionStore } from './store';
+import { FEEDBACK_MS, FLOOD_MS, useSessionStore } from './store';
 
 const today = () => localDateOf(nowIso());
 
@@ -28,6 +28,9 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
   const pendingKey = JSON.stringify(pendingGroups);
 
   const reload = useCallback(async () => {
+    // Once the stop completes, the summary stays: nothing reloads under it.
+    const phase = useSessionStore.getState().state.phase;
+    if (phase === 'ending' || phase === 'summary') return;
     const s = await loadSessionScreen(db, today(), pendingGroups);
     if (!s) return onMissing();
     setScreen(s);
@@ -72,6 +75,13 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
     return () => clearTimeout(t);
   }, [state, dispatch]);
 
+  // The screen stays green with the count FLOOD_MS, then recedes to the summary.
+  useEffect(() => {
+    if (state.phase !== 'ending') return;
+    const t = setTimeout(() => dispatch({ type: 'FLOOD_DONE' }), FLOOD_MS);
+    return () => clearTimeout(t);
+  }, [state.phase, dispatch]);
+
   // "Hoy" catches up once a message is done: logged (after the bubble is gone), or left pending
   // without signal. Not while one is on its way, or it would show twice: bubble and pending row.
   const lastPhase = useRef(state.phase);
@@ -90,5 +100,9 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
     setText: (text: string) => dispatch({ type: 'TYPE', text }),
     send: (text: string) => void actions.current?.send(text),
     choose: (exerciseId: string) => void actions.current?.choose(exerciseId),
+    /** The stop completed. Null if there was nothing to end. */
+    end: () => actions.current?.end() ?? Promise.resolve(null),
+    /** CERRAR: a fresh state for the next session. */
+    close: () => reset(),
   };
 }

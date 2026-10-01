@@ -12,10 +12,12 @@ interface Props {
   /** Wired in M5 (sending) and M7 (voice). */
   onSend?(): void;
   onMic?(): void;
+  /** Opens the keyboard on mount (screen 2). Default true. */
+  autoFocus?: boolean;
 }
 
 /** The input with the mic inside; with text, the mic becomes the green send button (CLAUDE.md §8). */
-export function InputBar({ value, placeholder, onChangeText, onSend, onMic }: Props) {
+export function InputBar({ value, placeholder, onChangeText, onSend, onMic, autoFocus = true }: Props) {
   const hasText = value.trim().length > 0;
   return (
     <View style={styles.card}>
@@ -26,7 +28,7 @@ export function InputBar({ value, placeholder, onChangeText, onSend, onMic }: Pr
         placeholder={placeholder}
         placeholderTextColor={color.muted}
         selectionColor={color.green}
-        autoFocus
+        autoFocus={autoFocus}
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="send"

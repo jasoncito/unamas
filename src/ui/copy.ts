@@ -34,5 +34,17 @@ export const copy = {
     unclear: 'No te entendí. Dime el ejercicio, el peso y las series.',
     offline: 'Sin señal: lo guardé y lo anoto cuando vuelva.',
     unclearRetry: (said: string) => `No entendí “${said}”. Dímelo de nuevo.`,
+    planTitleStarted: 'Hoy te toca',
+    // Screen 6
+    holdToEnd: 'Mantén para terminar',
+    stopLabel: 'Terminar la sesión',
+    stopHint: 'Mantén presionado un segundo y medio',
+    ended: 'Sesión terminada',
+    // Screen 7
+    nextTime: 'La próxima vez',
+    close: 'Cerrar',
+    // Screen 1: a doubt from a session already stopped
+    fromSession: (day: string, groups: string) => `De tu sesión del ${day.toLowerCase()} · ${groups}`,
+    notNow: 'Ahora no',
   },
 } as const;

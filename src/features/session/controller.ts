@@ -43,6 +43,8 @@ export interface SessionScreen {
   sessionId: string | null;
   /** No entries yet: the groups header shows "‹" and going back to screen 1 is allowed. */
   canGoBack: boolean;
+  /** The first entry's time, for the session bar's stopwatch. Null before it. */
+  startedAt: string | null;
   groups: string[];
   /** "Hombro y tríceps" */
   groupsLabel: string;
@@ -92,6 +94,7 @@ export async function loadSessionScreen(
   return {
     sessionId: open?.id ?? null,
     canGoBack: !open,
+    startedAt: open?.startedAt ?? null,
     groups,
     groupsLabel: groupsLabel(groups),
     today: logged,
@@ -216,5 +219,16 @@ export async function loadSummary(db: Db, sessionId: string): Promise<SessionSum
     tally,
     pending: (await getPendingEntries(db, sessionId)).length,
     nextTime: pickNextTime(items),
+  };
+}
+
+/** Screen 1, a doubt from a session already stopped: "De tu sesión del lunes 28 · Hombro". */
+export async function loadDoubtOrigin(db: Db, entryId: string): Promise<{ dayLabel: string; groupsLabel: string } | null> {
+  const row = await db.getFirstAsync<{ session_id: string }>('SELECT session_id FROM entry WHERE id = ?', [entryId]);
+  const session = row && (await getSession(db, row.session_id));
+  if (!session) return null;
+  return {
+    dayLabel: formatDayLabel(localDateOf(session.startedAt ?? session.endedAt ?? new Date().toISOString())),
+    groupsLabel: groupsLabel(session.muscleGroups),
   };
 }
