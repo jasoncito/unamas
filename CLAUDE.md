@@ -121,7 +121,11 @@ UI: onSend(text | image | voz→texto)
                      → al elegir una opción: learnAliasFromChoice(frase, ejercicio)  (alias aprendido, §6)
         end_session→ dispatch(SHOW_STOP_TIP)
         unclear    → dispatch(REPLY) y la entrada pendiente se borra
-     5. error de red → la entrada queda 'pending' y la cola la reintenta (NetInfo)
+     5. error de red → la entrada queda 'pending' (se ve en "Hoy" en gris, "pendiente") y se reintenta
+        al abrir la app, al volver a primer plano y al volver la señal: todas, de la más vieja a la más
+        nueva y de a una, sin tocar la burbuja ni lo que se está escribiendo; se detiene en la primera
+        que siga sin señal. Las de la sesión abierta las reintenta la pantalla de sesión; las de
+        sesiones ya terminadas, el layout raíz (`src/features/session/pastSessions.ts`)
      6. unos segundos después, sync sube lo que quedó con dirty = 1 (sin bloquear la UI)
 ```
 
@@ -306,6 +310,7 @@ Las mismas tablas, con `user_id uuid not null default auth.uid() references auth
 ## 8. Pantallas (ver `design/flow.html`)
 
 ### 1 · Elegir músculo
+- **Primero, una duda pendiente de una sesión ya terminada** (decidido con Jason, 1 oct 2026): si una entrada guardada sin señal se resuelve después de cerrar su sesión y sale ambigua, la pregunta aparece aquí antes de la lista, con "De tu sesión del lunes 28 · Hombro", las opciones y "U otra cosa, dímelo". La respuesta va a esa sesión cerrada. "Ahora no" la deja para la próxima vez que se abra la app.
 - Título "¿Qué toca hoy?" y subtítulo "Primero lo que más tiempo lleva sin entrenar. El orden en que tocas es el orden de la sesión."
 - **Lista tipográfica** (no chips): nombre del grupo en 30/800, fecha de la última vez a la derecha (13/600, muted). Orden: fecha más antigua primero; los "sin registro" al final.
 - Tocar selecciona o deselecciona. El seleccionado se pone verde y muestra **su número de orden** grande en verde (1, 2…), sin check. Al quitar uno, los demás se renumeran.
@@ -349,6 +354,8 @@ La lista tiene dos secciones: **"Hoy"** (lo anotado, cada uno con "vs. <fecha de
 - Al completarse: `notificationAsync(Success)`. La pantalla queda **toda verde** y aparecen en escalera, en tinta, "Sesión terminada · 2 subieron · 1 igual · 1 nuevo · 58 min" (46/800). A los 2.1 s el verde se retira hacia abajo y queda el resumen.
 - Estado actual: "me sirve por ahora" según Jason. Es candidato a iterar.
 - Si la IA detecta "listo/terminamos", **no** termina la sesión: muestra el globo del stop para que el usuario lo mantenga.
+- Se puede terminar con entradas pendientes (decidido con Jason): el resumen cuenta solo lo anotado y muestra "1 pendiente, se anota cuando haya señal".
+- El desenfoque del contenido no existe en iOS con React Native (`filter: blur` es solo Android 12+): por ahora el contenido se aleja (scale .94) y se oscurece. El desenfoque real pediría `expo-blur`.
 
 ### 7 · Resumen
 - "Lunes 28 · Hombro · 58 min" (muted), luego el conteo en 34/800: "**2 subieron**" (verde), "1 igual" (text), "1 nuevo/bajó" (muted).
@@ -401,7 +408,7 @@ export const space  = { screenX: 20, rowY: 9 };
 | M2c | `sync.ts` con sus tests de dos dispositivos, cerrar sesión | Offline → online sube todo; un segundo teléfono baja todo; cerrar sesión no borra nada sin subir ✓ |
 | M3 | Worker `/parse` (Haiku 4.5 + structured outputs) **con verificación de JWT** y rate limit por usuario, + `/account/delete` | Sin token → 401; las 32 frases del seed parsean bien con `wrangler dev`; desplegado ✓ (y `/account/delete` probado con cascada real) |
 | M4 | Pantallas 1–3 | Flujo hasta escribir, con sugerencias locales |
-| M5 | Pantallas 4–5 | Enviar → animación → guardado → delta. Ambigüedad resuelta con toque |
+| M5 | Pantallas 4–5 | Enviar → animación → guardado → delta. Ambigüedad resuelta con toque ✓ |
 | M6 | Pantallas 6–7 | Mantener el stop → inundación → resumen con comparación por ejercicio |
 | M7 | Voz (development build) y foto | Dictar "press de hombro 24 4 de 9" funciona de punta a punta |
 | M8 | Sin conexión, háptica fina, estados vacíos | Uso real en el gym una semana |
