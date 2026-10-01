@@ -4,7 +4,8 @@ import type { ParseRequest, ParseResponse } from '../../../shared/contract';
 import type { Db } from '@/data/db';
 import { initDb } from '@/data/init';
 import { getAllExercises, getExercise } from '@/data/repos/exercises';
-import { getOpenSession } from '@/data/repos/sessions';
+import { insertPendingEntry, setEntryStatus } from '@/data/repos/entries';
+import { createSession, getOpenSession } from '@/data/repos/sessions';
 import { loadSeed, type Seed } from '@/data/seed';
 import { openMemoryDb } from '@/data/testing/memoryDb';
 import { AiUnavailableError, type AiService } from '@/services/ai';
@@ -12,7 +13,7 @@ import { AiUnavailableError, type AiService } from '@/services/ai';
 import { createSessionActions, type SessionContext } from './actions';
 import { initialState, sessionReducer, type SessionEvent, type SessionState } from './reducer';
 
-const COPY = { unclear: 'No te entendí', offline: 'Sin señal', stopTip: 'Mantén el ■' };
+const COPY = { unclear: 'No te entendí', offline: 'Sin señal', stopTip: 'Mantén el ■', unclearRetry: (said: string) => `No entendí “${said}”` };
 const log = (entries: ParseResponse['entries']): ParseResponse => ({ intent: 'log', entries, ambiguity: null, reply: null });
 const entry = (over: Partial<ParseResponse['entries'][number]>): ParseResponse['entries'][number] => ({
   exercise_id: null, new_exercise: null, load_kg: 24, reps: [9, 9, 9, 9], rir_note: null, easy: false, ...over,
@@ -32,6 +33,7 @@ function harness(answers: (ParseResponse | Error)[], ctx: SessionContext = { ses
   const events: SessionEvent[] = [];
   const requests: ParseRequest[] = [];
   const created: string[] = [];
+  let changes = 0;
   let syncs = 0;
   let n = 0;
   const ai: AiService = {
@@ -43,18 +45,19 @@ function harness(answers: (ParseResponse | Error)[], ctx: SessionContext = { ses
       return a;
     },
   };
+  const dispatch = (e: SessionEvent) => {
+    events.push(e);
+    state = sessionReducer(state, e);
+  };
   const actions = createSessionActions(
     { db, ai, newId: () => `f0000000-0000-4000-8000-${String(++n).padStart(12, '0')}`, now: () => '2026-09-29T18:00:00.000Z', today: () => '2026-09-29', requestSync: () => void syncs++ },
     ctx,
     () => state,
-    (e) => {
-      events.push(e);
-      state = sessionReducer(state, e);
-    },
+    dispatch,
     COPY,
-    (id) => created.push(id),
+    { onSessionCreated: (id) => void created.push(id), onChanged: () => void changes++ },
   );
-  return { actions, ctx, events, requests, created, state: () => state, syncs: () => syncs };
+  return { actions, ctx, events, requests, created, dispatch, state: () => state, syncs: () => syncs, changes: () => changes };
 }
 
 const entries = () => db.getAllAsync<{ id: string; status: string; exercise_id: string | null; load_kg: number | null; raw_text: string }>(
@@ -220,20 +223,147 @@ describe('two exercises in one message', () => {
   });
 });
 
-describe('retry (the app reopened)', () => {
-  it('an entry left pending without signal is parsed again and logged', async () => {
-    const first = harness([new AiUnavailableError('offline')]);
-    await first.actions.send('press 24 4 de 9');
-    const again = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })])], { sessionId: first.ctx.sessionId, groups: ['hombro'] });
-    await again.actions.retry();
-    expect(again.requests[0].text).toBe('press 24 4 de 9');
-    expect(await entries()).toEqual([expect.objectContaining({ status: 'ok' })]);
-    expect(again.state()).toMatchObject({ phase: 'feedback', bubble: 'press 24 4 de 9' });
+describe('retryPending (on open, on foreground, when the signal returns)', () => {
+  const S = 'f0000000-0000-4000-8000-0000000000aa';
+  const press = () => log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })]);
+  const laterales = () => log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 7.5, reps: [11, 11, 11, 11] })]);
+  /** Messages saved without signal earlier in session S, a minute apart. */
+  async function savedOffline(...texts: string[]) {
+    await createSession(db, S, ['hombro', 'tríceps'], '2026-09-29T18:00:00.000Z');
+    for (const [i, text] of texts.entries()) {
+      await insertPendingEntry(db, { id: `f0000000-0000-4000-8000-00000000010${i}`, sessionId: S, rawText: text, createdAt: `2026-09-29T18:0${i}:00.000Z` });
+    }
+  }
+  const open = (answers: (ParseResponse | Error)[]) => harness(answers, { sessionId: S, groups: ['hombro', 'tríceps'] });
+  const statuses = async () => (await entries()).map((e) => [e.raw_text, e.status]);
+
+  it('all of them, oldest first, one at a time; each pending row becomes a logged one', async () => {
+    await savedOffline('press 24 4 de 9', 'laterales 7,5 4 de 11');
+    const h = open([press(), laterales()]);
+    await h.actions.retryPending();
+    expect(h.requests.map((r) => r.text)).toEqual(['press 24 4 de 9', 'laterales 7,5 4 de 11']);
+    expect(await statuses()).toEqual([['press 24 4 de 9', 'ok'], ['laterales 7,5 4 de 11', 'ok']]);
+    expect(h.changes()).toBe(2);
+    expect(h.syncs()).toBe(2);
   });
 
-  it('nothing unresolved: nothing is sent', async () => {
+  it('quiet: no bubble, and what they are typing stays', async () => {
+    await savedOffline('press 24 4 de 9');
+    const h = open([press()]);
+    h.dispatch({ type: 'TYPE', text: 'laterales' });
+    await h.actions.retryPending();
+    expect(h.state()).toEqual({ phase: 'ready', text: 'laterales', logged: 0, reply: null });
+    expect(await statuses()).toEqual([['press 24 4 de 9', 'ok']]);
+  });
+
+  it('still no signal: it stops there and the rest wait for the next chance', async () => {
+    await savedOffline('press 24 4 de 9', 'laterales 7,5 4 de 11', 'triceps 30 4 de 11');
+    const h = open([press(), new AiUnavailableError('offline')]);
+    await h.actions.retryPending();
+    expect(h.requests).toHaveLength(2);
+    expect(await statuses()).toEqual([['press 24 4 de 9', 'ok'], ['laterales 7,5 4 de 11', 'pending'], ['triceps 30 4 de 11', 'pending']]);
+    expect(h.state()).toEqual(initialState); // no "Sin señal" for a retry
+  });
+
+  it('a message sent meanwhile goes between two retries, not after all of them', async () => {
+    await savedOffline('press 24 4 de 9', 'laterales 7,5 4 de 11');
+    const h = open([press(), log([entry({ exercise_id: ids.get('triceps_polea_tras_cabeza')!, load_kg: 30, reps: [11, 11, 11, 11] })]), laterales()]);
+    const run = h.actions.retryPending();
+    const sent = h.actions.send('triceps 30 4 de 11');
+    await Promise.all([run, sent]);
+    expect(h.requests.map((r) => r.text)).toEqual(['press 24 4 de 9', 'triceps 30 4 de 11', 'laterales 7,5 4 de 11']);
+  });
+
+  it('called again while running (foreground and signal at once): one run, each entry asked once', async () => {
+    await savedOffline('press 24 4 de 9', 'laterales 7,5 4 de 11');
+    const h = open([press(), laterales()]);
+    await Promise.all([h.actions.retryPending(), h.actions.retryPending()]);
+    expect(h.requests).toHaveLength(2);
+  });
+
+  it('foreground and signal at once with still no signal: asked once, not twice', async () => {
+    await savedOffline('press 24 4 de 9');
+    const h = open([new AiUnavailableError('offline')]);
+    await Promise.all([h.actions.retryPending(), h.actions.retryPending()]);
+    expect(h.requests).toHaveLength(1);
+  });
+
+  it('an entry of another session is asked with that session’s groups', async () => {
+    const other = 'f0000000-0000-4000-8000-0000000000bb';
+    await createSession(db, other, ['pierna'], '2026-09-28T18:00:00.000Z');
+    await insertPendingEntry(db, { id: 'f0000000-0000-4000-8000-000000000200', sessionId: other, rawText: 'sentadilla 32.5 4 de 6', createdAt: '2026-09-28T18:00:00.000Z' });
+    const h = open([log([entry({ exercise_id: ids.get('sentadilla_smith')!, load_kg: 32.5, reps: [6, 6, 6, 6] })])]);
+    await h.actions.retryPending();
+    expect(h.requests[0].context.muscle_groups).toEqual(['pierna']);
+    expect(h.requests[0].context.exercises[0].muscle_groups).toContain('pierna');
+  });
+
+  describe('a retried one turns out to be a doubt', () => {
+    const which = (): ParseResponse => ({
+      intent: 'ambiguous', entries: [], reply: null,
+      ambiguity: { question: '¿Cuáles laterales?', options: [{ exercise_id: ids.get('laterales_polea')!, label: 'En polea' }] },
+    });
+
+    it('nothing on screen: the panel comes up', async () => {
+      await savedOffline('laterales con 10, 4 de 11');
+      const h = open([which()]);
+      await h.actions.retryPending();
+      expect(h.state()).toMatchObject({ phase: 'disambiguating', said: 'laterales con 10, 4 de 11', question: '¿Cuáles laterales?' });
+    });
+
+    it('they are typing: it waits as a doubt, and is asked on the next retry with nothing on screen', async () => {
+      await savedOffline('laterales con 10, 4 de 11');
+      const h = open([which(), which()]);
+      h.dispatch({ type: 'TYPE', text: 'press' });
+      await h.actions.retryPending();
+      expect(h.state()).toMatchObject({ phase: 'ready', text: 'press' });
+      expect(await statuses()).toEqual([['laterales con 10, 4 de 11', 'ambiguous']]);
+
+      h.dispatch({ type: 'TYPE', text: '' });
+      await h.actions.retryPending();
+      expect(h.state()).toMatchObject({ phase: 'disambiguating', said: 'laterales con 10, 4 de 11' });
+    });
+
+    it('a doubt retried without signal goes back to a pending row (and the list hears of it)', async () => {
+      await savedOffline('laterales con 10, 4 de 11');
+      await setEntryStatus(db, 'f0000000-0000-4000-8000-000000000100', 'ambiguous');
+      const h = open([new AiUnavailableError('offline')]);
+      await h.actions.retryPending();
+      expect(await statuses()).toEqual([['laterales con 10, 4 de 11', 'pending']]);
+      expect(h.changes()).toBe(1);
+    });
+
+    it('the app was closed on a doubt: opening asks it again', async () => {
+      await savedOffline('laterales con 10, 4 de 11');
+      await setEntryStatus(db, 'f0000000-0000-4000-8000-000000000100', 'ambiguous');
+      const h = open([which()]);
+      await h.actions.retryPending();
+      expect(h.state()).toMatchObject({ phase: 'disambiguating', entryId: 'f0000000-0000-4000-8000-000000000100' });
+    });
+  });
+
+  it('a retried one was not an entry: it goes, with a reply naming it; a session left empty goes too', async () => {
+    await savedOffline('hola');
+    const h = open([{ intent: 'unclear', entries: [], ambiguity: null, reply: null }]);
+    await h.actions.retryPending();
+    expect(await entries()).toEqual([]);
+    expect(await getOpenSession(db)).toBeNull();
+    expect(h.ctx.sessionId).toBeNull();
+    expect(h.state()).toMatchObject({ phase: 'ready', reply: 'No entendí “hola”' });
+  });
+
+  it('not an entry while they are typing: it goes quietly, no reply over what they type', async () => {
+    await savedOffline('press 24 4 de 9', 'hola');
+    const h = open([press(), { intent: 'unclear', entries: [], ambiguity: null, reply: null }]);
+    h.dispatch({ type: 'TYPE', text: 'laterales' });
+    await h.actions.retryPending();
+    expect(await statuses()).toEqual([['press 24 4 de 9', 'ok']]);
+    expect(h.state()).toEqual({ phase: 'ready', text: 'laterales', logged: 0, reply: null });
+  });
+
+  it('nothing pending: nothing is sent', async () => {
     const h = harness([], { sessionId: null, groups: ['hombro'] });
-    await h.actions.retry();
+    await h.actions.retryPending();
     expect(h.requests).toEqual([]);
     expect(h.state()).toBe(initialState);
   });

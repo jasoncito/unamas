@@ -5,12 +5,14 @@ import { getAllExercises, insertExercise, type Exercise } from '@/data/repos/exe
 import {
   deleteUnsyncedEntry,
   getExerciseHistory,
+  getAllPendingEntries,
+  getDoubtEntry,
   getLastExposures,
-  getUnresolvedEntry,
   insertPendingEntry,
   resolveEntry,
   setEntryRawText,
   setEntryStatus,
+  type UnresolvedEntry,
 } from '@/data/repos/entries';
 import { createSession, deleteSessionIfEmpty } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
@@ -22,7 +24,7 @@ import { AiUnavailableError, type AiService } from '@/services/ai';
 
 import { learnAliasFromChoice } from './aliases';
 import type { AmbiguityOption, SessionEvent, SessionState } from './reducer';
-import { feedbackLine } from './templates';
+import { feedbackLine, type FeedbackLine } from './templates';
 
 /** Everything the session's effects touch; tests pass fakes (CLAUDE.md §4.1). */
 export interface SessionDeps {
@@ -46,6 +48,15 @@ export interface SessionCopy {
   unclear: string;
   offline: string;
   stopTip: string;
+  /** A retried message turned out not to be an entry: "No entendí “…”. Dímelo de nuevo." */
+  unclearRetry(said: string): string;
+}
+
+export interface SessionEvents {
+  /** The first entry created the session: no going back to screen 1 from now on. */
+  onSessionCreated(sessionId: string): void;
+  /** A retry changed the lists ("Hoy", pending rows) without going through the bubble. */
+  onChanged(): void;
 }
 
 export interface SessionActions {
@@ -53,9 +64,20 @@ export interface SessionActions {
   send(text: string): Promise<void>;
   /** Screen 5: they tapped which exercise they meant. */
   choose(exerciseId: string): Promise<void>;
-  /** The app reopened with an entry still pending or in doubt: ask /parse about it again. */
-  retry(): Promise<void>;
+  /**
+   * Asks /parse again about every entry saved without signal, oldest first and one at a time, then
+   * brings back a doubt left unanswered. Quiet: it doesn't touch the bubble or what they're typing.
+   * Stops at the first one still without signal. Runs on open, on foreground and when the signal returns.
+   */
+  retryPending(): Promise<void>;
 }
+
+/** What asking /parse about a saved entry ended in, with the database already updated. */
+type Outcome =
+  | { kind: 'offline' }
+  | { kind: 'logged'; feedback: FeedbackLine; count: number }
+  | { kind: 'ask'; question: string; options: AmbiguityOption[] }
+  | { kind: 'gone'; reply: string; sessionGone: boolean };
 
 /**
  * The session's effects (CLAUDE.md §4.4): save first, then ask /parse, then save what it understood.
@@ -67,11 +89,11 @@ export function createSessionActions(
   getState: () => SessionState,
   dispatch: (e: SessionEvent) => void,
   copy: SessionCopy,
-  /** The first entry created the session: no going back to screen 1 from now on. */
-  onSessionCreated: (sessionId: string) => void,
+  events: SessionEvents,
 ): SessionActions {
   let queue: Promise<void> = Promise.resolve();
   const serial = (work: () => Promise<void>) => (queue = queue.then(work, work));
+  let retrying: Promise<void> | null = null;
 
   async function ensureSession(): Promise<{ id: string; created: boolean }> {
     if (ctx.sessionId) return { id: ctx.sessionId, created: false };
@@ -81,47 +103,79 @@ export function createSessionActions(
     return { id, created: true };
   }
 
-  /** Asks /parse about an entry already saved, and applies the answer. */
-  async function process(entryId: string, rawText: string, sessionId: string, created: boolean, only?: Exercise) {
+  /** Asks /parse about an entry already saved and saves the answer. Dispatches nothing. */
+  async function resolve(entryId: string, rawText: string, sessionId: string, groups: readonly string[], only?: Exercise): Promise<Outcome> {
     const exercises = await getAllExercises(deps.db);
-    const context = await contextFor(deps.db, only ? [only] : exercises, ctx.groups);
+    const context = await contextFor(deps.db, only ? [only] : exercises, groups);
     let res: ParseResponse;
     try {
-      res = await deps.ai.parse({ text: rawText, image: null, context: { muscle_groups: [...ctx.groups], exercises: context } });
+      res = await deps.ai.parse({ text: rawText, image: null, context: { muscle_groups: [...groups], exercises: context } });
     } catch (e) {
       if (!(e instanceof AiUnavailableError)) throw e;
-      // Kept as pending: nothing is lost, it's parsed when there's signal (M8 retries on its own).
-      dispatch({ type: 'REPLY', reply: copy.offline });
-      if (created) onSessionCreated(sessionId);
-      return;
+      return { kind: 'offline' }; // kept as pending: nothing is lost
     }
 
     if (res.intent === 'log') {
       const feedback = await saveLog(deps, entryId, rawText, sessionId, res, exercises);
-      if (created) onSessionCreated(sessionId);
-      dispatch({ type: 'LOGGED', feedback, count: res.entries.length });
       deps.requestSync();
-      return;
+      return { kind: 'logged', feedback, count: res.entries.length };
     }
 
     if (res.intent === 'ambiguous' && res.ambiguity) {
       await setEntryStatus(deps.db, entryId, 'ambiguous');
-      if (created) onSessionCreated(sessionId);
       const lastSets = await getLastExposures(deps.db);
       const byId = new Map(exercises.map((e) => [e.id, e]));
       const options: AmbiguityOption[] = res.ambiguity.options
         .filter((o) => byId.has(o.exercise_id))
         .map((o) => ({ exerciseId: o.exercise_id, label: o.label, lastLoadKg: lastSets.get(o.exercise_id)?.loadKg ?? null }));
-      dispatch({ type: 'ASK', entryId, said: rawText, question: res.ambiguity.question, options });
-      return;
+      return { kind: 'ask', question: res.ambiguity.question, options };
     }
 
-    // Not an entry ("listo", a question, not understood): the message goes, and a session that only
-    // had it goes too — there are no empty sessions.
+    // Not an entry ("listo", a question, not understood): the message goes, and a session left
+    // without entries goes too — there are no empty sessions.
     await deleteUnsyncedEntry(deps.db, entryId);
-    if (created && (await deleteSessionIfEmpty(deps.db, sessionId))) ctx.sessionId = null;
-    const reply = res.intent === 'end_session' ? copy.stopTip : (res.reply ?? copy.unclear);
-    dispatch({ type: 'REPLY', reply });
+    const sessionGone = await deleteSessionIfEmpty(deps.db, sessionId);
+    if (sessionGone && ctx.sessionId === sessionId) ctx.sessionId = null;
+    return { kind: 'gone', reply: res.intent === 'end_session' ? copy.stopTip : (res.reply ?? copy.unclear), sessionGone };
+  }
+
+  /** A message they just sent or answered: the outcome shows in the bubble. */
+  async function process(entryId: string, rawText: string, sessionId: string, created: boolean, only?: Exercise) {
+    const out = await resolve(entryId, rawText, sessionId, ctx.groups, only);
+    if (created && !(out.kind === 'gone' && out.sessionGone)) events.onSessionCreated(sessionId);
+    switch (out.kind) {
+      case 'offline':
+        return dispatch({ type: 'REPLY', reply: copy.offline });
+      case 'logged':
+        return dispatch({ type: 'LOGGED', feedback: out.feedback, count: out.count });
+      case 'ask':
+        return dispatch({ type: 'ASK', entryId, said: rawText, question: out.question, options: out.options });
+      case 'gone':
+        return dispatch({ type: 'REPLY', reply: out.reply });
+    }
+  }
+
+  /** Nothing on screen and nothing typed: a retried doubt can take the screen without getting in the way. */
+  const idle = () => {
+    const s = getState();
+    return s.phase === 'ready' && s.text.trim() === '';
+  };
+
+  /** One retried entry, quietly. False if there's still no signal. */
+  async function retryOne(entry: UnresolvedEntry): Promise<boolean> {
+    await setEntryStatus(deps.db, entry.id, 'pending');
+    const out = await resolve(entry.id, entry.rawText, entry.sessionId, entry.groups);
+    if (out.kind === 'offline') {
+      events.onChanged();
+      return false;
+    }
+    if (out.kind === 'ask' && entry.sessionId === ctx.sessionId && idle()) {
+      dispatch({ type: 'ASK', entryId: entry.id, said: entry.rawText, question: out.question, options: out.options });
+    }
+    // Otherwise it waits as ambiguous: it's asked again on the next retry with nothing on screen.
+    if (out.kind === 'gone' && idle()) dispatch({ type: 'REPLY', reply: copy.unclearRetry(entry.rawText) });
+    events.onChanged();
+    return true;
   }
 
   return {
@@ -160,15 +214,33 @@ export function createSessionActions(
         return process(state.entryId, state.said, ctx.sessionId!, false, exercise);
       }),
 
-    retry: () =>
-      serial(async () => {
-        if (!ctx.sessionId) return;
-        const entry = await getUnresolvedEntry(deps.db, ctx.sessionId);
-        if (!entry) return;
-        dispatch({ type: 'SENT', text: entry.rawText });
-        await setEntryStatus(deps.db, entry.id, 'pending');
-        return process(entry.id, entry.rawText, ctx.sessionId, false);
-      }),
+    retryPending: () => {
+      // A run already going covers this call too.
+      if (retrying) return retrying;
+      const tried = new Set<string>();
+      const run = new Promise<void>((done) => {
+        // Each entry is its own turn in the queue, so a message sent meanwhile isn't stuck behind all of them.
+        const step = () =>
+          serial(async () => {
+            const next = (await getAllPendingEntries(deps.db)).find((e) => !tried.has(e.id));
+            if (next) {
+              tried.add(next.id);
+              if (await retryOne(next)) return void step();
+              return done(); // still no signal: the rest wait for the next time
+            }
+            // Last, a doubt left unanswered (the app was closed on it), if nothing else is on screen.
+            const doubt = ctx.sessionId ? await getDoubtEntry(deps.db, ctx.sessionId) : null;
+            if (doubt && !tried.has(doubt.id) && idle()) {
+              tried.add(doubt.id);
+              await retryOne(doubt);
+            }
+            done();
+          }).catch(() => done());
+        step();
+      });
+      retrying = run.finally(() => (retrying = null));
+      return retrying;
+    },
   };
 }
 

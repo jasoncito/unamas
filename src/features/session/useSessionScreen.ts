@@ -5,6 +5,7 @@ import { newId, nowIso } from '@/data/ids';
 import { localDateOf } from '@/domain/dates';
 import { requestSync } from '@/features/sync/useSync';
 import { ai } from '@/services/aiClient';
+import { onReconnectOrForeground } from '@/services/network';
 import { copy } from '@/ui/copy';
 
 import { createSessionActions, type SessionActions, type SessionContext } from './actions';
@@ -39,6 +40,7 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
     reset();
     shownLogged.current = 0;
     let cancelled = false;
+    let stopWatching = () => {};
     void reload().then((s) => {
       if (!s || cancelled) return;
       const ctx: SessionContext = { sessionId: s.sessionId, groups: s.groups };
@@ -47,13 +49,19 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
         ctx,
         () => useSessionStore.getState().state,
         useSessionStore.getState().dispatch,
-        { unclear: copy.session.unclear, offline: copy.session.offline, stopTip: copy.session.stopTip },
-        () => void reload(), // the session exists now: no more going back
+        { unclear: copy.session.unclear, offline: copy.session.offline, stopTip: copy.session.stopTip, unclearRetry: copy.session.unclearRetry },
+        {
+          onSessionCreated: () => void reload(), // the session exists now: no more going back
+          onChanged: () => void reload(), // a retry turned a pending row into a logged one
+        },
       );
-      void actions.current.retry();
+      // Entries saved without signal: retried now, and on every new chance to reach the network.
+      void actions.current.retryPending();
+      stopWatching = onReconnectOrForeground(() => void actions.current?.retryPending());
     });
     return () => {
       cancelled = true;
+      stopWatching();
     };
   }, [db, reload, reset]);
 
