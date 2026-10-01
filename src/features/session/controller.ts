@@ -1,12 +1,15 @@
 import type { Db } from '@/data/db';
 import { getAllExercises, type Exercise } from '@/data/repos/exercises';
 import { getExerciseHistory, getLastExposures, getPendingEntries, getPlanExerciseIds, getSessionEntries, type LoggedSet } from '@/data/repos/entries';
-import { getOpenSession } from '@/data/repos/sessions';
+import { getOpenSession, getSession } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
 import { deltaOf, type Delta } from '@/domain/delta';
+import { nextTarget } from '@/domain/engine';
+import { formatDayLabel, formatDuration } from '@/domain/format';
 import { searchExercises } from '@/domain/match';
 import { dictationOf, groupsLabel, planRow, type PlanRow } from '@/domain/plan';
-import type { IsoDate } from '@/domain/types';
+import { pickNextTime, summarize, type SummaryItem, type SummaryRow, type Tally } from '@/domain/summary';
+import type { Exposure, IsoDate } from '@/domain/types';
 
 export interface PlanLine extends PlanRow {
   name: string;
@@ -153,4 +156,65 @@ export function textAfterPicking(exercise: Exercise): string {
 /** How the person calls the exercise: its first alias (their own words), or the name in lowercase. */
 function spokenName(exercise: Exercise): string {
   return exercise.aliases[0] ?? exercise.canonicalName.toLowerCase();
+}
+
+// ─── Screens 6–7 ────────────────────────────────────────────────────────────────────────────────
+
+export interface SessionSummary {
+  /** "Lunes 28" */
+  dayLabel: string;
+  /** "Hombro y tríceps" */
+  groupsLabel: string;
+  /** "58 min": from the first entry to the stop. */
+  duration: string;
+  rows: SummaryRow[];
+  tally: Tally;
+  /** Saved without signal, not counted until they're understood. */
+  pending: number;
+  /** "La próxima vez", or null if nothing is worth singling out. */
+  nextTime: ReturnType<typeof pickNextTime>;
+}
+
+/**
+ * Screen 7: every exercise of the session (once, in the order first logged, with its last entry of the
+ * session) against its last entry before this session, wherever it was (PROGRESSION.md §5).
+ */
+export async function loadSummary(db: Db, sessionId: string): Promise<SessionSummary | null> {
+  const session = await getSession(db, sessionId);
+  if (!session) return null;
+  const endedAt = session.endedAt ?? new Date().toISOString();
+  const today = localDateOf(endedAt);
+  const byId = new Map((await getAllExercises(db)).map((e) => [e.id, e]));
+
+  const lastOfSession = new Map<string, LoggedSet>();
+  for (const e of await getSessionEntries(db, sessionId)) lastOfSession.set(e.exerciseId, e); // insertion order = first logged
+
+  const items: SummaryItem[] = [];
+  for (const [exerciseId, last] of lastOfSession) {
+    const ex = byId.get(exerciseId);
+    if (!ex) continue;
+    const history = await getExerciseHistory(db, exerciseId);
+    const previous = history.filter((h) => h.sessionId !== sessionId).at(-1);
+    const exposure = (h: LoggedSet): Exposure => ({ date: localDateOf(h.createdAt), loadKg: h.loadKg, reps: h.reps, easy: h.easy });
+    items.push({
+      exerciseId,
+      name: ex.canonicalName,
+      loadBasis: ex.loadBasis,
+      config: ex,
+      previous: previous ? exposure(previous) : null,
+      today: exposure(last),
+      target: nextTarget(history.map(exposure), ex, today),
+    });
+  }
+
+  const { rows, tally } = summarize(items);
+  return {
+    dayLabel: formatDayLabel(localDateOf(session.startedAt ?? endedAt)),
+    groupsLabel: groupsLabel(session.muscleGroups),
+    duration: formatDuration(Date.parse(endedAt) - Date.parse(session.startedAt ?? endedAt)),
+    rows,
+    tally,
+    pending: (await getPendingEntries(db, sessionId)).length,
+    nextTime: pickNextTime(items),
+  };
 }

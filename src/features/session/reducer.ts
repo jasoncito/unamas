@@ -1,7 +1,7 @@
+import type { SessionSummary } from './controller';
 import type { FeedbackLine } from './templates';
 
-// Screen 4–5 state machine (CLAUDE.md §4.3), pure: the controller runs the effects and dispatches.
-// M6 adds ending → summary.
+// Session state machine (CLAUDE.md §4.3), pure: the controller runs the effects and dispatches.
 
 export interface AmbiguityOption {
   exerciseId: string;
@@ -11,7 +11,14 @@ export interface AmbiguityOption {
 }
 
 export type SessionState =
-  | { phase: 'ready'; text: string; logged: number; reply: string | null }
+  | {
+      phase: 'ready';
+      text: string;
+      logged: number;
+      reply: string | null;
+      /** Bumped each time the stop's "Mantén para terminar" should show ("listo" was said). */
+      stopTip?: number;
+    }
   | { phase: 'sending'; text: string; logged: number; bubble: string }
   | { phase: 'feedback'; text: string; logged: number; bubble: string; feedback: FeedbackLine }
   | {
@@ -22,7 +29,11 @@ export type SessionState =
       said: string;
       question: string;
       options: AmbiguityOption[];
-    };
+    }
+  /** The stop completed: the screen is green with the count (2.1 s). */
+  | { phase: 'ending'; text: string; logged: number; summary: SessionSummary }
+  /** Screen 7. */
+  | { phase: 'summary'; text: string; logged: number; summary: SessionSummary };
 
 export type SessionEvent =
   | { type: 'TYPE'; text: string }
@@ -30,11 +41,21 @@ export type SessionEvent =
   | { type: 'LOGGED'; feedback: FeedbackLine; count: number }
   | { type: 'FEEDBACK_DONE' }
   | { type: 'ASK'; entryId: string; said: string; question: string; options: AmbiguityOption[] }
-  | { type: 'REPLY'; reply: string };
+  | { type: 'REPLY'; reply: string }
+  /** "Listo" / "terminamos": show the stop's tip; it never ends the session by itself (CLAUDE.md §8). */
+  | { type: 'SHOW_STOP_TIP' }
+  /** "Ahora no" on a doubt: back to ready, the entry keeps waiting. */
+  | { type: 'DISMISS' }
+  | { type: 'ENDED'; summary: SessionSummary }
+  | { type: 'FLOOD_DONE' };
 
 export const initialState: SessionState = { phase: 'ready', text: '', logged: 0, reply: null };
 
 export function sessionReducer(state: SessionState, event: SessionEvent): SessionState {
+  // Once the stop completes, a late answer (a message still on its way) changes nothing on screen.
+  if (state.phase === 'ending' || state.phase === 'summary') {
+    return event.type === 'FLOOD_DONE' && state.phase === 'ending' ? { ...state, phase: 'summary' } : state;
+  }
   switch (event.type) {
     case 'TYPE':
       return { ...state, text: event.text };
@@ -64,5 +85,24 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
 
     case 'REPLY':
       return { phase: 'ready', text: state.text, logged: state.logged, reply: event.reply };
+
+    case 'SHOW_STOP_TIP':
+      return {
+        phase: 'ready',
+        text: state.text,
+        logged: state.logged,
+        reply: null,
+        stopTip: (state.phase === 'ready' ? (state.stopTip ?? 0) : 0) + 1,
+      };
+
+    case 'DISMISS':
+      if (state.phase !== 'disambiguating') return state;
+      return { phase: 'ready', text: state.text, logged: state.logged, reply: null };
+
+    case 'ENDED':
+      return { phase: 'ending', text: '', logged: state.logged, summary: event.summary };
+
+    case 'FLOOD_DONE':
+      return state;
   }
 }

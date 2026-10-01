@@ -7,6 +7,7 @@ import {
   getExerciseHistory,
   getAllPendingEntries,
   getDoubtEntry,
+  getEndedSessionDoubt,
   getLastExposures,
   insertPendingEntry,
   resolveEntry,
@@ -14,7 +15,7 @@ import {
   setEntryStatus,
   type UnresolvedEntry,
 } from '@/data/repos/entries';
-import { createSession, deleteSessionIfEmpty } from '@/data/repos/sessions';
+import { createSession, deleteSessionIfEmpty, endSession } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
 import { deltaOf } from '@/domain/delta';
 import { REP_RANGES } from '@/domain/engine';
@@ -23,6 +24,7 @@ import type { IsoDate, LoadBasis } from '@/domain/types';
 import { AiUnavailableError, type AiService } from '@/services/ai';
 
 import { learnAliasFromChoice } from './aliases';
+import { loadSummary, type SessionSummary } from './controller';
 import type { AmbiguityOption, SessionEvent, SessionState } from './reducer';
 import { feedbackLine, type FeedbackLine } from './templates';
 
@@ -47,7 +49,6 @@ export interface SessionContext {
 export interface SessionCopy {
   unclear: string;
   offline: string;
-  stopTip: string;
   /** A retried message turned out not to be an entry: "No entendí “…”. Dímelo de nuevo." */
   unclearRetry(said: string): string;
 }
@@ -58,6 +59,12 @@ export interface SessionEvents {
   /** A retry changed the lists ("Hoy", pending rows) without going through the bubble. */
   onChanged(): void;
 }
+
+/**
+ * Which entries these actions look after. `open`: the session screen's (its session, still going).
+ * `ended`: sessions already stopped, retried from the root; their doubts are asked on screen 1.
+ */
+export type SessionScope = 'open' | 'ended';
 
 export interface SessionActions {
   /** Screen 4: what they typed or dictated. During a doubt, it's their answer. */
@@ -70,6 +77,10 @@ export interface SessionActions {
    * Stops at the first one still without signal. Runs on open, on foreground and when the signal returns.
    */
   retryPending(): Promise<void>;
+  /** "Ahora no" on a doubt: it waits, and is asked again the next time the app opens. */
+  dismissDoubt(): void;
+  /** The stop completed: the session ends, and its summary. Doesn't wait for a message on its way. */
+  end(): Promise<SessionSummary | null>;
 }
 
 /** What asking /parse about a saved entry ended in, with the database already updated. */
@@ -77,7 +88,7 @@ type Outcome =
   | { kind: 'offline' }
   | { kind: 'logged'; feedback: FeedbackLine; count: number }
   | { kind: 'ask'; question: string; options: AmbiguityOption[] }
-  | { kind: 'gone'; reply: string; sessionGone: boolean };
+  | { kind: 'gone'; reply: string; endSession: boolean; sessionGone: boolean };
 
 /**
  * The session's effects (CLAUDE.md §4.4): save first, then ask /parse, then save what it understood.
@@ -90,10 +101,20 @@ export function createSessionActions(
   dispatch: (e: SessionEvent) => void,
   copy: SessionCopy,
   events: SessionEvents,
+  scope: SessionScope = 'open',
 ): SessionActions {
   let queue: Promise<void> = Promise.resolve();
   const serial = (work: () => Promise<void>) => (queue = queue.then(work, work));
   let retrying: Promise<void> | null = null;
+  /** The doubt on screen and where it belongs: a closed session's, on screen 1, isn't `ctx`'s. */
+  let doubt: { entryId: string; sessionId: string; groups: readonly string[] } | null = null;
+  /** Doubts put off with "Ahora no", until the app opens again. */
+  const dismissed = new Set<string>();
+
+  const ask = (entryId: string, said: string, sessionId: string, groups: readonly string[], out: Extract<Outcome, { kind: 'ask' }>) => {
+    doubt = { entryId, sessionId, groups };
+    dispatch({ type: 'ASK', entryId, said, question: out.question, options: out.options });
+  };
 
   async function ensureSession(): Promise<{ id: string; created: boolean }> {
     if (ctx.sessionId) return { id: ctx.sessionId, created: false };
@@ -136,12 +157,19 @@ export function createSessionActions(
     await deleteUnsyncedEntry(deps.db, entryId);
     const sessionGone = await deleteSessionIfEmpty(deps.db, sessionId);
     if (sessionGone && ctx.sessionId === sessionId) ctx.sessionId = null;
-    return { kind: 'gone', reply: res.intent === 'end_session' ? copy.stopTip : (res.reply ?? copy.unclear), sessionGone };
+    return { kind: 'gone', reply: res.reply ?? copy.unclear, endSession: res.intent === 'end_session', sessionGone };
   }
 
   /** A message they just sent or answered: the outcome shows in the bubble. */
-  async function process(entryId: string, rawText: string, sessionId: string, created: boolean, only?: Exercise) {
-    const out = await resolve(entryId, rawText, sessionId, ctx.groups, only);
+  async function process(
+    entryId: string,
+    rawText: string,
+    sessionId: string,
+    groups: readonly string[],
+    created: boolean,
+    only?: Exercise,
+  ) {
+    const out = await resolve(entryId, rawText, sessionId, groups, only);
     if (created && !(out.kind === 'gone' && out.sessionGone)) events.onSessionCreated(sessionId);
     switch (out.kind) {
       case 'offline':
@@ -149,9 +177,10 @@ export function createSessionActions(
       case 'logged':
         return dispatch({ type: 'LOGGED', feedback: out.feedback, count: out.count });
       case 'ask':
-        return dispatch({ type: 'ASK', entryId, said: rawText, question: out.question, options: out.options });
+        return ask(entryId, rawText, sessionId, groups, out);
       case 'gone':
-        return dispatch({ type: 'REPLY', reply: out.reply });
+        // "Listo": the stop's tip, so they hold it; it never ends the session by itself (CLAUDE.md §8).
+        return dispatch(out.endSession ? { type: 'SHOW_STOP_TIP' } : { type: 'REPLY', reply: out.reply });
     }
   }
 
@@ -169,13 +198,19 @@ export function createSessionActions(
       events.onChanged();
       return false;
     }
-    if (out.kind === 'ask' && entry.sessionId === ctx.sessionId && idle()) {
-      dispatch({ type: 'ASK', entryId: entry.id, said: entry.rawText, question: out.question, options: out.options });
+    if (out.kind === 'ask' && (scope === 'ended' || entry.sessionId === ctx.sessionId) && idle()) {
+      ask(entry.id, entry.rawText, entry.sessionId, entry.groups, out);
     }
     // Otherwise it waits as ambiguous: it's asked again on the next retry with nothing on screen.
     if (out.kind === 'gone' && idle()) dispatch({ type: 'REPLY', reply: copy.unclearRetry(entry.rawText) });
     events.onChanged();
     return true;
+  }
+
+  /** Where the doubt on screen belongs: remembered when it was asked; the session screen's otherwise. */
+  function originOf(entryId: string) {
+    if (doubt?.entryId === entryId) return doubt;
+    return { entryId, sessionId: ctx.sessionId!, groups: ctx.groups };
   }
 
   return {
@@ -184,20 +219,22 @@ export function createSessionActions(
         const said = text.trim();
         if (!said) return;
         const state = getState();
+        if (scope === 'ended' && state.phase !== 'disambiguating') return; // screen 1 only answers doubts
         dispatch({ type: 'SENT', text: said });
 
         // During a doubt, what they type answers it: it joins the original phrase, parsed again.
         if (state.phase === 'disambiguating') {
+          const origin = originOf(state.entryId);
           const joined = state.options.length === 0 ? `${state.said}, ${said}` : `${state.said} (${said})`;
           await setEntryRawText(deps.db, state.entryId, joined);
           await setEntryStatus(deps.db, state.entryId, 'pending');
-          return process(state.entryId, joined, ctx.sessionId!, false);
+          return process(state.entryId, joined, origin.sessionId, origin.groups, false);
         }
 
         const { id: sessionId, created } = await ensureSession();
         const entryId = deps.newId();
         await insertPendingEntry(deps.db, { id: entryId, sessionId, rawText: said, createdAt: deps.now() });
-        return process(entryId, said, sessionId, created);
+        return process(entryId, said, sessionId, ctx.groups, created);
       }),
 
     choose: (exerciseId) =>
@@ -211,7 +248,8 @@ export function createSessionActions(
         await learnAliasFromChoice(deps.db, state.said, exerciseId);
         await setEntryStatus(deps.db, state.entryId, 'pending');
         // Parsed again with only that exercise, to get the numbers for it.
-        return process(state.entryId, state.said, ctx.sessionId!, false, exercise);
+        const origin = originOf(state.entryId);
+        return process(state.entryId, state.said, origin.sessionId, origin.groups, false, exercise);
       }),
 
     retryPending: () => {
@@ -222,17 +260,19 @@ export function createSessionActions(
         // Each entry is its own turn in the queue, so a message sent meanwhile isn't stuck behind all of them.
         const step = () =>
           serial(async () => {
-            const next = (await getAllPendingEntries(deps.db)).find((e) => !tried.has(e.id));
+            const next = (await getAllPendingEntries(deps.db, scope)).find((e) => !tried.has(e.id));
             if (next) {
               tried.add(next.id);
               if (await retryOne(next)) return void step();
               return done(); // still no signal: the rest wait for the next time
             }
-            // Last, a doubt left unanswered (the app was closed on it), if nothing else is on screen.
-            const doubt = ctx.sessionId ? await getDoubtEntry(deps.db, ctx.sessionId) : null;
-            if (doubt && !tried.has(doubt.id) && idle()) {
-              tried.add(doubt.id);
-              await retryOne(doubt);
+            // Last, a doubt left unanswered (the app was closed on it, or it came from a retry while
+            // they were busy), if nothing else is on screen.
+            const left =
+              scope === 'ended' ? await getEndedSessionDoubt(deps.db, [...dismissed]) : ctx.sessionId ? await getDoubtEntry(deps.db, ctx.sessionId) : null;
+            if (left && !tried.has(left.id) && !dismissed.has(left.id) && idle()) {
+              tried.add(left.id);
+              await retryOne(left);
             }
             done();
           }).catch(() => done());
@@ -240,6 +280,22 @@ export function createSessionActions(
       });
       retrying = run.finally(() => (retrying = null));
       return retrying;
+    },
+
+    dismissDoubt: () => {
+      const state = getState();
+      if (state.phase !== 'disambiguating') return;
+      dismissed.add(state.entryId);
+      dispatch({ type: 'DISMISS' });
+    },
+
+    end: async () => {
+      if (!ctx.sessionId) return null;
+      await endSession(deps.db, ctx.sessionId, deps.now());
+      deps.requestSync();
+      const summary = await loadSummary(deps.db, ctx.sessionId);
+      if (summary) dispatch({ type: 'ENDED', summary });
+      return summary;
     },
   };
 }

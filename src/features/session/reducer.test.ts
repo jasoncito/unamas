@@ -47,4 +47,37 @@ describe('sessionReducer', () => {
       reply: 'No te entendí',
     });
   });
+
+  const SUMMARY = { dayLabel: 'Lunes 28', groupsLabel: 'Hombro', duration: '58 min', rows: [], tally: { up: 0, same: 0, down: 0, new: 0 }, pending: 0, nextTime: null };
+
+  it('"listo" → the stop tip, bumped each time, without a reply', () => {
+    const once = run([{ type: 'SENT', text: 'listo' }, { type: 'SHOW_STOP_TIP' }]);
+    expect(once).toEqual({ phase: 'ready', text: '', logged: 0, reply: null, stopTip: 1 });
+    expect(sessionReducer(once, { type: 'SHOW_STOP_TIP' })).toMatchObject({ stopTip: 2 });
+  });
+
+  it('"Ahora no" on a doubt → ready; elsewhere nothing', () => {
+    const asked = run([{ type: 'ASK', entryId: 'e1', said: 'x', question: '?', options: [] }]);
+    expect(sessionReducer(asked, { type: 'DISMISS' })).toEqual({ phase: 'ready', text: '', logged: 0, reply: null });
+    expect(sessionReducer(initialState, { type: 'DISMISS' })).toBe(initialState);
+  });
+
+  it('the stop: ending (green) → summary after the flood; nothing else moves it', () => {
+    const ending = run([{ type: 'TYPE', text: 'lat' }, { type: 'ENDED', summary: SUMMARY }]);
+    expect(ending).toEqual({ phase: 'ending', text: '', logged: 0, summary: SUMMARY });
+    for (const e of [
+      { type: 'LOGGED', feedback: FB, count: 1 },
+      { type: 'REPLY', reply: 'Sin señal' },
+      { type: 'ASK', entryId: 'e', said: 'x', question: '?', options: [] },
+      { type: 'SENT', text: 'x' },
+      { type: 'TYPE', text: 'x' },
+      { type: 'SHOW_STOP_TIP' },
+    ] as SessionEvent[]) {
+      expect(sessionReducer(ending, e)).toBe(ending);
+    }
+    const summary = sessionReducer(ending, { type: 'FLOOD_DONE' });
+    expect(summary).toEqual({ phase: 'summary', text: '', logged: 0, summary: SUMMARY });
+    expect(sessionReducer(summary, { type: 'FLOOD_DONE' })).toBe(summary);
+    expect(sessionReducer(initialState, { type: 'FLOOD_DONE' })).toBe(initialState);
+  });
 });

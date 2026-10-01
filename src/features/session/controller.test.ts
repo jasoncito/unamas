@@ -5,10 +5,10 @@ import { initDb } from '@/data/init';
 import { loadSeed, type Seed } from '@/data/seed';
 import { openMemoryDb } from '@/data/testing/memoryDb';
 import { insertExercise } from '@/data/repos/exercises';
-import { createSession } from '@/data/repos/sessions';
+import { createSession, endSession } from '@/data/repos/sessions';
 import { formatSets } from '@/domain/format';
 
-import { loadSessionScreen, suggestionsFor, textAfterPicking } from './controller';
+import { loadSessionScreen, loadSummary, suggestionsFor, textAfterPicking } from './controller';
 
 const TODAY = '2026-09-29';
 let db: Db;
@@ -183,5 +183,44 @@ describe('"Hoy" (screen 4)', () => {
 
   it('right after EMPEZAR there is nothing pending', async () => {
     expect((await loadSessionScreen(db, TODAY, ['hombro']))!.pending).toEqual([]);
+  });
+});
+
+describe('loadSummary (screen 7)', () => {
+  const S = 'f0000000-0000-4000-8000-0000000000aa';
+  let n = 0;
+  const log = async (exerciseName: string, loadKg: number | null, reps: number[] | null, at: string, status = 'ok') => {
+    const ex = await db.getFirstAsync<{ id: string }>('SELECT id FROM exercise WHERE canonical_name = ?', [exerciseName]);
+    await db.runAsync(
+      `INSERT INTO entry (id, session_id, exercise_id, load_kg, reps, raw_text, status, created_at, updated_at, dirty)
+       VALUES (?, ?, ?, ?, ?, 'x', ?, ?, ?, 1)`,
+      [`f0000000-0000-4000-8000-${String(++n).padStart(12, '0')}`, S, status === 'ok' ? ex!.id : null, loadKg, reps && JSON.stringify(reps), status, at, at],
+    );
+  };
+
+  it('the mockup’s session: each exercise against its own last time, the count, the minutes and the next time', async () => {
+    // Monday 28 sep, 18:00–18:58 local.
+    const t = (h: number, m: number) => new Date(2026, 8, 28, h, m).toISOString();
+    await createSession(db, S, ['hombro'], t(18, 0));
+    await log('Press de hombro con mancuernas', 24, [9, 9, 9, 9], t(18, 0));
+    await log('Laterales en polea', 7.5, [11, 11, 11, 9], t(18, 15));
+    await log('Press de hombro en máquina', 20, [12, 12, 12, 12], t(18, 30));
+    await log('Press de hombro con mancuernas', 24, [10, 9, 9, 9], t(18, 40)); // again: the last one counts
+    await log('Press de hombro con mancuernas', null, null, t(18, 50), 'pending');
+    await endSession(db, S, t(18, 58));
+
+    const s = (await loadSummary(db, S))!;
+    expect([s.dayLabel, s.groupsLabel, s.duration, s.pending]).toEqual(['Lunes 28', 'Hombro', '58 min', 1]);
+    expect(s.rows.map((r) => [r.name, r.previous?.date, formatSets(r.today.reps), r.verdict])).toEqual([
+      ['Press de hombro con mancuernas', '2026-09-27', '1×10 · 3×9', 'up'],
+      ['Laterales en polea', '2026-09-27', '3×11 · 1×9', 'up'],
+      ['Press de hombro en máquina', '2026-09-17', '4×12', 'same'],
+    ]);
+    expect(s.tally).toEqual({ up: 2, same: 1, down: 0, new: 0 });
+    expect(s.nextTime).toMatchObject({ name: 'Press de hombro en máquina', target: { reason: 'add_load', loadKg: 22.5 } });
+  });
+
+  it('unknown session: null', async () => {
+    expect(await loadSummary(db, S)).toBeNull();
   });
 });

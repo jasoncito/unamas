@@ -33,7 +33,6 @@ export const copy = {
     // Replies that aren't an entry
     unclear: 'No te entendí. Dime el ejercicio, el peso y las series.',
     offline: 'Sin señal: lo guardé y lo anoto cuando vuelva.',
-    stopTip: 'Para terminar, mantén presionado el ■.',
     unclearRetry: (said: string) => `No entendí “${said}”. Dímelo de nuevo.`,
   },
 } as const;

@@ -49,7 +49,7 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
         ctx,
         () => useSessionStore.getState().state,
         useSessionStore.getState().dispatch,
-        { unclear: copy.session.unclear, offline: copy.session.offline, stopTip: copy.session.stopTip, unclearRetry: copy.session.unclearRetry },
+        { unclear: copy.session.unclear, offline: copy.session.offline, unclearRetry: copy.session.unclearRetry },
         {
           onSessionCreated: () => void reload(), // the session exists now: no more going back
           onChanged: () => void reload(), // a retry turned a pending row into a logged one

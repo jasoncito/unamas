@@ -5,15 +5,15 @@ import type { Db } from '@/data/db';
 import { initDb } from '@/data/init';
 import { getAllExercises, getExercise } from '@/data/repos/exercises';
 import { insertPendingEntry, setEntryStatus } from '@/data/repos/entries';
-import { createSession, getOpenSession } from '@/data/repos/sessions';
+import { createSession, endSession, getOpenSession, getSession } from '@/data/repos/sessions';
 import { loadSeed, type Seed } from '@/data/seed';
 import { openMemoryDb } from '@/data/testing/memoryDb';
 import { AiUnavailableError, type AiService } from '@/services/ai';
 
-import { createSessionActions, type SessionContext } from './actions';
+import { createSessionActions, type SessionContext, type SessionScope } from './actions';
 import { initialState, sessionReducer, type SessionEvent, type SessionState } from './reducer';
 
-const COPY = { unclear: 'No te entendí', offline: 'Sin señal', stopTip: 'Mantén el ■', unclearRetry: (said: string) => `No entendí “${said}”` };
+const COPY = { unclear: 'No te entendí', offline: 'Sin señal', unclearRetry: (said: string) => `No entendí “${said}”` };
 const log = (entries: ParseResponse['entries']): ParseResponse => ({ intent: 'log', entries, ambiguity: null, reply: null });
 const entry = (over: Partial<ParseResponse['entries'][number]>): ParseResponse['entries'][number] => ({
   exercise_id: null, new_exercise: null, load_kg: 24, reps: [9, 9, 9, 9], rir_note: null, easy: false, ...over,
@@ -28,7 +28,11 @@ beforeEach(async () => {
 });
 
 /** A session screen wired to a scripted AI. */
-function harness(answers: (ParseResponse | Error)[], ctx: SessionContext = { sessionId: null, groups: ['hombro', 'tríceps'] }) {
+function harness(
+  answers: (ParseResponse | Error)[],
+  ctx: SessionContext = { sessionId: null, groups: ['hombro', 'tríceps'] },
+  scope: SessionScope = 'open',
+) {
   let state: SessionState = initialState;
   const events: SessionEvent[] = [];
   const requests: ParseRequest[] = [];
@@ -56,6 +60,7 @@ function harness(answers: (ParseResponse | Error)[], ctx: SessionContext = { ses
     dispatch,
     COPY,
     { onSessionCreated: (id) => void created.push(id), onChanged: () => void changes++ },
+    scope,
   );
   return { actions, ctx, events, requests, created, dispatch, state: () => state, syncs: () => syncs, changes: () => changes };
 }
@@ -117,7 +122,7 @@ describe('send: not an entry', () => {
     const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })]), { intent: 'end_session', entries: [], ambiguity: null, reply: null }]);
     await h.actions.send('press 24 4 de 9');
     await h.actions.send('listo');
-    expect(h.state()).toMatchObject({ phase: 'ready', reply: 'Mantén el ■' });
+    expect(h.state()).toMatchObject({ phase: 'ready', reply: null, stopTip: 1 });
     expect((await getOpenSession(db))!.endedAt).toBeNull();
   });
 
@@ -376,4 +381,97 @@ describe('order', () => {
     expect(h.requests.map((r) => r.text)).toEqual(['press 24 4 de 9', 'laterales 7,5 4 de 11']);
     expect(h.created).toHaveLength(1); // the second waited for the session the first created
   });
+});
+
+describe('end (screen 6)', () => {
+  it('stops the session and shows its summary; a late answer changes nothing on screen', async () => {
+    const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })])]);
+    await h.actions.send('press 24 4 de 9');
+    const summary = (await h.actions.end())!;
+    expect((await getSession(db, h.ctx.sessionId!))!.endedAt).toBe('2026-09-29T18:00:00.000Z');
+    expect(await getOpenSession(db)).toBeNull();
+    expect(summary.tally).toEqual({ up: 1, same: 0, down: 0, new: 0 });
+    expect(h.state()).toMatchObject({ phase: 'ending', summary });
+    h.dispatch({ type: 'LOGGED', feedback: { text: 'x', tone: 'up' }, count: 1 });
+    expect(h.state()).toMatchObject({ phase: 'ending' });
+  });
+
+  it('no session yet: nothing to end', async () => {
+    expect(await harness([]).actions.end()).toBeNull();
+  });
+});
+
+describe('closed sessions (retried from the root; doubts on screen 1)', () => {
+  const S = 'f0000000-0000-4000-8000-0000000000aa';
+  const E1 = 'f0000000-0000-4000-8000-000000000301';
+  const which = (): ParseResponse => ({
+    intent: 'ambiguous', entries: [], reply: null,
+    ambiguity: { question: '¿Cuáles laterales?', options: [{ exercise_id: ids.get('laterales_polea')!, label: 'En polea' }] },
+  });
+  const root = (answers: (ParseResponse | Error)[]) => harness(answers, { sessionId: null, groups: [] }, 'ended');
+  beforeEach(async () => {
+    await createSession(db, S, ['hombro', 'tríceps'], '2026-09-28T18:00:00.000Z');
+    await insertPendingEntry(db, { id: E1, sessionId: S, rawText: 'laterales con 10, 4 de 11', createdAt: '2026-09-28T18:00:00.000Z' });
+    await endSession(db, S, '2026-09-28T19:00:00.000Z');
+  });
+
+  it('a pending one of a stopped session is retried with its groups and logged in that session', async () => {
+    const h = root([log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 10, reps: [11, 11, 11, 11] })])]);
+    await h.actions.retryPending();
+    expect(h.requests[0].context.muscle_groups).toEqual(['hombro', 'tríceps']);
+    expect(await db.getFirstAsync('SELECT status, session_id FROM entry WHERE id = ?', [E1])).toEqual({ status: 'ok', session_id: S });
+  });
+
+  it('the session screen leaves them alone', async () => {
+    const h = harness([]);
+    await h.actions.retryPending();
+    expect(h.requests).toEqual([]);
+  });
+
+  it('it turns out ambiguous: the question comes up, and the answer goes to that stopped session', async () => {
+    const polea = ids.get('laterales_polea')!;
+    const h = root([which(), log([entry({ exercise_id: polea, load_kg: 10, reps: [11, 11, 11, 11] })])]);
+    await h.actions.retryPending();
+    expect(h.state()).toMatchObject({ phase: 'disambiguating', entryId: E1, question: '¿Cuáles laterales?' });
+
+    await h.actions.choose(polea);
+    expect(h.requests[1].context.muscle_groups).toEqual(['hombro', 'tríceps']);
+    expect(await db.getFirstAsync('SELECT status, session_id, exercise_id FROM entry WHERE id = ?', [E1])).toEqual({ status: 'ok', session_id: S, exercise_id: polea });
+    expect(await getOpenSession(db)).toBeNull(); // no new session
+  });
+
+  it('typed answer ("U otra cosa") also goes to the stopped session', async () => {
+    const h = root([which(), log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 10, reps: [11, 11, 11, 11] })])]);
+    await h.actions.retryPending();
+    await h.actions.send('en polea');
+    expect(h.requests[1].text).toBe('laterales con 10, 4 de 11 (en polea)');
+    expect(await db.getFirstAsync('SELECT status, session_id FROM entry WHERE id = ?', [E1])).toEqual({ status: 'ok', session_id: S });
+    expect(await getOpenSession(db)).toBeNull();
+  });
+
+  it('a doubt left from before is asked on open; "Ahora no" puts it off until the app opens again', async () => {
+    await setEntryStatus(db, E1, 'ambiguous');
+    const h = root([which()]);
+    await h.actions.retryPending();
+    expect(h.state()).toMatchObject({ phase: 'disambiguating', entryId: E1 });
+    h.actions.dismissDoubt();
+    expect(h.state()).toMatchObject({ phase: 'ready' });
+    await h.actions.retryPending(); // foreground: not asked again
+    expect(h.requests).toHaveLength(1);
+    expect(await statusOf(E1)).toBe('ambiguous');
+
+    const reopened = root([which()]);
+    await reopened.actions.retryPending();
+    expect(reopened.state()).toMatchObject({ phase: 'disambiguating', entryId: E1 });
+  });
+
+  it('screen 1 doesn\'t take new entries: only answers', async () => {
+    const h = root([]);
+    await h.actions.send('press 24 4 de 9');
+    expect(h.requests).toEqual([]);
+    expect(await getOpenSession(db)).toBeNull();
+    expect(h.state()).toBe(initialState);
+  });
+
+  const statusOf = async (id: string) => (await db.getFirstAsync<{ status: string }>('SELECT status FROM entry WHERE id = ?', [id]))!.status;
 });
