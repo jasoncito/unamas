@@ -1,12 +1,14 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { formatShortDate } from '@/domain/format';
 import { usePicker } from '@/features/picker/store';
 import { useMuscleGroups } from '@/features/picker/useMuscleGroups';
+import { pastSessionActions, usePastDoubt } from '@/features/session/pastSessions';
 import { useOpenSessionRedirect } from '@/features/session/useOpenSessionRedirect';
+import { PastDoubt } from '@/ui/components/PastDoubt';
 import { copy } from '@/ui/copy';
 import { font, tabular } from '@/ui/text';
 import { color, radius, space } from '@/ui/tokens';
@@ -18,6 +20,7 @@ export default function PickerScreen() {
   const { selected, custom, toggle, addCustom } = usePicker();
   const [writingOther, setWritingOther] = useState(false);
   const [other, setOther] = useState('');
+  const past = usePastDoubt();
 
   const rows = [
     ...(groups ?? []),
@@ -27,6 +30,24 @@ export default function PickerScreen() {
   // No session row yet: it's created with the first entry (CLAUDE.md §7). The groups travel with the
   // route and the selection stays, so going back shows it as it was.
   const start = () => router.push({ pathname: '/session', params: { groups: JSON.stringify(selected) } });
+
+  // A doubt left in a session already stopped goes first, before picking groups (decided with Jason).
+  if (past.active) {
+    return (
+      <SafeAreaView style={styles.screen}>
+        <KeyboardAvoidingView style={styles.past} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <PastDoubt
+            state={past.state}
+            origin={past.origin}
+            onChoose={pastSessionActions.choose}
+            onChangeText={pastSessionActions.setText}
+            onSend={pastSessionActions.send}
+            onNotNow={pastSessionActions.dismiss}
+          />
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -85,6 +106,7 @@ function capitalize(s: string): string {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.bg },
+  past: { flex: 1, paddingHorizontal: space.screenX, paddingTop: 18, paddingBottom: 16 },
   content: { paddingHorizontal: space.screenX, paddingTop: 18, paddingBottom: 24 },
   title: { ...font('title'), color: color.text },
   subtitle: { ...font('label'), color: color.muted, marginTop: 2 },

@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 
 import { initDb } from '@/data/init';
 import type { Seed } from '@/data/seed';
+import { usePastSessionsRetry } from '@/features/session/pastSessions';
 import { useSync } from '@/features/sync/useSync';
 import { useSupabaseSession } from '@/services/useSupabaseSession';
 import { color } from '@/ui/tokens';
@@ -25,8 +26,9 @@ export default function RootLayout() {
   );
 }
 
-/** Lives inside SQLiteProvider so sync can reach the database. Renders nothing. */
+/** Lives inside SQLiteProvider so sync and the retries of stopped sessions reach the database. Renders nothing. */
 function SyncRunner() {
   useSync();
+  usePastSessionsRetry();
   return null;
 }
