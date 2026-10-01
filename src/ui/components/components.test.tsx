@@ -100,15 +100,19 @@ describe('GroupsTitle', () => {
 });
 
 describe('TodayList (screen 4)', () => {
-  it('today’s set with its delta and what it is compared with', async () => {
+  beforeEach(async () => {
     await render(
       <TodayList
         lines={[
-          { entryId: 'a', exerciseId: 'p', name: 'Press de hombro', loadBasis: 'per_dumbbell', loadKg: 24, reps: [9, 9, 9, 9], comparedTo: '2026-09-27', delta: { kind: 'reps_per_set', diff: 1, tone: 'up' } },
-          { entryId: 'b', exerciseId: 'm', name: 'Press en máquina', loadBasis: 'per_side', loadKg: 20, reps: [12, 12, 12, 12], comparedTo: null, delta: { kind: 'new' } },
+          { entryId: 'a', exerciseId: 'p', name: 'Press de hombro', loadBasis: 'per_dumbbell', loadKg: 24, reps: [9, 9, 9, 9], comparedTo: '2026-09-27', delta: { kind: 'reps_per_set', diff: 1, tone: 'up' }, createdAt: '2026-09-29T18:00:00.000Z' },
+          { entryId: 'b', exerciseId: 'm', name: 'Press en máquina', loadBasis: 'per_side', loadKg: 20, reps: [12, 12, 12, 12], comparedTo: null, delta: { kind: 'new' }, createdAt: '2026-09-29T18:20:00.000Z' },
         ]}
+        pending={[{ entryId: 'c', rawText: 'laterales 7,5 4 de 11', createdAt: '2026-09-29T18:10:00.000Z' }]}
       />,
     );
+  });
+
+  it('today’s set with its delta and what it is compared with', async () => {
     expect(screen.getByText('Hoy')).toBeTruthy();
     expect(screen.getByText('vs. 27 sep')).toBeTruthy();
     expect(screen.getByText('primera vez')).toBeTruthy();
@@ -116,6 +120,13 @@ describe('TodayList (screen 4)', () => {
     expect(screen.getByText(/20 kg\/lado · 4×12/)).toBeTruthy();
     expect(screen.getByText(/\+1$/)).toHaveStyle({ color: color.green });
     expect(screen.getByText(/nuevo$/)).toHaveStyle({ color: color.muted });
+  });
+
+  it('what was saved without signal: their words in gray with "pendiente", in the order they said it', async () => {
+    expect(screen.getByText('laterales 7,5 4 de 11')).toHaveStyle({ color: color.muted });
+    expect(screen.getByText('pendiente')).toHaveStyle({ color: color.muted });
+    const order = screen.getAllByText(/Press de hombro|Press en máquina|laterales 7,5/).map((n) => n.props.children);
+    expect(order).toEqual(['Press de hombro', 'laterales 7,5 4 de 11', 'Press en máquina']);
   });
 });
 

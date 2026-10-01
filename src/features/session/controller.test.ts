@@ -166,4 +166,22 @@ describe('"Hoy" (screen 4)', () => {
     const s = (await loadSessionScreen(db, TODAY, null))!;
     expect(s.plan.map((l) => l.name)).toEqual(['Press de hombro con mancuernas', 'Laterales con pecho en rodillas']);
   });
+
+  it('saved without signal: in "pending" with their words; a doubt or a logged one is not', async () => {
+    await createSession(db, S, ['hombro'], '2026-09-29T18:00:00.000Z');
+    await log(S, 'Press de hombro con mancuernas', 24, [9, 9, 9, 9], '2026-09-29T18:00:00.000Z');
+    for (const [id, status, text] of [['dd', 'pending', 'laterales 7,5 4 de 11'], ['ee', 'ambiguous', 'laterales con 10']]) {
+      await db.runAsync(
+        `INSERT INTO entry (id, session_id, raw_text, status, created_at, updated_at, dirty) VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        [`f0000000-0000-4000-8000-0000000000${id}`, S, text, status, '2026-09-29T18:10:00.000Z', '2026-09-29T18:10:00.000Z'],
+      );
+    }
+    const s = (await loadSessionScreen(db, TODAY, null))!;
+    expect(s.pending).toEqual([{ entryId: 'f0000000-0000-4000-8000-0000000000dd', rawText: 'laterales 7,5 4 de 11', createdAt: '2026-09-29T18:10:00.000Z' }]);
+    expect(s.today.map((t) => t.name)).toEqual(['Press de hombro con mancuernas']);
+  });
+
+  it('right after EMPEZAR there is nothing pending', async () => {
+    expect((await loadSessionScreen(db, TODAY, ['hombro']))!.pending).toEqual([]);
+  });
 });

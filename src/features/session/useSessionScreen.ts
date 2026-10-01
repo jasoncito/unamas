@@ -64,9 +64,14 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
     return () => clearTimeout(t);
   }, [state, dispatch]);
 
-  // What was logged shows up in "Hoy" once the bubble is gone (or another message replaces it).
+  // "Hoy" catches up once a message is done: logged (after the bubble is gone), or left pending
+  // without signal. Not while one is on its way, or it would show twice: bubble and pending row.
+  const lastPhase = useRef(state.phase);
   useEffect(() => {
-    if (state.phase === 'feedback' || state.logged === shownLogged.current) return;
+    const was = lastPhase.current;
+    lastPhase.current = state.phase;
+    if (state.phase === 'sending' || state.phase === 'feedback') return;
+    if (was !== 'sending' && was !== 'feedback' && state.logged === shownLogged.current) return;
     shownLogged.current = state.logged;
     void reload();
   }, [state.phase, state.logged, reload]);

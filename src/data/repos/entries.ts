@@ -142,6 +142,19 @@ export async function getSessionEntries(
   return rows.map((r) => ({ ...fromLoggedRow(r), id: r.id, exerciseId: r.exercise_id }));
 }
 
+/** The session's entries saved without signal, still waiting for /parse, oldest first. */
+export async function getPendingEntries(
+  db: Db,
+  sessionId: string,
+): Promise<{ id: string; rawText: string; createdAt: string }[]> {
+  const rows = await db.getAllAsync<{ id: string; raw_text: string; created_at: string }>(
+    `SELECT id, raw_text, created_at FROM entry WHERE session_id = ? AND status = 'pending' AND deleted_at IS NULL
+     ORDER BY created_at`,
+    [sessionId],
+  );
+  return rows.map((r) => ({ id: r.id, rawText: r.raw_text, createdAt: r.created_at }));
+}
+
 /** The session's entry still waiting for /parse or for an answer, if any. */
 export async function getUnresolvedEntry(
   db: Db,

@@ -1,6 +1,6 @@
 import type { Db } from '@/data/db';
 import { getAllExercises, type Exercise } from '@/data/repos/exercises';
-import { getExerciseHistory, getLastExposures, getPlanExerciseIds, getSessionEntries, type LoggedSet } from '@/data/repos/entries';
+import { getExerciseHistory, getLastExposures, getPendingEntries, getPlanExerciseIds, getSessionEntries, type LoggedSet } from '@/data/repos/entries';
 import { getOpenSession } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
 import { deltaOf, type Delta } from '@/domain/delta';
@@ -24,6 +24,15 @@ export interface TodayLine {
   /** The date it's compared with, or null the first time. */
   comparedTo: IsoDate | null;
   delta: Delta;
+  /** ISO timestamp, to place it among the pending ones. */
+  createdAt: string;
+}
+
+/** Saved without signal, not understood yet: shown in "Hoy" so it isn't logged twice. */
+export interface PendingLine {
+  entryId: string;
+  rawText: string;
+  createdAt: string;
 }
 
 export interface SessionScreen {
@@ -36,6 +45,8 @@ export interface SessionScreen {
   groupsLabel: string;
   /** What's logged so far, oldest first. */
   today: TodayLine[];
+  /** Waiting for /parse (no signal). */
+  pending: PendingLine[];
   /** "Hoy te toca": what's left of the last time. Empty when those groups have no history. */
   plan: PlanLine[];
   /** The first plan line as it would be dictated, or null to use the generic placeholder. */
@@ -81,6 +92,7 @@ export async function loadSessionScreen(
     groups,
     groupsLabel: groupsLabel(groups),
     today: logged,
+    pending: open ? (await getPendingEntries(db, open.id)).map((p) => ({ entryId: p.id, rawText: p.rawText, createdAt: p.createdAt })) : [],
     plan,
     placeholder: first ? dictationOf(spokenName(byId.get(first.exerciseId)!), first.loadKg, first.reps) : null,
     exercises,
@@ -105,6 +117,7 @@ async function todayLines(db: Db, sessionId: string, byId: Map<string, Exercise>
       reps: e.reps,
       comparedTo: prev?.date ?? null,
       delta: deltaOf(prev, { date: localDateOf(e.createdAt), loadKg: e.loadKg, reps: e.reps }, ex.repFloor),
+      createdAt: e.createdAt,
     });
   }
   return lines;

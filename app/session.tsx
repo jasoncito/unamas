@@ -32,6 +32,7 @@ export default function SessionRoute() {
   // Back to screen 1 only while there are no entries: the "‹" in the header and the iOS gesture.
   const onBack = screen.canGoBack ? () => (router.canGoBack() ? router.back() : router.replace('/')) : undefined;
   const started = screen.sessionId !== null;
+  const hasToday = screen.today.length + screen.pending.length > 0;
   const onSend = () => {
     if (!state.text.trim()) return;
     Keyboard.dismiss();
@@ -45,11 +46,11 @@ export default function SessionRoute() {
         <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.content}>
             <ScrollView style={styles.planScroll} contentContainerStyle={styles.planContent} keyboardShouldPersistTaps="handled">
-              {screen.today.length > 0 && <TodayList lines={screen.today} />}
+              {hasToday && <TodayList lines={screen.today} pending={screen.pending} />}
               {screen.plan.length > 0 ? (
                 <PlanTable title={`${screen.groupsLabel} · ${copy.session.planTitle}`} lines={screen.plan} onBack={onBack} />
               ) : (
-                screen.today.length === 0 && <GroupsTitle text={screen.groupsLabel} onBack={onBack} />
+                !hasToday && <GroupsTitle text={screen.groupsLabel} onBack={onBack} />
               )}
             </ScrollView>
 

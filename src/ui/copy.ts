@@ -25,6 +25,7 @@ export const copy = {
     today: 'Hoy',
     vs: 'vs.',
     firstTime: 'primera vez',
+    pending: 'pendiente',
     // Screen 5
     otherPlaceholder: 'U otra cosa, dímelo',
     lastLoad: 'última',
