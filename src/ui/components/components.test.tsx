@@ -98,12 +98,19 @@ describe('InputBar', () => {
     expect(onRemove).toHaveBeenCalled();
   });
 
-  it('listening: the placeholder says so, and the mic (now green) sends', async () => {
+  it('listening: the placeholder says so, and the mic (now green) only stops — it never sends', async () => {
     const onMic = jest.fn();
-    await render(<InputBar value="" placeholder="p" onChangeText={() => {}} onMic={onMic} listening />);
-    expect(screen.getByPlaceholderText('Escuchando… toca para enviar')).toBeTruthy();
-    await fireEvent.press(screen.getByLabelText('Enviar'));
+    const onSend = jest.fn();
+    await render(<InputBar value="press 24" placeholder="p" onChangeText={() => {}} onMic={onMic} onSend={onSend} listening />);
+    expect(screen.queryByLabelText('Enviar')).toBeNull();
+    await fireEvent.press(screen.getByLabelText('Dejar de escuchar'));
     expect(onMic).toHaveBeenCalled();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
+  it('listening with nothing heard yet: the placeholder says how to stop', async () => {
+    await render(<InputBar value="" placeholder="p" onChangeText={() => {}} onMic={() => {}} listening />);
+    expect(screen.getByPlaceholderText('Escuchando… toca el micrófono para parar')).toBeTruthy();
   });
 });
 

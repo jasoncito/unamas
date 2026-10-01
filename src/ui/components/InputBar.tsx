@@ -11,9 +11,9 @@ interface Props {
   placeholder: string;
   onChangeText(text: string): void;
   onSend?(): void;
-  /** The mic: start dictating, or stop and send. */
+  /** The mic: start dictating, or stop. */
   onMic?(): void;
-  /** Dictation is on: the mic shows it, and tapping it sends. */
+  /** Dictation is on: the mic shows it, and tapping it stops (never sends). */
   listening?: boolean;
   /** The camera, always visible next to the mic (design/photo.html). Without it, no camera. */
   onCamera?(): void;
@@ -61,7 +61,8 @@ export function InputBar(p: Props) {
         </Pressable>
       )}
       {p.listening ? (
-        <Pressable onPress={p.onMic} style={[styles.button, styles.send]} accessibilityRole="button" accessibilityLabel={copy.session.send}>
+        // Listening: the mic in green; tapping it only stops (the text stays to review).
+        <Pressable onPress={p.onMic} style={[styles.button, styles.send]} accessibilityRole="button" accessibilityLabel={copy.session.stopListening}>
           <MicIcon color={color.ink} size={20} />
         </Pressable>
       ) : canSend ? (

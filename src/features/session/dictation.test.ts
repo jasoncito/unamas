@@ -39,48 +39,45 @@ function setup(startOk = true) {
   const d = createDictation(speech.service, {
     listening: (on) => log.push(on ? 'listening' : 'idle'),
     text: (t) => log.push(`text:${t}`),
-    done: (t) => log.push(`send:${t}`),
     failed: (e) => log.push(`failed:${e}`),
   });
   return { d, speech, log };
 }
 
-describe('dictation', () => {
-  beforeEach(() => jest.useFakeTimers());
-  afterEach(() => jest.useRealTimers());
-
-  it('what is heard goes into the input, and 1.5 s of silence sends it', async () => {
+describe('dictation (decided with Jason: it never sends by itself)', () => {
+  it('what is heard goes into the input; silence does not send or stop it', async () => {
+    jest.useFakeTimers();
     const { d, speech, log } = setup();
     await d.toggle(['Press de hombro']);
     speech.say('press de hombro');
-    jest.advanceTimersByTime(1000);
     speech.say('press de hombro 24 4 de 9');
-    jest.advanceTimersByTime(1499);
-    expect(log).not.toContain('send:press de hombro 24 4 de 9');
-    jest.advanceTimersByTime(1);
-    expect(log).toEqual(['listening', 'text:press de hombro', 'text:press de hombro 24 4 de 9', 'idle', 'send:press de hombro 24 4 de 9']);
-    expect(speech.calls).toEqual(['start:Press de hombro', 'stop']);
+    jest.advanceTimersByTime(10_000);
+    expect(log).toEqual(['listening', 'text:press de hombro', 'text:press de hombro 24 4 de 9']);
+    expect(d.active).toBe(true);
+    expect(speech.calls).toEqual(['start:Press de hombro']);
+    jest.useRealTimers();
   });
 
-  it('tapping the mic again sends right away', async () => {
+  it('tapping the mic again only stops listening; the text stays to review', async () => {
     const { d, speech, log } = setup();
     await d.toggle([]);
     speech.say('laterales 7,5 4 de 11');
     await d.toggle([]);
-    expect(log.at(-1)).toBe('send:laterales 7,5 4 de 11');
+    expect(log).toEqual(['listening', 'text:laterales 7,5 4 de 11', 'idle']);
+    expect(speech.calls).toEqual(['start:', 'stop']);
     expect(d.active).toBe(false);
   });
 
-  it('the recognizer ends on its own (iOS final result): sent once', async () => {
+  it('the recognizer ends on its own after a pause: it just stops listening', async () => {
     const { d, speech, log } = setup();
     await d.toggle([]);
     speech.say('remo 40 3 de 10', true);
     speech.end();
-    jest.advanceTimersByTime(2000);
-    expect(log.filter((l) => l.startsWith('send'))).toEqual(['send:remo 40 3 de 10']);
+    expect(log).toEqual(['listening', 'text:remo 40 3 de 10', 'idle']);
+    expect(d.active).toBe(false);
   });
 
-  it('nothing said: nothing sent', async () => {
+  it('nothing said: nothing changes', async () => {
     const { d, speech, log } = setup();
     await d.toggle([]);
     speech.fail('no-speech');
@@ -88,12 +85,11 @@ describe('dictation', () => {
     expect(log).toEqual(['listening', 'idle']);
   });
 
-  it('no permission: it says so and stops listening', async () => {
-    const { d, speech, log } = setup(false);
+  it('it can’t start (no permission): it stops listening', async () => {
+    const { d, log } = setup(false);
     await d.toggle([]);
     expect(log).toEqual(['listening', 'idle']);
     expect(d.active).toBe(false);
-    void speech;
   });
 
   it('a permission error while listening is reported', async () => {
@@ -103,14 +99,21 @@ describe('dictation', () => {
     expect(log).toContain('failed:permission');
   });
 
-  it('leaving the screen: stops without sending', async () => {
+  it('leaving the screen: stops without waiting for the recognizer', async () => {
     const { d, speech, log } = setup();
     await d.toggle([]);
     speech.say('press 24');
     d.cancel();
-    jest.advanceTimersByTime(2000);
     expect(log).toEqual(['listening', 'text:press 24', 'idle']);
     expect(speech.calls).toContain('abort');
+  });
+
+  it('words arriving after it stopped are ignored', async () => {
+    const { d, speech, log } = setup();
+    await d.toggle([]);
+    d.cancel();
+    speech.say('tarde');
+    expect(log).not.toContain('text:tarde');
   });
 });
 

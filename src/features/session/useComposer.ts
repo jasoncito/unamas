@@ -17,24 +17,20 @@ interface Options {
 
 /**
  * The input's extras (M7, design/photo.html): the photo of a machine attached until it's sent (the ×
- * removes it), and dictation that sends itself when they stop talking. `notice` says why the mic or the
+ * removes it), and dictation into the input, to review before sending. `notice` says why the mic or the
  * camera can't work (no permission), until the next try.
  */
 export function useComposer({ send, setText, hints }: Options) {
   const [photo, setPhoto] = useState<string | null>(null);
   const [listening, setListening] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const latest = useRef({ send, setText, photo, hints });
-  latest.current = { send, setText, photo, hints };
+  const latest = useRef({ setText, hints });
+  latest.current = { setText, hints };
 
   const dictation = useRef(
     createDictation(speech, {
       listening: setListening,
       text: (t) => latest.current.setText(t),
-      done: (t) => {
-        latest.current.send(t, latest.current.photo);
-        setPhoto(null);
-      },
       failed: (e) => setNotice(e === 'permission' ? copy.session.micPermission : copy.session.micUnavailable),
     }),
   ).current;
@@ -54,7 +50,7 @@ export function useComposer({ send, setText, hints }: Options) {
       else if (result) setPhoto(result.uri);
     },
     removePhoto: () => setPhoto(null),
-    /** The mic: start dictating, or stop and send. */
+    /** The mic: start dictating, or stop. */
     toggleMic: () => {
       setNotice(null);
       void dictation.toggle(latest.current.hints);
