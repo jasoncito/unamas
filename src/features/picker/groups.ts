@@ -1,18 +1,26 @@
-import type { IsoDate } from '@/domain/types';
+import { isBaseGroup, MUSCLE_GROUPS, SPANISH_TO_KEY } from '../../../shared/muscleGroups';
 
-/** Base muscle groups (CLAUDE.md §8), stored lowercase as in the data. */
-export const BASE_MUSCLE_GROUPS = [
-  'pecho',
-  'espalda',
-  'bíceps',
-  'tríceps',
-  'hombro',
-  'pierna',
-  'glúteo',
-  'pantorrilla',
-  'core',
-  'cardio',
-] as const;
+import { normalizeName } from '@/domain/names';
+import type { IsoDate } from '@/domain/types';
+import { copy } from '@/ui/copy';
+
+/** Base muscle groups (CLAUDE.md §8), as keys; their labels are in copy.muscleGroups. */
+export const BASE_MUSCLE_GROUPS = MUSCLE_GROUPS;
+
+/** What screen 1 and the headers show for a group: its label, or a custom one as it was typed. */
+export function muscleGroupLabel(group: string): string {
+  if (isBaseGroup(group)) return copy.muscleGroups[group];
+  return group.charAt(0).toUpperCase() + group.slice(1);
+}
+
+/** "Otro…": a base group's name ("pecho", "Tríceps") becomes its key; anything else stays as typed, lowercase. */
+export function groupFromTyped(raw: string): string {
+  const typed = normalizeName(raw);
+  if (!typed) return '';
+  for (const key of MUSCLE_GROUPS) if (normalizeName(copy.muscleGroups[key]) === typed || key === typed) return key;
+  const legacy = Object.entries(SPANISH_TO_KEY).find(([name]) => normalizeName(name) === typed);
+  return legacy ? legacy[1] : raw.trim().toLowerCase();
+}
 
 export interface MuscleGroupRow {
   name: string;
@@ -36,5 +44,5 @@ export function orderMuscleGroups(lastDates: ReadonlyMap<string, IsoDate>): Musc
 }
 
 function isBase(g: string): boolean {
-  return (BASE_MUSCLE_GROUPS as readonly string[]).includes(g);
+  return isBaseGroup(g);
 }

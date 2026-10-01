@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 
+import { groupFromTyped } from './groups';
+
 interface PickerState {
   /** Chosen muscle groups, in the order they were tapped: the order of the session. */
   selected: string[];
@@ -17,7 +19,7 @@ export const usePicker = create<PickerState>((set) => ({
     set((s) => ({ selected: s.selected.includes(group) ? s.selected.filter((g) => g !== group) : [...s.selected, group] })),
   addCustom: (raw) =>
     set((s) => {
-      const group = raw.trim().toLowerCase();
+      const group = groupFromTyped(raw);
       if (!group) return s;
       return {
         custom: s.custom.includes(group) ? s.custom : [...s.custom, group],

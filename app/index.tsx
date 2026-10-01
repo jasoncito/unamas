@@ -4,6 +4,7 @@ import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { formatShortDate } from '@/domain/format';
+import { muscleGroupLabel } from '@/features/picker/groups';
 import { usePicker } from '@/features/picker/store';
 import { useMuscleGroups } from '@/features/picker/useMuscleGroups';
 import { pastSessionActions, usePastDoubt } from '@/features/session/pastSessions';
@@ -65,7 +66,7 @@ export default function PickerScreen() {
             const on = order >= 0;
             return (
               <Pressable key={g.name} onPress={() => toggle(g.name)} style={styles.row} accessibilityRole="button" accessibilityState={{ selected: on }}>
-                <Text style={[styles.muscle, on && styles.on]}>{capitalize(g.name)}</Text>
+                <Text style={[styles.muscle, on && styles.on]}>{muscleGroupLabel(g.name)}</Text>
                 <Text style={styles.date}>{g.lastDate ? formatShortDate(g.lastDate) : copy.picker.never}</Text>
                 {on && <Text style={styles.order}>{order + 1}</Text>}
               </Pressable>
@@ -98,15 +99,11 @@ export default function PickerScreen() {
       </ScrollView>
       {selected.length > 0 && (
         <Pressable onPress={start} style={({ pressed }) => [styles.button, pressed && styles.pressed]} accessibilityRole="button">
-          <Text style={styles.buttonText}>{`${copy.picker.start} · ${selected.map(capitalize).join(' + ')}`}</Text>
+          <Text style={styles.buttonText}>{`${copy.picker.start} · ${selected.map(muscleGroupLabel).join(' + ')}`}</Text>
         </Pressable>
       )}
     </SafeAreaView>
   );
-}
-
-function capitalize(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 const styles = StyleSheet.create({

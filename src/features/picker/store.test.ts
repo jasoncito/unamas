@@ -5,18 +5,18 @@ beforeEach(() => usePicker.getState().reset());
 describe('usePicker', () => {
   it('keeps the tap order, which is the session order', () => {
     const { toggle } = usePicker.getState();
-    toggle('tríceps');
-    toggle('hombro');
-    expect(usePicker.getState().selected).toEqual(['tríceps', 'hombro']);
+    toggle('triceps');
+    toggle('shoulders');
+    expect(usePicker.getState().selected).toEqual(['triceps', 'shoulders']);
   });
 
   it('tapping again deselects, and the rest renumber', () => {
     const { toggle } = usePicker.getState();
-    toggle('hombro');
-    toggle('tríceps');
-    toggle('pecho');
-    toggle('hombro');
-    expect(usePicker.getState().selected).toEqual(['tríceps', 'pecho']);
+    toggle('shoulders');
+    toggle('triceps');
+    toggle('chest');
+    toggle('shoulders');
+    expect(usePicker.getState().selected).toEqual(['triceps', 'chest']);
   });
 
   it('"Otro…" adds a custom group, selected, lowercase and trimmed, once', () => {

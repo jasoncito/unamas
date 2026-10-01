@@ -41,11 +41,11 @@ export function dictationOf(spokenName: string, loadKg: number, reps: readonly n
   return `${spokenName}, ${Math.round(loadKg * 1000) / 1000} kg, ${sets}`;
 }
 
-/** ["hombro", "tríceps"] → "Hombro y tríceps"; three or more: "Pecho, espalda y bíceps". */
-export function groupsLabel(groups: readonly string[]): string {
-  if (groups.length === 0) return '';
-  const joined = groups.length === 1 ? groups[0] : `${groups.slice(0, -1).join(', ')} y ${groups.at(-1)}`;
-  return joined.charAt(0).toUpperCase() + joined.slice(1);
+/** Labels ["Hombro", "Tríceps"] → "Hombro y tríceps"; three or more: "Pecho, espalda y bíceps". */
+export function groupsLabel(labels: readonly string[]): string {
+  if (labels.length === 0) return '';
+  const words = labels.map((l, i) => (i === 0 ? l.charAt(0).toUpperCase() + l.slice(1) : l.toLowerCase()));
+  return words.length === 1 ? words[0] : `${words.slice(0, -1).join(', ')} y ${words.at(-1)}`;
 }
 
 function sum(xs: readonly number[]): number {

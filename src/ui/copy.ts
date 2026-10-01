@@ -1,5 +1,18 @@
 // Every piece of UI text, in Spanish (CLAUDE.md §12).
 export const copy = {
+  /** Labels of the base muscle groups (shared/muscleGroups.ts keys). */
+  muscleGroups: {
+    chest: 'Pecho',
+    back: 'Espalda',
+    biceps: 'Bíceps',
+    triceps: 'Tríceps',
+    shoulders: 'Hombro',
+    legs: 'Pierna',
+    glutes: 'Glúteo',
+    calves: 'Pantorrilla',
+    core: 'Core',
+    cardio: 'Cardio',
+  },
   picker: {
     title: '¿Qué toca hoy?',
     subtitle: 'Primero lo que más tiempo lleva sin entrenar. El orden en que tocas es el orden de la sesión.',

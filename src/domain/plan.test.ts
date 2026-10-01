@@ -71,9 +71,10 @@ describe('dictationOf', () => {
 
 describe('groupsLabel', () => {
   it.each([
-    [['hombro'], 'Hombro'],
-    [['hombro', 'tríceps'], 'Hombro y tríceps'],
-    [['pecho', 'espalda', 'bíceps'], 'Pecho, espalda y bíceps'],
+    [['Hombro'], 'Hombro'],
+    [['Hombro', 'Tríceps'], 'Hombro y tríceps'],
+    [['Pecho', 'Espalda', 'Bíceps'], 'Pecho, espalda y bíceps'],
+    [['antebrazo'], 'Antebrazo'],
     [[], ''],
   ])('%j → %s', (groups, label) => {
     expect(groupsLabel(groups)).toBe(label);

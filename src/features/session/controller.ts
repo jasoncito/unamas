@@ -1,5 +1,6 @@
 import type { Db } from '@/data/db';
 import { getAllExercises, type Exercise } from '@/data/repos/exercises';
+import { muscleGroupLabel } from '@/features/picker/groups';
 import { getExerciseHistory, getLastExposures, getPendingEntries, getPlanExerciseIds, getSessionEntries, type LoggedSet } from '@/data/repos/entries';
 import { getOpenSession, getSession } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
@@ -98,7 +99,7 @@ export async function loadSessionScreen(
     canGoBack: !open,
     startedAt: open?.startedAt ?? null,
     groups,
-    groupsLabel: groupsLabel(groups),
+    groupsLabel: groupsLabel(groups.map(muscleGroupLabel)),
     today: logged,
     pending: open ? (await getPendingEntries(db, open.id)).map((p) => ({ entryId: p.id, rawText: p.rawText, createdAt: p.createdAt })) : [],
     plan,
@@ -217,7 +218,7 @@ export async function loadSummary(db: Db, sessionId: string): Promise<SessionSum
   const { rows, tally } = summarize(items);
   return {
     dayLabel: formatDayLabel(localDateOf(session.startedAt ?? endedAt)),
-    groupsLabel: groupsLabel(session.muscleGroups),
+    groupsLabel: groupsLabel(session.muscleGroups.map(muscleGroupLabel)),
     duration: formatDuration(Date.parse(endedAt) - Date.parse(session.startedAt ?? endedAt)),
     rows,
     tally,
@@ -233,6 +234,6 @@ export async function loadDoubtOrigin(db: Db, entryId: string): Promise<{ dayLab
   if (!session) return null;
   return {
     dayLabel: formatDayLabel(localDateOf(session.startedAt ?? session.endedAt ?? new Date().toISOString())),
-    groupsLabel: groupsLabel(session.muscleGroups),
+    groupsLabel: groupsLabel(session.muscleGroups.map(muscleGroupLabel)),
   };
 }
