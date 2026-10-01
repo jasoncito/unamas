@@ -89,12 +89,12 @@ export async function getLastExposures(db: Db): Promise<Map<string, LoggedSet>> 
 /** What they typed or said, saved before asking /parse: the bubble shows up right away. */
 export async function insertPendingEntry(
   db: Db,
-  e: { id: string; sessionId: string; rawText: string; createdAt: string },
+  e: { id: string; sessionId: string; rawText: string; createdAt: string; imageUri?: string | null },
 ): Promise<void> {
   await db.runAsync(
-    `INSERT INTO entry (id, session_id, raw_text, status, created_at, updated_at, dirty)
-     VALUES (?, ?, ?, 'pending', ?, ?, 1)`,
-    [e.id, e.sessionId, e.rawText, e.createdAt, e.createdAt],
+    `INSERT INTO entry (id, session_id, raw_text, status, created_at, updated_at, dirty, image_uri)
+     VALUES (?, ?, ?, 'pending', ?, ?, 1, ?)`,
+    [e.id, e.sessionId, e.rawText, e.createdAt, e.createdAt, e.imageUri ?? null],
   );
 }
 
@@ -105,7 +105,7 @@ export async function resolveEntry(
   e: { exerciseId: string; loadKg: number; reps: number[]; rirNote: string | null; easy: boolean },
 ): Promise<void> {
   await db.runAsync(
-    `UPDATE entry SET exercise_id = ?, load_kg = ?, reps = ?, rir_note = ?, easy = ?, status = 'ok', ambiguity = NULL,
+    `UPDATE entry SET exercise_id = ?, load_kg = ?, reps = ?, rir_note = ?, easy = ?, status = 'ok', ambiguity = NULL, image_uri = NULL,
        updated_at = ?, dirty = 1
      WHERE id = ?`,
     [e.exerciseId, e.loadKg, JSON.stringify(e.reps), e.rirNote, e.easy ? 1 : 0, nowIso(), id],
@@ -115,6 +115,11 @@ export async function resolveEntry(
 /** Back to waiting for /parse (an answer joined the phrase, or a retry): the old question no longer applies. */
 export async function setEntryPending(db: Db, id: string): Promise<void> {
   await db.runAsync("UPDATE entry SET status = 'pending', ambiguity = NULL, updated_at = ? WHERE id = ?", [nowIso(), id]);
+}
+
+/** A photo sent with their answer to a doubt replaces the entry's. */
+export async function setEntryImage(db: Db, id: string, imageUri: string | null): Promise<void> {
+  await db.runAsync('UPDATE entry SET image_uri = ?, updated_at = ? WHERE id = ?', [imageUri, nowIso(), id]);
 }
 
 /** A doubt as /parse asked it, kept with the entry so it can be shown again without the AI. */
@@ -181,6 +186,8 @@ export interface UnresolvedEntry {
   groups: string[];
   /** A doubt's question and options, if they were kept (null for pending entries and older doubts). */
   ambiguity: StoredAmbiguity | null;
+  /** The photo sent with it, if any: it goes again to /parse. */
+  imageUri: string | null;
 }
 
 interface UnresolvedRow {
@@ -189,6 +196,7 @@ interface UnresolvedRow {
   session_id: string;
   muscle_groups: string;
   ambiguity: string | null;
+  image_uri: string | null;
 }
 
 const fromUnresolvedRow = (r: UnresolvedRow): UnresolvedEntry => ({
@@ -197,6 +205,7 @@ const fromUnresolvedRow = (r: UnresolvedRow): UnresolvedEntry => ({
   sessionId: r.session_id,
   groups: JSON.parse(r.muscle_groups),
   ambiguity: r.ambiguity ? JSON.parse(r.ambiguity) : null,
+  imageUri: r.image_uri,
 });
 
 /**
@@ -205,7 +214,7 @@ const fromUnresolvedRow = (r: UnresolvedRow): UnresolvedEntry => ({
  */
 export async function getAllPendingEntries(db: Db, scope: 'open' | 'ended'): Promise<UnresolvedEntry[]> {
   const rows = await db.getAllAsync<UnresolvedRow>(
-    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups, e.ambiguity FROM entry e JOIN session s ON s.id = e.session_id
+    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups, e.ambiguity, e.image_uri FROM entry e JOIN session s ON s.id = e.session_id
      WHERE e.status = 'pending' AND e.deleted_at IS NULL AND s.ended_at IS ${scope === 'open' ? '' : 'NOT '}NULL
      ORDER BY e.created_at, e.id`,
     [],
@@ -216,7 +225,7 @@ export async function getAllPendingEntries(db: Db, scope: 'open' | 'ended'): Pro
 /** The oldest doubt left in a session already stopped, except `skip` ("Ahora no"): asked on screen 1 (decided with Jason). */
 export async function getEndedSessionDoubt(db: Db, skip: readonly string[] = []): Promise<UnresolvedEntry | null> {
   const row = await db.getFirstAsync<UnresolvedRow>(
-    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups, e.ambiguity FROM entry e JOIN session s ON s.id = e.session_id
+    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups, e.ambiguity, e.image_uri FROM entry e JOIN session s ON s.id = e.session_id
      WHERE e.status = 'ambiguous' AND e.deleted_at IS NULL AND s.ended_at IS NOT NULL AND s.deleted_at IS NULL
        AND e.id NOT IN (SELECT value FROM json_each(?))
      ORDER BY e.created_at, e.id LIMIT 1`,
@@ -228,10 +237,19 @@ export async function getEndedSessionDoubt(db: Db, skip: readonly string[] = [])
 /** The session's latest entry waiting for an answer to "which one?" or "how much?", if any. */
 export async function getDoubtEntry(db: Db, sessionId: string): Promise<UnresolvedEntry | null> {
   const row = await db.getFirstAsync<UnresolvedRow>(
-    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups, e.ambiguity FROM entry e JOIN session s ON s.id = e.session_id
+    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups, e.ambiguity, e.image_uri FROM entry e JOIN session s ON s.id = e.session_id
      WHERE e.session_id = ? AND e.status = 'ambiguous' AND e.deleted_at IS NULL
      ORDER BY e.created_at DESC LIMIT 1`,
     [sessionId],
   );
   return row ? fromUnresolvedRow(row) : null;
+}
+
+/** Photos still needed: those of entries not understood yet. Any other photo file can go. */
+export async function getPhotosInUse(db: Db): Promise<Set<string>> {
+  const rows = await db.getAllAsync<{ image_uri: string }>(
+    "SELECT image_uri FROM entry WHERE image_uri IS NOT NULL AND status <> 'ok' AND deleted_at IS NULL",
+    [],
+  );
+  return new Set(rows.map((r) => r.image_uri));
 }

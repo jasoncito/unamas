@@ -43,7 +43,7 @@ const row = (id = E) =>
 describe('entry lifecycle (screen 4)', () => {
   it('a pending entry has the text and nothing else yet, and is waiting to be retried', async () => {
     expect(await row()).toMatchObject({ status: 'pending', exercise_id: null, load_kg: null, raw_text: 'press de hombro 24 4 de 9, fácil' });
-    expect(await getAllPendingEntries(db, 'open')).toEqual([{ id: E, rawText: 'press de hombro 24 4 de 9, fácil', sessionId: S, groups: ['hombro'], ambiguity: null }]);
+    expect(await getAllPendingEntries(db, 'open')).toEqual([{ id: E, rawText: 'press de hombro 24 4 de 9, fácil', sessionId: S, groups: ['hombro'], ambiguity: null, imageUri: null }]);
     expect(await getDoubtEntry(db, S)).toBeNull();
   });
 
