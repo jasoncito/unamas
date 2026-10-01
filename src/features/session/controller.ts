@@ -5,6 +5,7 @@ import { getOpenSession, getSession } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
 import { deltaOf, type Delta } from '@/domain/delta';
 import { nextTarget } from '@/domain/engine';
+import { bestOfEachSession } from '@/domain/history';
 import { formatDayLabel, formatDuration } from '@/domain/format';
 import { searchExercises } from '@/domain/match';
 import { dictationOf, groupsLabel, planRow, type PlanRow } from '@/domain/plan';
@@ -81,7 +82,8 @@ export async function loadSessionScreen(
   for (const id of await getPlanExerciseIds(db, groups, open?.id ?? null)) {
     const ex = byId.get(id);
     if (!ex || done.has(id)) continue;
-    const history = (await getExerciseHistory(db, id)).map((h) => ({
+    // One exposure per session, its best entry (PROGRESSION.md §4).
+    const history = bestOfEachSession(await getExerciseHistory(db, id)).map((h) => ({
       date: localDateOf(h.createdAt),
       loadKg: h.loadKg,
       reps: h.reps,
@@ -179,8 +181,8 @@ export interface SessionSummary {
 }
 
 /**
- * Screen 7: every exercise of the session (once, in the order first logged, with its last entry of the
- * session) against its last entry before this session, wherever it was (PROGRESSION.md §5).
+ * Screen 7: every exercise of the session (once, in the order first logged, with its best entry of the
+ * session) against its best entry of the session before, wherever it was (PROGRESSION.md §4–5).
  */
 export async function loadSummary(db: Db, sessionId: string): Promise<SessionSummary | null> {
   const session = await getSession(db, sessionId);
@@ -189,15 +191,17 @@ export async function loadSummary(db: Db, sessionId: string): Promise<SessionSum
   const today = localDateOf(endedAt);
   const byId = new Map((await getAllExercises(db)).map((e) => [e.id, e]));
 
-  const lastOfSession = new Map<string, LoggedSet>();
-  for (const e of await getSessionEntries(db, sessionId)) lastOfSession.set(e.exerciseId, e); // insertion order = first logged
+  // Each exercise once, in the order first logged.
+  const exerciseIds = [...new Set((await getSessionEntries(db, sessionId)).map((e) => e.exerciseId))];
 
   const items: SummaryItem[] = [];
-  for (const [exerciseId, last] of lastOfSession) {
+  for (const exerciseId of exerciseIds) {
     const ex = byId.get(exerciseId);
     if (!ex) continue;
-    const history = await getExerciseHistory(db, exerciseId);
-    const previous = history.filter((h) => h.sessionId !== sessionId).at(-1);
+    // One exposure per session, its best entry: today's and the one it's compared with (PROGRESSION.md §4–5).
+    const history = bestOfEachSession(await getExerciseHistory(db, exerciseId));
+    const best = history.find((h) => h.sessionId === sessionId)!;
+    const previous = history.filter((h) => h.sessionId !== sessionId && h.createdAt < best.createdAt).at(-1);
     const exposure = (h: LoggedSet): Exposure => ({ date: localDateOf(h.createdAt), loadKg: h.loadKg, reps: h.reps, easy: h.easy });
     items.push({
       exerciseId,
@@ -205,7 +209,7 @@ export async function loadSummary(db: Db, sessionId: string): Promise<SessionSum
       loadBasis: ex.loadBasis,
       config: ex,
       previous: previous ? exposure(previous) : null,
-      today: exposure(last),
+      today: exposure(best),
       target: nextTarget(history.map(exposure), ex, today),
     });
   }

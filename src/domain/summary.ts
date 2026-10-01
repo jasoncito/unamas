@@ -8,9 +8,9 @@ export interface SummaryItem {
   name: string;
   loadBasis: LoadBasis;
   config: ExerciseConfig;
-  /** Its last entry before this session, wherever it was (PROGRESSION.md §5). Null the first time. */
+  /** Its best entry of the session before, wherever it was (PROGRESSION.md §4–5). Null the first time. */
   previous: Exposure | null;
-  /** Its last entry of this session. */
+  /** Its best entry of this session. */
   today: Exposure;
   /** What the engine says for next time, from the whole history including today. */
   target: Target | null;

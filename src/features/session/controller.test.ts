@@ -114,6 +114,21 @@ describe('suggestionsFor (screen 3)', () => {
   });
 });
 
+describe('the engine sees one exposure per session, its best (PROGRESSION.md §4)', () => {
+  it('a lighter second try on 27 sep does not lower today’s target', async () => {
+    await db.runAsync(
+      `INSERT INTO entry (id, session_id, exercise_id, load_kg, reps, raw_text, status, created_at, updated_at, dirty)
+       SELECT 'f0000000-0000-4000-8000-0000000008a0', e.session_id, e.exercise_id, 16, '[12,12,12,12]', 'x', 'ok',
+              strftime('%Y-%m-%dT%H:%M:%fZ', e.created_at, '+20 minutes'), e.updated_at, 1
+       FROM entry e JOIN exercise x ON x.id = e.exercise_id
+       WHERE x.canonical_name = 'Press de hombro con mancuernas' ORDER BY e.created_at DESC LIMIT 1`,
+      [],
+    );
+    const s = await screenFor(['hombro', 'tríceps']);
+    expect(lines(s)[0]).toEqual(['Press de hombro con mancuernas', 24, '4×9', 'SERIES↑']);
+  });
+});
+
 describe('"Hoy" (screen 4)', () => {
   const log = async (sessionId: string, exerciseName: string, loadKg: number, reps: number[], at: string) => {
     const ex = await db.getFirstAsync<{ id: string }>('SELECT id FROM exercise WHERE canonical_name = ?', [exerciseName]);
@@ -205,19 +220,42 @@ describe('loadSummary (screen 7)', () => {
     await log('Press de hombro con mancuernas', 24, [9, 9, 9, 9], t(18, 0));
     await log('Laterales en polea', 7.5, [11, 11, 11, 9], t(18, 15));
     await log('Press de hombro en máquina', 20, [12, 12, 12, 12], t(18, 30));
-    await log('Press de hombro con mancuernas', 24, [10, 9, 9, 9], t(18, 40)); // again: the last one counts
+    await log('Press de hombro con mancuernas', 20, [12, 12, 12, 12], t(18, 40)); // again, lighter: the best one counts
     await log('Press de hombro con mancuernas', null, null, t(18, 50), 'pending');
     await endSession(db, S, t(18, 58));
 
     const s = (await loadSummary(db, S))!;
     expect([s.dayLabel, s.groupsLabel, s.duration, s.pending]).toEqual(['Lunes 28', 'Hombro', '58 min', 1]);
     expect(s.rows.map((r) => [r.name, r.previous?.date, formatSets(r.today.reps), r.verdict])).toEqual([
-      ['Press de hombro con mancuernas', '2026-09-27', '1×10 · 3×9', 'up'],
+      ['Press de hombro con mancuernas', '2026-09-27', '4×9', 'up'],
       ['Laterales en polea', '2026-09-27', '3×11 · 1×9', 'up'],
       ['Press de hombro en máquina', '2026-09-17', '4×12', 'same'],
     ]);
     expect(s.tally).toEqual({ up: 2, same: 1, down: 0, new: 0 });
     expect(s.nextTime).toMatchObject({ name: 'Press de hombro en máquina', target: { reason: 'add_load', loadKg: 22.5 } });
+  });
+
+  it('compared with the best entry of the session before, not its last one', async () => {
+    const t = (d: number, h: number) => new Date(2026, 8, d, h, 0).toISOString();
+    const S0 = 'f0000000-0000-4000-8000-0000000000a0';
+    await createSession(db, S0, ['hombro'], t(28, 18));
+    await db.runAsync(
+      `INSERT INTO entry (id, session_id, exercise_id, load_kg, reps, raw_text, status, created_at, updated_at, dirty)
+       SELECT 'f0000000-0000-4000-8000-0000000009a0', ?, id, 16, '[15,15,15,15]', 'x', 'ok', ?, ?, 1 FROM exercise WHERE canonical_name = 'Press de hombro con mancuernas'`,
+      [S0, t(28, 19), t(28, 19)],
+    ); // warm-up after the 24 × 4×9… lighter: not the best of 28 sep
+    await db.runAsync(
+      `INSERT INTO entry (id, session_id, exercise_id, load_kg, reps, raw_text, status, created_at, updated_at, dirty)
+       SELECT 'f0000000-0000-4000-8000-0000000009a1', ?, id, 24, '[9,9,9,9]', 'x', 'ok', ?, ?, 1 FROM exercise WHERE canonical_name = 'Press de hombro con mancuernas'`,
+      [S0, t(28, 18), t(28, 18)],
+    );
+    await endSession(db, S0, t(28, 20));
+    await createSession(db, S, ['hombro'], t(30, 18));
+    await log('Press de hombro con mancuernas', 24, [10, 10, 10, 10], t(30, 18));
+    await endSession(db, S, t(30, 19));
+
+    const [row] = (await loadSummary(db, S))!.rows;
+    expect([row.previous, row.verdict]).toEqual([{ date: '2026-09-28', loadKg: 24, reps: [9, 9, 9, 9], easy: false }, 'up']);
   });
 
   it('unknown session: null', async () => {

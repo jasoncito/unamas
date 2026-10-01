@@ -86,6 +86,8 @@ La lógica es que bajar repeticiones "paga" el salto de peso. **[heurística]**,
 Entrada: historial de ese ejercicio (fecha, peso, reps de cada serie), tipo, paso y fecha de hoy.
 Salida: `{peso, reps[], motivo}`.
 
+**Una exposición por sesión.** Si el ejercicio se anotó más de una vez en la misma sesión, cuenta **la mejor entrada**: la de más peso; a igual peso, la de más reps totales; si empatan, la última. Las otras no entran al historial del motor. Así una serie de calentamiento, o un segundo intento más liviano, no baja la meta ni dispara "falló una subida". **[heurística]** (decidido con Jason, 1 oct 2026)
+
 Las reglas se evalúan **en este orden** y se aplica la primera que coincide:
 
 ```
@@ -116,6 +118,8 @@ Notas:
 ## 5. Comparación para el resumen ("subió / igual / bajó")
 
 Cada ejercicio se compara con **su propio último registro**, sin importar en qué sesión fue.
+
+"Hoy" y "antes" son **la mejor entrada de cada sesión**, con la misma regla del §4 (más peso; a igual peso, más reps totales). **[heurística]** La línea "Anotado · … vs. el 27" de la pantalla 4 sí compara entrada por entrada, porque describe lo que se acaba de hacer.
 
 ```
 si peso_hoy > peso_antes Y min(reps_hoy) ≥ piso → subió
