@@ -63,6 +63,10 @@
     "testPathIgnorePatterns": [
       "/node_modules/",
       "<rootDir>/worker/"
+    ],
+    "resolver": "react-native-worklets/jest/resolver",
+    "setupFilesAfterEnv": [
+      "<rootDir>/jest.setup-after-env.ts"
     ]
   }
 }
