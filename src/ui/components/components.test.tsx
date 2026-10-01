@@ -5,6 +5,9 @@ import type { Exercise } from '@/data/repos/exercises';
 import type { PlanLine, Suggestion } from '@/features/session/controller';
 
 import { color } from '../tokens';
+import { AmbiguityPanel } from './AmbiguityPanel';
+import { Bubble } from './Bubble';
+import { TodayList } from './TodayList';
 import { GroupsTitle } from './GroupsTitle';
 import { InputBar } from './InputBar';
 import { PlanTable } from './PlanTable';
@@ -93,5 +96,55 @@ describe('GroupsTitle', () => {
     expect(screen.getByText('Hombro y tríceps')).toBeTruthy();
     expect(screen.queryByText('‹', { exact: false })).toBeNull();
     expect(screen.queryByRole('button')).toBeNull();
+  });
+});
+
+describe('TodayList (screen 4)', () => {
+  it('today’s set with its delta and what it is compared with', async () => {
+    await render(
+      <TodayList
+        lines={[
+          { entryId: 'a', exerciseId: 'p', name: 'Press de hombro', loadBasis: 'per_dumbbell', loadKg: 24, reps: [9, 9, 9, 9], comparedTo: '2026-09-27', delta: { kind: 'reps_per_set', diff: 1, tone: 'up' } },
+          { entryId: 'b', exerciseId: 'm', name: 'Press en máquina', loadBasis: 'per_side', loadKg: 20, reps: [12, 12, 12, 12], comparedTo: null, delta: { kind: 'new' } },
+        ]}
+      />,
+    );
+    expect(screen.getByText('Hoy')).toBeTruthy();
+    expect(screen.getByText('vs. 27 sep')).toBeTruthy();
+    expect(screen.getByText('primera vez')).toBeTruthy();
+    expect(screen.getByText(/24 kg · 4×9/)).toBeTruthy();
+    expect(screen.getByText(/20 kg\/lado · 4×12/)).toBeTruthy();
+    expect(screen.getByText(/\+1$/)).toHaveStyle({ color: color.green });
+    expect(screen.getByText(/nuevo$/)).toHaveStyle({ color: color.muted });
+  });
+});
+
+describe('Bubble (screen 4)', () => {
+  it('pending: dimmed and without a line; then "Anotado" in green only if it went up', async () => {
+    await render(<Bubble text="press 24 4 de 9" pending feedback={null} />);
+    expect(screen.queryByText(/Anotado/)).toBeNull();
+    await screen.rerender(<Bubble text="press 24 4 de 9" pending={false} feedback={{ text: 'Anotado · +1 rep por serie vs. el 27', tone: 'up' }} />);
+    expect(screen.getByText('Anotado · +1 rep por serie vs. el 27')).toHaveStyle({ color: color.green });
+    await screen.rerender(<Bubble text="press 24 4 de 9" pending={false} feedback={{ text: 'Anotado · igual que el 27', tone: 'muted' }} />);
+    expect(screen.getByText('Anotado · igual que el 27')).toHaveStyle({ color: color.muted });
+  });
+});
+
+describe('AmbiguityPanel (screen 5)', () => {
+  it('their phrase, the question and an option per exercise with its last load', async () => {
+    const onChoose = jest.fn();
+    await render(
+      <AmbiguityPanel
+        said="laterales con 10, 4 de 11"
+        question="¿Cuáles laterales?"
+        options={[{ exerciseId: 'polea', label: 'En polea', lastLoadKg: 7.5 }, { exerciseId: 'otra', label: 'Otras', lastLoadKg: null }]}
+        onChoose={onChoose}
+      />,
+    );
+    expect(screen.getByText('“laterales con 10, 4 de 11”')).toBeTruthy();
+    expect(screen.getByText('última 7.5 kg')).toBeTruthy();
+    expect(screen.getByText('sin registro')).toBeTruthy();
+    await fireEvent.press(screen.getByText('En polea'));
+    expect(onChoose).toHaveBeenCalledWith('polea');
   });
 });

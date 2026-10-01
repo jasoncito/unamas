@@ -20,5 +20,18 @@ export const copy = {
     noLast: 'Sin registro',
     mic: 'Dictar',
     send: 'Enviar',
+    nextTitle: '¿Qué sigue?',
+    nextPlaceholder: 'Escribe o dicta el siguiente',
+    today: 'Hoy',
+    vs: 'vs.',
+    firstTime: 'primera vez',
+    // Screen 5
+    otherPlaceholder: 'U otra cosa, dímelo',
+    lastLoad: 'última',
+    noLastLoad: 'sin registro',
+    // Replies that aren't an entry
+    unclear: 'No te entendí. Dime el ejercicio, el peso y las series.',
+    offline: 'Sin señal: lo guardé y lo anoto cuando vuelva.',
+    stopTip: 'Para terminar, mantén presionado el ■.',
   },
 } as const;

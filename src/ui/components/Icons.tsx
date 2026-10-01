@@ -21,3 +21,12 @@ export function SendIcon({ color, size = 18 }: { color: string; size?: number })
     </Svg>
   );
 }
+
+/** The check inside a green circle: "Anotado" and the "Hoy" rows. */
+export function CheckIcon({ color, size = 11 }: { color: string; size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={3.6} strokeLinecap="round" strokeLinejoin="round">
+      <Polyline points="20 6 9 17 4 12" />
+    </Svg>
+  );
+}
