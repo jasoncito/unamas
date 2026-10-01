@@ -14,7 +14,7 @@ const remote = (over: Partial<RemoteExercise>): RemoteExercise => ({
   id: SERVER_PRESS,
   canonical_name: 'Press de hombro con mancuernas',
   aliases: ['press militar'],
-  muscle_groups: ['hombro'],
+  muscle_groups: ['shoulders'],
   kind: 'compound',
   rep_floor: 8,
   rep_top: 12,
@@ -90,7 +90,7 @@ describe('mergeRemoteExercises', () => {
     await db.runAsync(
       `INSERT INTO exercise (id, canonical_name, aliases, muscle_groups, kind, rep_floor, rep_top, step_kg, load_basis,
          created_at, updated_at)
-       VALUES (?, 'Press de Hombro con Mancuernas', '["press mancuernas"]', '["hombro"]', 'compound', 8, 12, 2,
+       VALUES (?, 'Press de Hombro con Mancuernas', '["press mancuernas"]', '["shoulders"]', 'compound', 8, 12, 2,
          'per_dumbbell', '2026-09-28T18:00:00.000Z', '2026-09-28T18:00:00.000Z')`,
       [dup],
     );

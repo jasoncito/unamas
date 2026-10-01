@@ -20,7 +20,7 @@ beforeEach(async () => {
 
 describe('getPlanExerciseIds', () => {
   it('hombro + tríceps: the 27 sep session, in logged order (design/meta.html)', async () => {
-    expect((await getPlanExerciseIds(db, ['hombro', 'tríceps'])).map(seedIdOf)).toEqual([
+    expect((await getPlanExerciseIds(db, ['shoulders', 'triceps'])).map(seedIdOf)).toEqual([
       'press_hombro_mancuernas',
       'laterales_polea',
       'laterales_pecho_rodillas',
@@ -30,16 +30,16 @@ describe('getPlanExerciseIds', () => {
   });
 
   it('only exercises of the chosen groups: pecho on 17 sep leaves out that day’s biceps and back', async () => {
-    expect((await getPlanExerciseIds(db, ['pecho'])).map(seedIdOf)).toEqual(['press_banca_barra', 'press_pecho_maquina']);
+    expect((await getPlanExerciseIds(db, ['chest'])).map(seedIdOf)).toEqual(['press_banca_barra', 'press_pecho_maquina']);
   });
 
   it('each group brings its own last session, in the order chosen, without repeats', async () => {
-    expect((await getPlanExerciseIds(db, ['pierna', 'glúteo'])).map(seedIdOf)).toEqual([
+    expect((await getPlanExerciseIds(db, ['legs', 'glutes'])).map(seedIdOf)).toEqual([
       'sentadilla_smith',
       'zancadas_barra',
       'leg_extension',
     ]);
-    const mixed = (await getPlanExerciseIds(db, ['pantorrilla', 'bíceps'])).map(seedIdOf);
+    const mixed = (await getPlanExerciseIds(db, ['calves', 'biceps'])).map(seedIdOf);
     expect(mixed[0]).toBe('pantorrilla_pie_mancuerna'); // 24 sep
     expect(mixed.slice(1)).toEqual(['curl_barra_z', 'curl_inclinado_mancuernas', 'curl_martillo_polea', 'preacher_curl_z']); // 17 sep
   });
@@ -52,7 +52,7 @@ describe('getPlanExerciseIds', () => {
     for (const e of ['s5e1', 's5e2', 's5e3', 's5e4', 's5e5']) {
       await db.runAsync("UPDATE entry SET deleted_at = '2026-09-30T00:00:00Z' WHERE id = ?", [ids.get(e)!]);
     }
-    const list = (await getPlanExerciseIds(db, ['tríceps'])).map(seedIdOf);
+    const list = (await getPlanExerciseIds(db, ['triceps'])).map(seedIdOf);
     expect(list).toEqual(['triceps_polea_tras_cabeza', 'pushdown_barra_v']); // 16 sep
   });
 });
@@ -86,8 +86,8 @@ describe('getLastExposures', () => {
 
 describe('createSession', () => {
   it('opens a session with the groups in order and its first entry time, dirty to sync', async () => {
-    await createSession(db, 'f0000000-0000-4000-8000-000000000009', ['hombro', 'tríceps'], '2026-09-29T18:00:00.000Z');
-    expect(await getOpenSession(db)).toMatchObject({ id: 'f0000000-0000-4000-8000-000000000009', muscleGroups: ['hombro', 'tríceps'], startedAt: '2026-09-29T18:00:00.000Z' });
+    await createSession(db, 'f0000000-0000-4000-8000-000000000009', ['shoulders', 'triceps'], '2026-09-29T18:00:00.000Z');
+    expect(await getOpenSession(db)).toMatchObject({ id: 'f0000000-0000-4000-8000-000000000009', muscleGroups: ['shoulders', 'triceps'], startedAt: '2026-09-29T18:00:00.000Z' });
     const row = await db.getFirstAsync<{ dirty: number }>('SELECT dirty FROM session WHERE id = ?', ['f0000000-0000-4000-8000-000000000009']);
     expect(row!.dirty).toBe(1);
   });

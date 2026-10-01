@@ -8,7 +8,7 @@
         "curl barra z"
       ],
       "muscle_groups": [
-        "bíceps"
+        "biceps"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -23,7 +23,7 @@
         "curl mancuernas banco inclinado"
       ],
       "muscle_groups": [
-        "bíceps"
+        "biceps"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -38,7 +38,7 @@
         "curl martillo"
       ],
       "muscle_groups": [
-        "bíceps"
+        "biceps"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -53,7 +53,7 @@
         "curl concentrado sentado"
       ],
       "muscle_groups": [
-        "bíceps"
+        "biceps"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -69,7 +69,7 @@
         "banco scott"
       ],
       "muscle_groups": [
-        "bíceps"
+        "biceps"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -86,7 +86,7 @@
         "Remo bajo en máquina (low row)"
       ],
       "muscle_groups": [
-        "espalda"
+        "back"
       ],
       "kind": "compound",
       "rep_floor": 8,
@@ -102,7 +102,7 @@
         "lat pulldown"
       ],
       "muscle_groups": [
-        "espalda"
+        "back"
       ],
       "kind": "compound",
       "rep_floor": 8,
@@ -118,7 +118,7 @@
         "lumbar technogym"
       ],
       "muscle_groups": [
-        "espalda"
+        "back"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -135,7 +135,7 @@
         "press militar mancuernas"
       ],
       "muscle_groups": [
-        "hombro"
+        "shoulders"
       ],
       "kind": "compound",
       "rep_floor": 8,
@@ -151,7 +151,7 @@
         "press militar máquina"
       ],
       "muscle_groups": [
-        "hombro"
+        "shoulders"
       ],
       "kind": "compound",
       "rep_floor": 8,
@@ -168,7 +168,7 @@
         "Elevaciones laterales de pie con mancuernas"
       ],
       "muscle_groups": [
-        "hombro"
+        "shoulders"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -184,7 +184,7 @@
         "Elevaciones laterales en polea"
       ],
       "muscle_groups": [
-        "hombro"
+        "shoulders"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -202,7 +202,7 @@
         "Elevaciones laterales con pecho en rodillas"
       ],
       "muscle_groups": [
-        "hombro"
+        "shoulders"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -218,7 +218,7 @@
         "jalones polea deltoide posterior"
       ],
       "muscle_groups": [
-        "hombro"
+        "shoulders"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -234,7 +234,7 @@
         "Elevaciones frontales con mancuernas"
       ],
       "muscle_groups": [
-        "hombro"
+        "shoulders"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -251,7 +251,7 @@
         "Extensión de tríceps en polea por detrás de la cabeza"
       ],
       "muscle_groups": [
-        "tríceps"
+        "triceps"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -269,7 +269,7 @@
         "Tríceps en polea con barra V (pushdown)"
       ],
       "muscle_groups": [
-        "tríceps"
+        "triceps"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -286,7 +286,7 @@
         "Extensión de tríceps sobre la cabeza con mancuerna"
       ],
       "muscle_groups": [
-        "tríceps"
+        "triceps"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -303,7 +303,7 @@
         "Press de banca plano con barra"
       ],
       "muscle_groups": [
-        "pecho"
+        "chest"
       ],
       "kind": "compound_heavy",
       "rep_floor": 6,
@@ -318,7 +318,7 @@
         "press pecho technogym"
       ],
       "muscle_groups": [
-        "pecho"
+        "chest"
       ],
       "kind": "compound",
       "rep_floor": 8,
@@ -334,8 +334,8 @@
         "squat smith"
       ],
       "muscle_groups": [
-        "pierna",
-        "glúteo"
+        "legs",
+        "glutes"
       ],
       "kind": "compound_heavy",
       "rep_floor": 6,
@@ -351,8 +351,8 @@
         "zancadas en el sitio"
       ],
       "muscle_groups": [
-        "pierna",
-        "glúteo"
+        "legs",
+        "glutes"
       ],
       "kind": "compound",
       "rep_floor": 8,
@@ -368,7 +368,7 @@
         "Extensión de pierna en máquina"
       ],
       "muscle_groups": [
-        "pierna"
+        "legs"
       ],
       "kind": "isolation",
       "rep_floor": 10,
@@ -384,7 +384,7 @@
         "Elevación de pantorrilla de pie con mancuerna"
       ],
       "muscle_groups": [
-        "pantorrilla"
+        "calves"
       ],
       "kind": "calf",
       "rep_floor": 12,
@@ -398,8 +398,8 @@
       "id": "s1",
       "date": "2026-09-15",
       "muscle_groups": [
-        "bíceps",
-        "espalda"
+        "biceps",
+        "back"
       ],
       "duration_min": 61,
       "avg_bpm": 118
@@ -408,8 +408,8 @@
       "id": "s2",
       "date": "2026-09-16",
       "muscle_groups": [
-        "hombro",
-        "tríceps"
+        "shoulders",
+        "triceps"
       ],
       "duration_min": 62,
       "avg_bpm": 116
@@ -418,10 +418,10 @@
       "id": "s3",
       "date": "2026-09-17",
       "muscle_groups": [
-        "pecho",
-        "hombro",
-        "bíceps",
-        "espalda"
+        "chest",
+        "shoulders",
+        "biceps",
+        "back"
       ],
       "duration_min": null,
       "avg_bpm": null
@@ -430,8 +430,8 @@
       "id": "s4",
       "date": "2026-09-24",
       "muscle_groups": [
-        "pierna",
-        "pantorrilla"
+        "legs",
+        "calves"
       ],
       "duration_min": null,
       "avg_bpm": null
@@ -440,8 +440,8 @@
       "id": "s5",
       "date": "2026-09-27",
       "muscle_groups": [
-        "hombro",
-        "tríceps"
+        "shoulders",
+        "triceps"
       ],
       "duration_min": null,
       "avg_bpm": null

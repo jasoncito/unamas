@@ -28,7 +28,7 @@ function fakeDeps(db: Db, opts: { deleteFails?: number; appleFails?: boolean; re
       id: SERVER_PRESS,
       canonical_name: 'Press de hombro con mancuernas',
       aliases: [],
-      muscle_groups: ['hombro'],
+      muscle_groups: ['shoulders'],
       kind: 'compound',
       rep_floor: 8,
       rep_top: 12,

@@ -31,7 +31,7 @@ const remoMenton = (id: string): Exercise => ({
   id,
   canonicalName: 'Remo al mentón',
   aliases: ['remo al menton'],
-  muscleGroups: ['hombro'],
+  muscleGroups: ['shoulders'],
   kind: 'compound',
   repFloor: 8,
   repTop: 12,
@@ -165,7 +165,7 @@ describe('seed', () => {
 
   it('maps JSON columns back to arrays', async () => {
     const ex = await getExercise(db, ids.get('sentadilla_smith')!);
-    expect(ex).toMatchObject({ muscleGroups: ['pierna', 'glúteo'], kind: 'compound_heavy', stepKg: 2.5 });
+    expect(ex).toMatchObject({ muscleGroups: ['legs', 'glutes'], kind: 'compound_heavy', stepKg: 2.5 });
     expect(ex!.aliases).toContain('sentadilla smith');
   });
 });
@@ -175,8 +175,8 @@ describe('seed timestamps', () => {
   const mini: Seed = {
     exercises: [{ ...seed.exercises[0], id: 'a' }],
     sessions: [
-      { id: 'late', date: '2026-09-20', muscle_groups: ['bíceps'], duration_min: 30, avg_bpm: null },
-      { id: 'early', date: '2026-09-10', muscle_groups: ['bíceps'], duration_min: null, avg_bpm: null },
+      { id: 'late', date: '2026-09-20', muscle_groups: ['biceps'], duration_min: 30, avg_bpm: null },
+      { id: 'early', date: '2026-09-10', muscle_groups: ['biceps'], duration_min: null, avg_bpm: null },
     ],
     entries: [
       { id: 'l1', session_id: 'late', exercise_id: 'a', load_kg: 12, reps: [10], raw_text: 'x' },
@@ -234,7 +234,7 @@ describe('soft delete', () => {
     await softDelete('session', ids.get('s5')!);
     for (const e of ['s5e1', 's5e2', 's5e3', 's5e4', 's5e5']) await softDelete('entry', ids.get(e)!);
     const last = await getLastTrainedByGroup(db);
-    expect(localDateOf(last.get('hombro')!)).toBe('2026-09-17');
+    expect(localDateOf(last.get('shoulders')!)).toBe('2026-09-17');
     await db.runAsync('UPDATE session SET ended_at = NULL WHERE id = ?', [ids.get('s5')!]);
     expect(await getOpenSession(db)).toBeNull();
   });
@@ -242,9 +242,9 @@ describe('soft delete', () => {
   it("a deleted exercise's entries no longer date its groups", async () => {
     // Only sentadilla and zancadas train glúteo; deleting both leaves glúteo with no date.
     await softDelete('exercise', ids.get('sentadilla_smith')!);
-    expect((await getLastTrainedByGroup(db)).has('glúteo')).toBe(true);
+    expect((await getLastTrainedByGroup(db)).has('glutes')).toBe(true);
     await softDelete('exercise', ids.get('zancadas_barra')!);
-    expect((await getLastTrainedByGroup(db)).has('glúteo')).toBe(false);
+    expect((await getLastTrainedByGroup(db)).has('glutes')).toBe(false);
   });
 });
 
@@ -270,14 +270,14 @@ describe('queries on the seed', () => {
   it('screen 1 lists the groups with their real dates, oldest first', async () => {
     const groups = await loadMuscleGroups(db);
     expect(groups).toEqual([
-      { name: 'pecho', lastDate: '2026-09-17' },
-      { name: 'espalda', lastDate: '2026-09-17' },
-      { name: 'bíceps', lastDate: '2026-09-17' },
-      { name: 'pierna', lastDate: '2026-09-24' },
-      { name: 'glúteo', lastDate: '2026-09-24' }, // from sentadilla's muscle groups
-      { name: 'pantorrilla', lastDate: '2026-09-24' },
-      { name: 'tríceps', lastDate: '2026-09-27' },
-      { name: 'hombro', lastDate: '2026-09-27' },
+      { name: 'chest', lastDate: '2026-09-17' },
+      { name: 'back', lastDate: '2026-09-17' },
+      { name: 'biceps', lastDate: '2026-09-17' },
+      { name: 'legs', lastDate: '2026-09-24' },
+      { name: 'glutes', lastDate: '2026-09-24' }, // from sentadilla's muscle groups
+      { name: 'calves', lastDate: '2026-09-24' },
+      { name: 'triceps', lastDate: '2026-09-27' },
+      { name: 'shoulders', lastDate: '2026-09-27' },
       { name: 'core', lastDate: null },
       { name: 'cardio', lastDate: null },
     ]);

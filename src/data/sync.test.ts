@@ -317,7 +317,7 @@ describe('the cursor never loses rows', () => {
       if (table !== 'entry') return;
       server.onPull = null;
       await server.store().upsert('session', [
-        { id: 'f0000000-0000-4000-8000-000000000002', muscle_groups: ['hombro'], started_at: '2026-09-30T18:00:00.000Z',
+        { id: 'f0000000-0000-4000-8000-000000000002', muscle_groups: ['shoulders'], started_at: '2026-09-30T18:00:00.000Z',
           ended_at: null, avg_bpm: null, updated_at: '2026-09-30T18:00:00.000Z', deleted_at: null },
       ]);
       await server.store().upsert('entry', [

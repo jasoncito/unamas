@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { UNCLEAR, type ParseRequest } from '../../shared/contract';
 import { createApp, type AppDeps } from '../src/app';
 
-const REQ: ParseRequest = { text: 'press de hombro 24 4 de 9', image: null, context: { muscle_groups: ['hombro'], exercises: [] } };
+const REQ: ParseRequest = { text: 'press de hombro 24 4 de 9', image: null, context: { muscle_groups: ['shoulders'], exercises: [] } };
 
 function app(over: Partial<AppDeps> = {}) {
 	const calls: string[] = [];

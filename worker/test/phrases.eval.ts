@@ -55,7 +55,7 @@ function contextOn(date: string, muscleGroups: string[]): ParseRequest['context'
 	return { muscle_groups: muscleGroups, exercises };
 }
 
-const parse = (text: string, date = '2026-09-28', groups = ['hombro']) =>
+const parse = (text: string, date = '2026-09-28', groups = ['shoulders']) =>
 	parseWithClaude(client, { text, image: null, context: contextOn(date, groups) });
 
 /**
@@ -110,7 +110,7 @@ describe('beyond the seed', () => {
 		expect(res.intent, `raw: ${lastRaw}`).toBe('log');
 		const [e] = res.entries;
 		expect(e.exercise_id).toBeNull();
-		expect(e.new_exercise?.muscle_groups).toContain('hombro');
+		expect(e.new_exercise?.muscle_groups).toContain('shoulders');
 		expect(e.new_exercise!.canonical_name.length, e.new_exercise!.canonical_name).toBeLessThanOrEqual(32); // short name rule
 		expect([e.load_kg, e.reps]).toEqual([15, [12, 12, 12]]);
 	});

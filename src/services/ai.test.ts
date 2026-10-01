@@ -1,7 +1,7 @@
 import { UNCLEAR, type ParseRequest } from '../../shared/contract';
 import { AiUnavailableError, workerAi } from './ai';
 
-const REQ: ParseRequest = { text: 'press 24 4 de 9', image: null, context: { muscle_groups: ['hombro'], exercises: [] } };
+const REQ: ParseRequest = { text: 'press 24 4 de 9', image: null, context: { muscle_groups: ['shoulders'], exercises: [] } };
 const LOG = { intent: 'log', entries: [], ambiguity: null, reply: null };
 
 function fakeFetch(respond: () => Response | Promise<Response>) {

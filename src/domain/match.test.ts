@@ -1,29 +1,29 @@
 import { normalizeWithMap, searchExercises, type SearchCandidate } from './match';
 
 const C: SearchCandidate[] = [
-  { id: 'press_mancuernas', name: 'Press de hombro con mancuernas', aliases: ['press de hombros'], muscleGroups: ['hombro'] },
-  { id: 'press_maquina', name: 'Press de hombro en máquina', aliases: ['press militar máquina'], muscleGroups: ['hombro'] },
-  { id: 'press_banca', name: 'Press de banca plano con barra', aliases: ['press banca', 'bench press'], muscleGroups: ['pecho'] },
-  { id: 'pushdown', name: 'Tríceps en polea con barra V (pushdown)', aliases: ['pushdown'], muscleGroups: ['tríceps'] },
-  { id: 'laterales', name: 'Elevaciones laterales en polea', aliases: ['laterales en polea'], muscleGroups: ['hombro'] },
+  { id: 'press_mancuernas', name: 'Press de hombro con mancuernas', aliases: ['press de hombros'], muscleGroups: ['shoulders'] },
+  { id: 'press_maquina', name: 'Press de hombro en máquina', aliases: ['press militar máquina'], muscleGroups: ['shoulders'] },
+  { id: 'press_banca', name: 'Press de banca plano con barra', aliases: ['press banca', 'bench press'], muscleGroups: ['chest'] },
+  { id: 'pushdown', name: 'Tríceps en polea con barra V (pushdown)', aliases: ['pushdown'], muscleGroups: ['triceps'] },
+  { id: 'laterales', name: 'Elevaciones laterales en polea', aliases: ['laterales en polea'], muscleGroups: ['shoulders'] },
 ];
-const ids = (q: string, groups: string[] = ['hombro'], limit?: number) => searchExercises(q, C, groups, limit).map((r) => r.id);
+const ids = (q: string, groups: string[] = ['shoulders'], limit?: number) => searchExercises(q, C, groups, limit).map((r) => r.id);
 
 describe('searchExercises', () => {
   it('"press de hom" finds both shoulder presses and highlights the typed part', () => {
-    const res = searchExercises('press de hom', C, ['hombro']);
+    const res = searchExercises('press de hom', C, ['shoulders']);
     expect(res.map((r) => r.id)).toEqual(['press_mancuernas', 'press_maquina']);
     const [start, end] = res[0].highlight!;
     expect(C[0].name.slice(start, end)).toBe('Press de hom');
   });
 
   it('the chosen muscle groups come first', () => {
-    expect(ids('press', ['pecho'])[0]).toBe('press_banca');
-    expect(ids('press', ['hombro'])[2]).toBe('press_banca');
+    expect(ids('press', ['chest'])[0]).toBe('press_banca');
+    expect(ids('press', ['shoulders'])[2]).toBe('press_banca');
   });
 
   it('ignores case and accents, and highlights over the original accents', () => {
-    const res = searchExercises('TRICEPS', C, ['tríceps']);
+    const res = searchExercises('TRICEPS', C, ['triceps']);
     expect(res[0].id).toBe('pushdown');
     const [s, e] = res[0].highlight!;
     expect(C[3].name.slice(s, e)).toBe('Tríceps');

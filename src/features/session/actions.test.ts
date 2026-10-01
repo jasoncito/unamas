@@ -45,7 +45,7 @@ beforeEach(() => {
 /** A session screen wired to a scripted AI. */
 function harness(
   answers: (ParseResponse | Error)[],
-  ctx: SessionContext = { sessionId: null, groups: ['hombro', 'tríceps'] },
+  ctx: SessionContext = { sessionId: null, groups: ['shoulders', 'triceps'] },
   scope: SessionScope = 'open',
 ) {
   let state: SessionState = initialState;
@@ -102,7 +102,7 @@ describe('send: the first entry', () => {
     await h.actions.send('press de hombro 24 4 de 9');
 
     const session = (await getOpenSession(db))!;
-    expect(session).toMatchObject({ muscleGroups: ['hombro', 'tríceps'], startedAt: '2026-09-29T18:00:00.000Z' });
+    expect(session).toMatchObject({ muscleGroups: ['shoulders', 'triceps'], startedAt: '2026-09-29T18:00:00.000Z' });
     expect(h.created).toEqual([session.id]);
     expect(await entries()).toEqual([
       expect.objectContaining({ status: 'ok', exercise_id: ids.get('press_hombro_mancuernas'), load_kg: 24 }),
@@ -120,9 +120,9 @@ describe('send: the first entry', () => {
     const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })])]);
     await h.actions.send('press de hombro 24 4 de 9');
     const ctx = h.requests[0].context;
-    expect(ctx.muscle_groups).toEqual(['hombro', 'tríceps']);
+    expect(ctx.muscle_groups).toEqual(['shoulders', 'triceps']);
     expect(ctx.exercises).toHaveLength(24);
-    expect(ctx.exercises[0].muscle_groups.some((g) => ['hombro', 'tríceps'].includes(g))).toBe(true);
+    expect(ctx.exercises[0].muscle_groups.some((g) => ['shoulders', 'triceps'].includes(g))).toBe(true);
     expect(ctx.exercises.find((e) => e.id === ids.get('press_hombro_mancuernas'))!.last).toEqual({ date: '2026-09-27', load_kg: 24, reps: [8, 8, 8, 8] });
   });
 
@@ -235,7 +235,7 @@ describe('doubts (screen 5)', () => {
 
 describe('new exercises', () => {
   it('created with the short name, their words as alias, the range of its kind and a default step', async () => {
-    const h = harness([log([entry({ load_kg: 15, reps: [12, 12, 12], new_exercise: { canonical_name: 'Remo al mentón', muscle_groups: ['hombro'], kind: 'compound', load_basis: 'total' } })])]);
+    const h = harness([log([entry({ load_kg: 15, reps: [12, 12, 12], new_exercise: { canonical_name: 'Remo al mentón', muscle_groups: ['shoulders'], kind: 'compound', load_basis: 'total' } })])]);
     await h.actions.send('remo al mentón con barra 15 kilos 3 de 12');
     const created = (await getAllExercises(db)).find((e) => e.canonicalName === 'Remo al mentón')!;
     expect(created).toMatchObject({ aliases: ['remo al menton con barra'], kind: 'compound', repFloor: 8, repTop: 12, stepKg: 2.5, loadBasis: 'total' });
@@ -262,12 +262,12 @@ describe('retryPending (on open, on foreground, when the signal returns)', () =>
   const laterales = () => log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 7.5, reps: [11, 11, 11, 11] })]);
   /** Messages saved without signal earlier in session S, a minute apart. */
   async function savedOffline(...texts: string[]) {
-    await createSession(db, S, ['hombro', 'tríceps'], '2026-09-29T18:00:00.000Z');
+    await createSession(db, S, ['shoulders', 'triceps'], '2026-09-29T18:00:00.000Z');
     for (const [i, text] of texts.entries()) {
       await insertPendingEntry(db, { id: `f0000000-0000-4000-8000-00000000010${i}`, sessionId: S, rawText: text, createdAt: `2026-09-29T18:0${i}:00.000Z` });
     }
   }
-  const open = (answers: (ParseResponse | Error)[]) => harness(answers, { sessionId: S, groups: ['hombro', 'tríceps'] });
+  const open = (answers: (ParseResponse | Error)[]) => harness(answers, { sessionId: S, groups: ['shoulders', 'triceps'] });
   const statuses = async () => (await entries()).map((e) => [e.raw_text, e.status]);
 
   it('all of them, oldest first, one at a time; each pending row becomes a logged one', async () => {
@@ -323,12 +323,12 @@ describe('retryPending (on open, on foreground, when the signal returns)', () =>
 
   it('an entry of another session is asked with that session’s groups', async () => {
     const other = 'f0000000-0000-4000-8000-0000000000bb';
-    await createSession(db, other, ['pierna'], '2026-09-28T18:00:00.000Z');
+    await createSession(db, other, ['legs'], '2026-09-28T18:00:00.000Z');
     await insertPendingEntry(db, { id: 'f0000000-0000-4000-8000-000000000200', sessionId: other, rawText: 'sentadilla 32.5 4 de 6', createdAt: '2026-09-28T18:00:00.000Z' });
     const h = open([log([entry({ exercise_id: ids.get('sentadilla_smith')!, load_kg: 32.5, reps: [6, 6, 6, 6] })])]);
     await h.actions.retryPending();
-    expect(h.requests[0].context.muscle_groups).toEqual(['pierna']);
-    expect(h.requests[0].context.exercises[0].muscle_groups).toContain('pierna');
+    expect(h.requests[0].context.muscle_groups).toEqual(['legs']);
+    expect(h.requests[0].context.exercises[0].muscle_groups).toContain('legs');
   });
 
   describe('a retried one turns out to be a doubt', () => {
@@ -395,7 +395,7 @@ describe('retryPending (on open, on foreground, when the signal returns)', () =>
   });
 
   it('nothing pending: nothing is sent', async () => {
-    const h = harness([], { sessionId: null, groups: ['hombro'] });
+    const h = harness([], { sessionId: null, groups: ['shoulders'] });
     await h.actions.retryPending();
     expect(h.requests).toEqual([]);
     expect(h.state()).toBe(initialState);
@@ -406,7 +406,7 @@ describe('photo of a machine (design/photo.html)', () => {
   const imageOf = async (raw: string) =>
     (await db.getFirstAsync<{ image_uri: string | null }>('SELECT image_uri FROM entry WHERE raw_text = ?', [raw]))?.image_uri;
   const newMachine = (load: number, reps: number[]) =>
-    log([entry({ load_kg: load, reps, new_exercise: { canonical_name: 'Press de pecho convergente', muscle_groups: ['pecho'], kind: 'compound', load_basis: 'per_side' } })]);
+    log([entry({ load_kg: load, reps, new_exercise: { canonical_name: 'Press de pecho convergente', muscle_groups: ['chest'], kind: 'compound', load_basis: 'per_side' } })]);
 
   it('kept with the entry, sent with the text, and shown in the bubble', async () => {
     const h = harness([newMachine(25, [10, 10, 10])]);
@@ -447,7 +447,7 @@ describe('photo of a machine (design/photo.html)', () => {
     const id = (await entries())[0].id;
     expect(await imageOf('esta, 25 a cada lado, 3 de 10')).toBe(`kept/${id}.jpg`);
 
-    const again = harness([newMachine(25, [10, 10, 10])], { sessionId: first.ctx.sessionId, groups: ['pecho'] });
+    const again = harness([newMachine(25, [10, 10, 10])], { sessionId: first.ctx.sessionId, groups: ['chest'] });
     await again.actions.retryPending();
     expect(again.requests[0].image).toBe(`b64:kept/${id}.jpg`);
   });
@@ -474,7 +474,7 @@ describe('photo of a machine (design/photo.html)', () => {
     const id = (await entries())[0].id;
     expect(h.requests[1].image).toBe(`b64:kept/${id}.jpg`);
 
-    const again = harness([newMachine(25, [10, 10, 10])], { sessionId: h.ctx.sessionId, groups: ['pecho'] });
+    const again = harness([newMachine(25, [10, 10, 10])], { sessionId: h.ctx.sessionId, groups: ['chest'] });
     await again.actions.retryPending();
     expect(again.requests[0]).toMatchObject({ text: 'la de pecho, 25 a cada lado, 3 de 10, esta', image: `b64:kept/${id}.jpg` });
   });
@@ -517,15 +517,15 @@ describe('end (screen 6)', () => {
 describe('doubts kept with their entry: shown again without the AI', () => {
   const S = 'f0000000-0000-4000-8000-0000000000aa';
   const E = 'f0000000-0000-4000-8000-000000000100';
-  const open = (answers: (ParseResponse | Error)[]) => harness(answers, { sessionId: S, groups: ['hombro', 'tríceps'] });
+  const open = (answers: (ParseResponse | Error)[]) => harness(answers, { sessionId: S, groups: ['shoulders', 'triceps'] });
   beforeEach(async () => {
-    await createSession(db, S, ['hombro', 'tríceps'], '2026-09-29T18:00:00.000Z');
+    await createSession(db, S, ['shoulders', 'triceps'], '2026-09-29T18:00:00.000Z');
     await insertPendingEntry(db, { id: E, sessionId: S, rawText: 'laterales con 10, 4 de 11', createdAt: '2026-09-29T18:00:00.000Z' });
   });
 
   it('when /parse asks, the question and the options it could name are kept with the entry', async () => {
     const polea = ids.get('laterales_polea')!;
-    const first = harness([{ intent: 'ambiguous', entries: [], reply: null, ambiguity: { question: '¿Cuáles laterales?', options: [{ exercise_id: polea, label: 'En polea' }, { exercise_id: 'invented', label: 'Inventado' }] } }], { sessionId: S, groups: ['hombro'] });
+    const first = harness([{ intent: 'ambiguous', entries: [], reply: null, ambiguity: { question: '¿Cuáles laterales?', options: [{ exercise_id: polea, label: 'En polea' }, { exercise_id: 'invented', label: 'Inventado' }] } }], { sessionId: S, groups: ['shoulders'] });
     await first.actions.send('laterales con 12, 4 de 10');
     const asked = (await entries()).find((e) => e.raw_text === 'laterales con 12, 4 de 10')!;
     expect(await storedAmbiguity(asked.id)).toEqual({ question: '¿Cuáles laterales?', options: [{ exerciseId: polea, label: 'En polea' }] });
@@ -593,7 +593,7 @@ describe('closed sessions (retried from the root; doubts on screen 1)', () => {
   });
   const root = (answers: (ParseResponse | Error)[]) => harness(answers, { sessionId: null, groups: [] }, 'ended');
   beforeEach(async () => {
-    await createSession(db, S, ['hombro', 'tríceps'], '2026-09-28T18:00:00.000Z');
+    await createSession(db, S, ['shoulders', 'triceps'], '2026-09-28T18:00:00.000Z');
     await insertPendingEntry(db, { id: E1, sessionId: S, rawText: 'laterales con 10, 4 de 11', createdAt: '2026-09-28T18:00:00.000Z' });
     await endSession(db, S, '2026-09-28T19:00:00.000Z');
   });
@@ -601,7 +601,7 @@ describe('closed sessions (retried from the root; doubts on screen 1)', () => {
   it('a pending one of a stopped session is retried with its groups and logged in that session', async () => {
     const h = root([log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 10, reps: [11, 11, 11, 11] })])]);
     await h.actions.retryPending();
-    expect(h.requests[0].context.muscle_groups).toEqual(['hombro', 'tríceps']);
+    expect(h.requests[0].context.muscle_groups).toEqual(['shoulders', 'triceps']);
     expect(await db.getFirstAsync('SELECT status, session_id FROM entry WHERE id = ?', [E1])).toEqual({ status: 'ok', session_id: S });
   });
 
@@ -618,7 +618,7 @@ describe('closed sessions (retried from the root; doubts on screen 1)', () => {
     expect(h.state()).toMatchObject({ phase: 'disambiguating', entryId: E1, question: '¿Cuáles laterales?' });
 
     await h.actions.choose(polea);
-    expect(h.requests[1].context.muscle_groups).toEqual(['hombro', 'tríceps']);
+    expect(h.requests[1].context.muscle_groups).toEqual(['shoulders', 'triceps']);
     expect(await db.getFirstAsync('SELECT status, session_id, exercise_id FROM entry WHERE id = ?', [E1])).toEqual({ status: 'ok', session_id: S, exercise_id: polea });
     expect(await getOpenSession(db)).toBeNull(); // no new session
   });

@@ -30,7 +30,7 @@ beforeEach(async () => {
   db = openMemoryDb();
   await initDb(db, null);
   ids = (await loadSeed(db, seedJson as Seed))!;
-  await createSession(db, S, ['hombro'], '2026-09-29T18:00:00.000Z');
+  await createSession(db, S, ['shoulders'], '2026-09-29T18:00:00.000Z');
   await insertPendingEntry(db, { id: E, sessionId: S, rawText: 'press de hombro 24 4 de 9, fácil', createdAt: '2026-09-29T18:00:00.000Z' });
 });
 
@@ -43,13 +43,13 @@ const row = (id = E) =>
 describe('entry lifecycle (screen 4)', () => {
   it('a pending entry has the text and nothing else yet, and is waiting to be retried', async () => {
     expect(await row()).toMatchObject({ status: 'pending', exercise_id: null, load_kg: null, raw_text: 'press de hombro 24 4 de 9, fácil' });
-    expect(await getAllPendingEntries(db, 'open')).toEqual([{ id: E, rawText: 'press de hombro 24 4 de 9, fácil', sessionId: S, groups: ['hombro'], ambiguity: null, imageUri: null }]);
+    expect(await getAllPendingEntries(db, 'open')).toEqual([{ id: E, rawText: 'press de hombro 24 4 de 9, fácil', sessionId: S, groups: ['shoulders'], ambiguity: null, imageUri: null }]);
     expect(await getDoubtEntry(db, S)).toBeNull();
   });
 
   it('pending ones from every session come oldest first; a doubt or a deleted one is not retried', async () => {
     const S2 = 'f0000000-0000-4000-8000-0000000000a2';
-    await createSession(db, S2, ['pierna'], '2026-09-28T18:00:00.000Z');
+    await createSession(db, S2, ['legs'], '2026-09-28T18:00:00.000Z');
     const add = (id: string, session: string, at: string) =>
       insertPendingEntry(db, { id: `f0000000-0000-4000-8000-0000000000${id}`, sessionId: session, rawText: id, createdAt: at });
     await add('e2', S2, '2026-09-28T18:00:00.000Z');
@@ -59,9 +59,9 @@ describe('entry lifecycle (screen 4)', () => {
     await setEntryAmbiguous(db, 'f0000000-0000-4000-8000-0000000000e4', ASK);
     await db.runAsync("UPDATE entry SET deleted_at = '2026-09-29T21:00:00Z' WHERE id = ?", ['f0000000-0000-4000-8000-0000000000e5']);
     expect((await getAllPendingEntries(db, 'open')).map((e) => [e.rawText, e.groups])).toEqual([
-      ['e2', ['pierna']],
-      ['press de hombro 24 4 de 9, fácil', ['hombro']],
-      ['e3', ['hombro']],
+      ['e2', ['legs']],
+      ['press de hombro 24 4 de 9, fácil', ['shoulders']],
+      ['e3', ['shoulders']],
     ]);
   });
 
@@ -77,7 +77,7 @@ describe('entry lifecycle (screen 4)', () => {
 
   it('pending and doubts split by whether their session was stopped', async () => {
     const S2 = 'f0000000-0000-4000-8000-0000000000a2';
-    await createSession(db, S2, ['pierna'], '2026-09-28T18:00:00.000Z');
+    await createSession(db, S2, ['legs'], '2026-09-28T18:00:00.000Z');
     const at = (id: string, t: string) => insertPendingEntry(db, { id: `f0000000-0000-4000-8000-0000000000${id}`, sessionId: S2, rawText: id, createdAt: t });
     await at('e2', '2026-09-28T18:00:00.000Z');
     await at('e3', '2026-09-28T18:05:00.000Z');
@@ -88,7 +88,7 @@ describe('entry lifecycle (screen 4)', () => {
 
     expect((await getAllPendingEntries(db, 'open')).map((e) => e.sessionId)).toEqual([S]);
     expect((await getAllPendingEntries(db, 'ended')).map((e) => e.rawText)).toEqual(['e2']);
-    expect(await getEndedSessionDoubt(db)).toMatchObject({ rawText: 'e3', sessionId: S2, groups: ['pierna'] });
+    expect(await getEndedSessionDoubt(db)).toMatchObject({ rawText: 'e3', sessionId: S2, groups: ['legs'] });
     expect(await getEndedSessionDoubt(db, ['f0000000-0000-4000-8000-0000000000e3'])).toMatchObject({ rawText: 'e4' });
     expect(await getDoubtEntry(db, S)).toBeNull();
     expect(await getOpenSession(db)).toMatchObject({ id: S });

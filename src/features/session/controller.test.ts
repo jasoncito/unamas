@@ -25,7 +25,7 @@ const lines = (s: Awaited<ReturnType<typeof screenFor>>) =>
 
 describe('loadSessionScreen (design/meta.html)', () => {
   it('hombro + tríceps: today’s targets, reps going up', async () => {
-    const s = await screenFor(['hombro', 'tríceps']);
+    const s = await screenFor(['shoulders', 'triceps']);
     expect(s.groupsLabel).toBe('Hombro y tríceps');
     expect(lines(s)).toEqual([
       ['Press de hombro con mancuernas', 24, '4×9', 'SERIES↑'],
@@ -38,11 +38,11 @@ describe('loadSessionScreen (design/meta.html)', () => {
   });
 
   it('the placeholder is the first target, as it would be dictated', async () => {
-    expect((await screenFor(['hombro', 'tríceps'])).placeholder).toBe('press de hombros, 24 kg, 4 de 9');
+    expect((await screenFor(['shoulders', 'triceps'])).placeholder).toBe('press de hombros, 24 kg, 4 de 9');
   });
 
   it('pierna: the sentadilla goes up in load, with the per-side basis kept', async () => {
-    const s = await screenFor(['pierna']);
+    const s = await screenFor(['legs']);
     expect(lines(s)[0]).toEqual(['Sentadilla en máquina Smith', 32.5, '4×6', 'PESO↑']);
     expect(s.plan[0].loadBasis).toBe('per_side');
     expect(s.placeholder).toBe('sentadilla smith, 32.5 kg, 4 de 6');
@@ -56,7 +56,7 @@ describe('loadSessionScreen (design/meta.html)', () => {
          AND created_at > '2026-09-16'`,
       [],
     );
-    const s = await screenFor(['espalda']);
+    const s = await screenFor(['back']);
     expect(s.plan.map((l) => l.name)).toEqual(['Remo bajo en máquina']);
   });
 
@@ -67,15 +67,15 @@ describe('loadSessionScreen (design/meta.html)', () => {
   });
 
   it('right after EMPEZAR: no session row, no id, and going back is allowed', async () => {
-    const s = await screenFor(['hombro']);
+    const s = await screenFor(['shoulders']);
     expect([s.sessionId, s.canGoBack]).toEqual([null, true]);
     expect(await db.getFirstAsync<{ n: number }>('SELECT count(*) AS n FROM session WHERE ended_at IS NULL', [])).toEqual({ n: 0 });
   });
 
   it('a session open in the database (it has entries) wins over the groups in memory, and there is no going back', async () => {
-    await createSession(db, 'f0000000-0000-4000-8000-00000000000b', ['pierna'], '2026-09-29T18:00:00.000Z');
-    const s = (await loadSessionScreen(db, TODAY, ['hombro']))!;
-    expect([s.sessionId, s.canGoBack, s.groups]).toEqual(['f0000000-0000-4000-8000-00000000000b', false, ['pierna']]);
+    await createSession(db, 'f0000000-0000-4000-8000-00000000000b', ['legs'], '2026-09-29T18:00:00.000Z');
+    const s = (await loadSessionScreen(db, TODAY, ['shoulders']))!;
+    expect([s.sessionId, s.canGoBack, s.groups]).toEqual(['f0000000-0000-4000-8000-00000000000b', false, ['legs']]);
   });
 
   it('no open session and no groups in memory → null (the app starts on screen 1)', async () => {
@@ -86,7 +86,7 @@ describe('loadSessionScreen (design/meta.html)', () => {
 
 describe('suggestionsFor (screen 3)', () => {
   it('"press de hom" → both shoulder presses, bold part and last set', async () => {
-    const s = await screenFor(['hombro', 'tríceps']);
+    const s = await screenFor(['shoulders', 'triceps']);
     const sug = suggestionsFor('press de hom', s);
     expect(sug.map((x) => x.exercise.canonicalName)).toEqual(['Press de hombro con mancuernas', 'Press de hombro en máquina']);
     const [a, b] = sug[0].highlight!;
@@ -96,20 +96,20 @@ describe('suggestionsFor (screen 3)', () => {
   });
 
   it('prefers the session’s groups: "press" puts shoulder presses before the bench press', async () => {
-    const s = await screenFor(['hombro']);
+    const s = await screenFor(['shoulders']);
     const names = suggestionsFor('press', s).map((x) => x.exercise.canonicalName);
     expect(names.slice(0, 2)).toEqual(['Press de hombro con mancuernas', 'Press de hombro en máquina']);
     expect(names).toHaveLength(3); // the third, from another group, comes after
   });
 
   it('stops suggesting once there is a comma or a number', async () => {
-    const s = await screenFor(['hombro']);
+    const s = await screenFor(['shoulders']);
     expect(suggestionsFor('press de hombro con mancuernas, ', s)).toEqual([]);
     expect(suggestionsFor('press 24', s)).toEqual([]);
   });
 
   it('picking one leaves its name and a comma, ready for the numbers', async () => {
-    const s = await screenFor(['hombro']);
+    const s = await screenFor(['shoulders']);
     expect(textAfterPicking(suggestionsFor('press de hom', s)[0].exercise)).toBe('Press de hombro con mancuernas, ');
   });
 });
@@ -124,7 +124,7 @@ describe('the engine sees one exposure per session, its best (PROGRESSION.md §4
        WHERE x.canonical_name = 'Press de hombro con mancuernas' ORDER BY e.created_at DESC LIMIT 1`,
       [],
     );
-    const s = await screenFor(['hombro', 'tríceps']);
+    const s = await screenFor(['shoulders', 'triceps']);
     expect(lines(s)[0]).toEqual(['Press de hombro con mancuernas', 24, '4×9', 'SERIES↑']);
   });
 });
@@ -141,9 +141,9 @@ describe('"Hoy" (screen 4)', () => {
   const S = 'f0000000-0000-4000-8000-0000000000aa';
 
   it('what they logged, each against its own last time; the plan keeps only what is left, from the session before', async () => {
-    await createSession(db, S, ['hombro', 'tríceps'], '2026-09-29T18:00:00.000Z');
+    await createSession(db, S, ['shoulders', 'triceps'], '2026-09-29T18:00:00.000Z');
     await insertExercise(db, {
-      id: 'f0000000-0000-4000-8000-0000000000bb', canonicalName: 'Remo al mentón', aliases: [], muscleGroups: ['hombro'],
+      id: 'f0000000-0000-4000-8000-0000000000bb', canonicalName: 'Remo al mentón', aliases: [], muscleGroups: ['shoulders'],
       kind: 'compound', repFloor: 8, repTop: 12, stepKg: 2.5, loadBasis: 'total', createdAt: '2026-09-29T18:10:00.000Z',
     });
     await log(S, 'Press de hombro con mancuernas', 24, [9, 9, 9, 9], '2026-09-29T18:00:00.000Z');
@@ -163,7 +163,7 @@ describe('"Hoy" (screen 4)', () => {
   });
 
   it('the same exercise twice today: the second is compared with the first', async () => {
-    await createSession(db, S, ['hombro'], '2026-09-29T18:00:00.000Z');
+    await createSession(db, S, ['shoulders'], '2026-09-29T18:00:00.000Z');
     await log(S, 'Press de hombro con mancuernas', 24, [9, 9, 9, 9], '2026-09-29T18:00:00.000Z');
     await log(S, 'Press de hombro con mancuernas', 26, [6, 6], '2026-09-29T18:20:00.000Z');
     const s = (await loadSessionScreen(db, TODAY, null))!;
@@ -171,7 +171,7 @@ describe('"Hoy" (screen 4)', () => {
   });
 
   it('a new exercise first does not make today the "last time" of the group: the plan still comes from 27 sep', async () => {
-    await createSession(db, S, ['hombro'], '2026-09-29T18:00:00.000Z');
+    await createSession(db, S, ['shoulders'], '2026-09-29T18:00:00.000Z');
     await db.runAsync(
       `INSERT INTO entry (id, session_id, exercise_id, load_kg, reps, raw_text, status, created_at, updated_at, dirty)
        SELECT 'f0000000-0000-4000-8000-0000000000cc', ?, id, 7.5, '[11,11,11,11]', 'x', 'ok', '2026-09-29T18:00:00.000Z', '2026-09-29T18:00:00.000Z', 1
@@ -183,7 +183,7 @@ describe('"Hoy" (screen 4)', () => {
   });
 
   it('saved without signal: in "pending" with their words; a doubt or a logged one is not', async () => {
-    await createSession(db, S, ['hombro'], '2026-09-29T18:00:00.000Z');
+    await createSession(db, S, ['shoulders'], '2026-09-29T18:00:00.000Z');
     await log(S, 'Press de hombro con mancuernas', 24, [9, 9, 9, 9], '2026-09-29T18:00:00.000Z');
     for (const [id, status, text] of [['dd', 'pending', 'laterales 7,5 4 de 11'], ['ee', 'ambiguous', 'laterales con 10']]) {
       await db.runAsync(
@@ -197,7 +197,7 @@ describe('"Hoy" (screen 4)', () => {
   });
 
   it('right after EMPEZAR there is nothing pending', async () => {
-    expect((await loadSessionScreen(db, TODAY, ['hombro']))!.pending).toEqual([]);
+    expect((await loadSessionScreen(db, TODAY, ['shoulders']))!.pending).toEqual([]);
   });
 });
 
@@ -216,7 +216,7 @@ describe('loadSummary (screen 7)', () => {
   it('the mockup’s session: each exercise against its own last time, the count, the minutes and the next time', async () => {
     // Monday 28 sep, 18:00–18:58 local.
     const t = (h: number, m: number) => new Date(2026, 8, 28, h, m).toISOString();
-    await createSession(db, S, ['hombro'], t(18, 0));
+    await createSession(db, S, ['shoulders'], t(18, 0));
     await log('Press de hombro con mancuernas', 24, [9, 9, 9, 9], t(18, 0));
     await log('Laterales en polea', 7.5, [11, 11, 11, 9], t(18, 15));
     await log('Press de hombro en máquina', 20, [12, 12, 12, 12], t(18, 30));
@@ -238,7 +238,7 @@ describe('loadSummary (screen 7)', () => {
   it('compared with the best entry of the session before, not its last one', async () => {
     const t = (d: number, h: number) => new Date(2026, 8, d, h, 0).toISOString();
     const S0 = 'f0000000-0000-4000-8000-0000000000a0';
-    await createSession(db, S0, ['hombro'], t(28, 18));
+    await createSession(db, S0, ['shoulders'], t(28, 18));
     await db.runAsync(
       `INSERT INTO entry (id, session_id, exercise_id, load_kg, reps, raw_text, status, created_at, updated_at, dirty)
        SELECT 'f0000000-0000-4000-8000-0000000009a0', ?, id, 16, '[15,15,15,15]', 'x', 'ok', ?, ?, 1 FROM exercise WHERE canonical_name = 'Press de hombro con mancuernas'`,
@@ -250,7 +250,7 @@ describe('loadSummary (screen 7)', () => {
       [S0, t(28, 18), t(28, 18)],
     );
     await endSession(db, S0, t(28, 20));
-    await createSession(db, S, ['hombro'], t(30, 18));
+    await createSession(db, S, ['shoulders'], t(30, 18));
     await log('Press de hombro con mancuernas', 24, [10, 10, 10, 10], t(30, 18));
     await endSession(db, S, t(30, 19));
 

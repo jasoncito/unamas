@@ -271,7 +271,7 @@ Detalle completo y razones en `docs/MULTIUSER.md` §3.
 CREATE TABLE exercise (
   id TEXT PRIMARY KEY,
   canonical_name TEXT NOT NULL, aliases TEXT NOT NULL DEFAULT '[]',                         -- JSON
-  muscle_groups TEXT NOT NULL,                                                              -- JSON
+  muscle_groups TEXT NOT NULL,                                                              -- JSON, claves de shared/muscleGroups.ts
   kind TEXT NOT NULL CHECK (kind IN ('compound_heavy','compound','isolation','calf')),
   rep_floor INTEGER NOT NULL, rep_top INTEGER NOT NULL, step_kg REAL NOT NULL,
   load_basis TEXT NOT NULL CHECK (load_basis IN ('per_side','per_dumbbell','total','stack')),
@@ -322,7 +322,7 @@ Las mismas tablas, con `user_id uuid not null default auth.uid() references auth
 - Tocar selecciona o deselecciona. El seleccionado se pone verde y muestra **su número de orden** grande en verde (1, 2…), sin check. Al quitar uno, los demás se renumeran.
 - "Otro…" al final abre un input para escribir un grupo propio.
 - El botón "EMPEZAR · Hombro + Tríceps" aparece solo con ≥ 1 seleccionado. **No crea la sesión**: lleva a la pantalla 2 con los grupos en memoria, y la selección se mantiene por si vuelve.
-- Grupos base: Pecho, Espalda, Bíceps, Tríceps, Hombro, Pierna, Glúteo, Pantorrilla, Core, Cardio.
+- Grupos base: Pecho, Espalda, Bíceps, Tríceps, Hombro, Pierna, Glúteo, Pantorrilla, Core, Cardio. **En los datos se guardan como claves neutras** (`chest, back, biceps, triceps, shoulders, legs, glutes, calves, core, cardio`, en `shared/muscleGroups.ts`; decidido con Jason, 1 oct 2026), y las etiquetas en español están en `src/ui/copy.ts`. Un grupo de "Otro…" se guarda como se escribió, salvo que sea el nombre de un grupo base ("pecho" → `chest`). La traducción completa de la app queda para después del MVP.
 
 ### 2 · Primer ejercicio
 - El teclado se abre solo (`autoFocus`). Título "¿Con qué empiezas?" pegado al input.

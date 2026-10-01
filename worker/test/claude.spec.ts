@@ -5,10 +5,10 @@ import { UNCLEAR, type ContextExercise, type ParseRequest, type ParseResponse } 
 import { MAX_TOKENS, MODEL, numbersIn, OUTPUT_SCHEMA, parseWithClaude, sanitize } from '../src/claude';
 
 const EXERCISES: ContextExercise[] = [
-	{ id: 'laterales_polea', name: 'Elevaciones laterales en polea', aliases: [], muscle_groups: ['hombro'], last: null },
-	{ id: 'laterales_pie', name: 'Elevaciones laterales de pie', aliases: [], muscle_groups: ['hombro'], last: null },
+	{ id: 'laterales_polea', name: 'Elevaciones laterales en polea', aliases: [], muscle_groups: ['shoulders'], last: null },
+	{ id: 'laterales_pie', name: 'Elevaciones laterales de pie', aliases: [], muscle_groups: ['shoulders'], last: null },
 ];
-const REQ: ParseRequest = { text: 'laterales en polea 10, 4 de 11', image: null, context: { muscle_groups: ['hombro'], exercises: EXERCISES } };
+const REQ: ParseRequest = { text: 'laterales en polea 10, 4 de 11', image: null, context: { muscle_groups: ['shoulders'], exercises: EXERCISES } };
 
 const entry = (over: Partial<ParseResponse['entries'][number]> = {}): ParseResponse['entries'][number] => ({
 	exercise_id: 'laterales_polea',
@@ -137,11 +137,11 @@ describe('OUTPUT_SCHEMA', () => {
 
 describe('completing "which one?" options', () => {
 	const LATERALES: ContextExercise[] = [
-		{ id: 'laterales_pie', name: 'Elevaciones laterales de pie con mancuernas', aliases: ['laterales de pie'], muscle_groups: ['hombro'], last: null },
-		{ id: 'laterales_polea', name: 'Elevaciones laterales en polea', aliases: ['laterales en polea'], muscle_groups: ['hombro'], last: null },
-		{ id: 'laterales_rodillas', name: 'Elevaciones laterales con pecho en rodillas', aliases: ['pájaros'], muscle_groups: ['hombro'], last: null },
-		{ id: 'face_pull', name: 'Face pull en polea alta', aliases: ['jalones polea deltoide posterior'], muscle_groups: ['hombro'], last: null },
-		{ id: 'press', name: 'Press de hombro con mancuernas', aliases: [], muscle_groups: ['hombro'], last: null },
+		{ id: 'laterales_pie', name: 'Elevaciones laterales de pie con mancuernas', aliases: ['laterales de pie'], muscle_groups: ['shoulders'], last: null },
+		{ id: 'laterales_polea', name: 'Elevaciones laterales en polea', aliases: ['laterales en polea'], muscle_groups: ['shoulders'], last: null },
+		{ id: 'laterales_rodillas', name: 'Elevaciones laterales con pecho en rodillas', aliases: ['pájaros'], muscle_groups: ['shoulders'], last: null },
+		{ id: 'face_pull', name: 'Face pull en polea alta', aliases: ['jalones polea deltoide posterior'], muscle_groups: ['shoulders'], last: null },
+		{ id: 'press', name: 'Press de hombro con mancuernas', aliases: [], muscle_groups: ['shoulders'], last: null },
 	];
 	const asked = (ids: string[]): ParseResponse => ({
 		intent: 'ambiguous',
@@ -199,11 +199,11 @@ describe('completing "which one?" options', () => {
 
 describe('duplicate net: a "new" exercise named like an existing one is that one', () => {
 	const CTX: ContextExercise[] = [
-		{ id: 'banca', name: 'Press de banca con barra', aliases: ['press banca', 'Press de banca plano con barra'], muscle_groups: ['pecho'], last: null },
-		{ id: 'pecho_maq', name: 'Press de pecho en máquina', aliases: [], muscle_groups: ['pecho'], last: null },
+		{ id: 'banca', name: 'Press de banca con barra', aliases: ['press banca', 'Press de banca plano con barra'], muscle_groups: ['chest'], last: null },
+		{ id: 'pecho_maq', name: 'Press de pecho en máquina', aliases: [], muscle_groups: ['chest'], last: null },
 	];
 	const asNew = (canonical_name: string, load_kg = 20) =>
-		log([entry({ exercise_id: null, load_kg, new_exercise: { canonical_name, muscle_groups: ['pecho'], kind: 'compound', load_basis: 'per_side' } })]);
+		log([entry({ exercise_id: null, load_kg, new_exercise: { canonical_name, muscle_groups: ['chest'], kind: 'compound', load_basis: 'per_side' } })]);
 
 	it('eval s3e6: exactly the name of an existing exercise → that exercise', () => {
 		const res = sanitize(asNew('Press de pecho en máquina', 25), CTX, 'máquina de pecho, 25 kilos a cada lado, 3 de 10');
@@ -221,7 +221,7 @@ describe('duplicate net: a "new" exercise named like an existing one is that one
 	});
 
 	it('a name shared by two exercises → asks which one', () => {
-		const both: ContextExercise[] = [...CTX, { id: 'otro', name: 'Otro press', aliases: ['press de pecho en maquina'], muscle_groups: ['pecho'], last: null }];
+		const both: ContextExercise[] = [...CTX, { id: 'otro', name: 'Otro press', aliases: ['press de pecho en maquina'], muscle_groups: ['chest'], last: null }];
 		const res = sanitize(asNew('Press de pecho en máquina'), both, 'press de pecho en máquina 20, 3 de 10');
 		expect(res.intent).toBe('ambiguous');
 		expect(res.ambiguity!.options.map((o) => o.exercise_id)).toEqual(['pecho_maq', 'otro']);
@@ -266,7 +266,7 @@ describe('sanitize', () => {
 		expect(sanitize(log([entry({ exercise_id: null })]), EXERCISES, REQ.text)).toEqual(UNCLEAR);
 		const newOne = entry({
 			exercise_id: null,
-			new_exercise: { canonical_name: 'Remo al mentón', muscle_groups: ['hombro'], kind: 'compound', load_basis: 'total' },
+			new_exercise: { canonical_name: 'Remo al mentón', muscle_groups: ['shoulders'], kind: 'compound', load_basis: 'total' },
 		});
 		expect(sanitize(log([newOne]), EXERCISES, REQ.text)).toEqual(log([newOne]));
 	});
