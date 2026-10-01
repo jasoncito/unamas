@@ -27,6 +27,21 @@ beforeEach(async () => {
   ids = (await loadSeed(db, seedJson as Seed))!;
 });
 
+/** Photos kept as `kept/<entry>.jpg`; their base64 is the uri, so tests can see which went where. */
+const fakePhotos = {
+  /** The next photo's file disappears (deleted, storage cleared). */
+  lose: false,
+  keep(_temp: string, entryId: string) {
+    return `kept/${entryId}.jpg`;
+  },
+  async base64(uri: string) {
+    return this.lose ? null : `b64:${uri}`;
+  },
+};
+beforeEach(() => {
+  fakePhotos.lose = false;
+});
+
 /** A session screen wired to a scripted AI. */
 function harness(
   answers: (ParseResponse | Error)[],
@@ -54,7 +69,15 @@ function harness(
     state = sessionReducer(state, e);
   };
   const actions = createSessionActions(
-    { db, ai, newId: () => `f0000000-0000-4000-8000-${String(++n).padStart(12, '0')}`, now: () => '2026-09-29T18:00:00.000Z', today: () => '2026-09-29', requestSync: () => void syncs++ },
+    {
+      db,
+      ai,
+      newId: () => `f0000000-0000-4000-8000-${String(++n).padStart(12, '0')}`,
+      now: () => '2026-09-29T18:00:00.000Z',
+      today: () => '2026-09-29',
+      requestSync: () => void syncs++,
+      photos: fakePhotos,
+    },
     ctx,
     () => state,
     dispatch,
@@ -216,7 +239,7 @@ describe('new exercises', () => {
     await h.actions.send('remo al mentón con barra 15 kilos 3 de 12');
     const created = (await getAllExercises(db)).find((e) => e.canonicalName === 'Remo al mentón')!;
     expect(created).toMatchObject({ aliases: ['remo al menton con barra'], kind: 'compound', repFloor: 8, repTop: 12, stepKg: 2.5, loadBasis: 'total' });
-    expect(h.state()).toMatchObject({ feedback: { text: 'Anotado · primera vez, queda como referencia', tone: 'muted' } });
+    expect(h.state()).toMatchObject({ feedback: { text: 'Anotado · Remo al mentón · primera vez', tone: 'muted' } });
   });
 });
 
@@ -376,6 +399,91 @@ describe('retryPending (on open, on foreground, when the signal returns)', () =>
     await h.actions.retryPending();
     expect(h.requests).toEqual([]);
     expect(h.state()).toBe(initialState);
+  });
+});
+
+describe('photo of a machine (design/photo.html)', () => {
+  const imageOf = async (raw: string) =>
+    (await db.getFirstAsync<{ image_uri: string | null }>('SELECT image_uri FROM entry WHERE raw_text = ?', [raw]))?.image_uri;
+  const newMachine = (load: number, reps: number[]) =>
+    log([entry({ load_kg: load, reps, new_exercise: { canonical_name: 'Press de pecho convergente', muscle_groups: ['pecho'], kind: 'compound', load_basis: 'per_side' } })]);
+
+  it('kept with the entry, sent with the text, and shown in the bubble', async () => {
+    const h = harness([newMachine(25, [10, 10, 10])]);
+    await h.actions.send('esta, 25 a cada lado, 3 de 10', 'cache/tmp.jpg');
+    const id = (await entries())[0].id;
+    expect(h.requests[0]).toMatchObject({ text: 'esta, 25 a cada lado, 3 de 10', image: `b64:kept/${id}.jpg` });
+    expect(h.events[0]).toEqual({ type: 'SENT', text: 'esta, 25 a cada lado, 3 de 10', image: `kept/${id}.jpg` });
+    expect(h.state()).toMatchObject({ phase: 'feedback', image: `kept/${id}.jpg`, feedback: { text: 'Anotado · Press de pecho convergente · primera vez', tone: 'muted' } });
+  });
+
+  it('a new exercise from a photo: "esta" is no alias', async () => {
+    const h = harness([newMachine(25, [10, 10, 10])]);
+    await h.actions.send('esta, 25 a cada lado, 3 de 10', 'cache/tmp.jpg');
+    const created = (await getAllExercises(db)).find((e) => e.canonicalName === 'Press de pecho convergente')!;
+    expect(created.aliases).toEqual([]);
+  });
+
+  it('photo alone: the AI names it and asks for the numbers; the answer is the whole phrase, with the photo again', async () => {
+    const asks: ParseResponse = {
+      intent: 'ambiguous', entries: [], reply: null,
+      ambiguity: { question: 'Press de pecho convergente. ¿Con cuánto peso y cuántas series?', options: [] },
+    };
+    const h = harness([asks, newMachine(25, [10, 10, 10])]);
+    await h.actions.send('', 'cache/tmp.jpg');
+    const id = (await entries())[0].id;
+    expect(h.requests[0]).toMatchObject({ text: '', image: `b64:kept/${id}.jpg` });
+    expect(h.state()).toMatchObject({ phase: 'disambiguating', said: '', image: `kept/${id}.jpg` });
+
+    await h.actions.send('25 a cada lado, 3 de 10');
+    expect(h.requests[1]).toMatchObject({ text: '25 a cada lado, 3 de 10', image: `b64:kept/${id}.jpg` });
+    expect(await entries()).toEqual([expect.objectContaining({ status: 'ok', raw_text: '25 a cada lado, 3 de 10' })]);
+    expect(await imageOf('25 a cada lado, 3 de 10')).toBeNull(); // understood: the photo can go
+  });
+
+  it('without signal: the photo stays with the pending entry and goes again with the retry', async () => {
+    const first = harness([new AiUnavailableError('offline')]);
+    await first.actions.send('esta, 25 a cada lado, 3 de 10', 'cache/tmp.jpg');
+    const id = (await entries())[0].id;
+    expect(await imageOf('esta, 25 a cada lado, 3 de 10')).toBe(`kept/${id}.jpg`);
+
+    const again = harness([newMachine(25, [10, 10, 10])], { sessionId: first.ctx.sessionId, groups: ['pecho'] });
+    await again.actions.retryPending();
+    expect(again.requests[0].image).toBe(`b64:kept/${id}.jpg`);
+  });
+
+  it('choosing an option for a photo’s doubt learns no alias', async () => {
+    const polea = ids.get('laterales_polea')!;
+    const which: ParseResponse = {
+      intent: 'ambiguous', entries: [], reply: null,
+      ambiguity: { question: '¿Cuál es?', options: [{ exercise_id: polea, label: 'Laterales en polea' }] },
+    };
+    const h = harness([which, log([entry({ exercise_id: polea, load_kg: 10, reps: [11, 11, 11, 11] })])]);
+    await h.actions.send('esta con 10, 4 de 11', 'cache/tmp.jpg');
+    const before = (await getExercise(db, polea))!.aliases;
+    await h.actions.choose(polea);
+    expect((await getExercise(db, polea))!.aliases).toEqual(before);
+    expect(h.requests[1].image).toMatch(/^b64:kept\//);
+  });
+
+  it('a doubt answered with a photo keeps it, for a retry without signal', async () => {
+    const which: ParseResponse = { intent: 'ambiguous', entries: [], reply: null, ambiguity: { question: '¿Qué máquina?', options: [] } };
+    const h = harness([which, new AiUnavailableError('offline')]);
+    await h.actions.send('la de pecho, 25 a cada lado, 3 de 10');
+    await h.actions.send('esta', 'cache/tmp.jpg');
+    const id = (await entries())[0].id;
+    expect(h.requests[1].image).toBe(`b64:kept/${id}.jpg`);
+
+    const again = harness([newMachine(25, [10, 10, 10])], { sessionId: h.ctx.sessionId, groups: ['pecho'] });
+    await again.actions.retryPending();
+    expect(again.requests[0]).toMatchObject({ text: 'la de pecho, 25 a cada lado, 3 de 10, esta', image: `b64:kept/${id}.jpg` });
+  });
+
+  it('the photo file is gone: the text goes alone', async () => {
+    const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })])]);
+    fakePhotos.lose = true;
+    await h.actions.send('press 24 4 de 9', 'cache/tmp.jpg');
+    expect(h.requests[0].image).toBeNull();
   });
 });
 

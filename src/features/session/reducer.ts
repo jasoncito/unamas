@@ -19,14 +19,16 @@ export type SessionState =
       /** Bumped each time the stop's "Mantén para terminar" should show ("listo" was said). */
       stopTip?: number;
     }
-  | { phase: 'sending'; text: string; logged: number; bubble: string }
-  | { phase: 'feedback'; text: string; logged: number; bubble: string; feedback: FeedbackLine }
+  | { phase: 'sending'; text: string; logged: number; bubble: string; image: string | null }
+  | { phase: 'feedback'; text: string; logged: number; bubble: string; image: string | null; feedback: FeedbackLine }
   | {
       phase: 'disambiguating';
       text: string;
       logged: number;
       entryId: string;
       said: string;
+      /** The photo sent with it, shown with the question (a machine they couldn't name). */
+      image: string | null;
       question: string;
       options: AmbiguityOption[];
     }
@@ -37,10 +39,10 @@ export type SessionState =
 
 export type SessionEvent =
   | { type: 'TYPE'; text: string }
-  | { type: 'SENT'; text: string }
+  | { type: 'SENT'; text: string; image?: string | null }
   | { type: 'LOGGED'; feedback: FeedbackLine; count: number }
   | { type: 'FEEDBACK_DONE' }
-  | { type: 'ASK'; entryId: string; said: string; question: string; options: AmbiguityOption[] }
+  | { type: 'ASK'; entryId: string; said: string; image?: string | null; question: string; options: AmbiguityOption[] }
   | { type: 'REPLY'; reply: string }
   /** "Listo" / "terminamos": show the stop's tip; it never ends the session by itself (CLAUDE.md §8). */
   | { type: 'SHOW_STOP_TIP' }
@@ -62,7 +64,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
 
     case 'SENT':
       // The bubble rises from the input right away, which empties (CLAUDE.md §8, screen 4).
-      return { phase: 'sending', text: '', logged: state.logged, bubble: event.text };
+      return { phase: 'sending', text: '', logged: state.logged, bubble: event.text, image: event.image ?? null };
 
     case 'LOGGED':
       if (state.phase !== 'sending') return state;
@@ -79,6 +81,7 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         logged: state.logged,
         entryId: event.entryId,
         said: event.said,
+        image: event.image ?? null,
         question: event.question,
         options: event.options,
       };

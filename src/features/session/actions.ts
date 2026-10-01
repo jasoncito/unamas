@@ -13,6 +13,7 @@ import {
   resolveEntry,
   setEntryRawText,
   setEntryAmbiguous,
+  setEntryImage,
   setEntryPending,
   type StoredAmbiguity,
   type UnresolvedEntry,
@@ -24,6 +25,7 @@ import { REP_RANGES } from '@/domain/engine';
 import { normalizeName, phraseToAlias } from '@/domain/names';
 import type { IsoDate, LoadBasis } from '@/domain/types';
 import { AiUnavailableError, type AiService } from '@/services/ai';
+import type { PhotoStore } from '@/services/image';
 
 import { learnAliasFromChoice } from './aliases';
 import { loadSummary, type SessionSummary } from './controller';
@@ -40,6 +42,8 @@ export interface SessionDeps {
   today(): IsoDate;
   /** After saving: sync a few seconds later. */
   requestSync(): void;
+  /** Photos of machines, kept with their entry until it's understood. */
+  photos: PhotoStore;
 }
 
 export interface SessionContext {
@@ -69,8 +73,11 @@ export interface SessionEvents {
 export type SessionScope = 'open' | 'ended';
 
 export interface SessionActions {
-  /** Screen 4: what they typed or dictated. During a doubt, it's their answer. */
-  send(text: string): Promise<void>;
+  /**
+   * Screen 4: what they typed or dictated, with a photo of the machine if they took one (a temporary
+   * file; it's kept with the entry). During a doubt, it's their answer.
+   */
+  send(text: string, photo?: string | null): Promise<void>;
   /** Screen 5: they tapped which exercise they meant. */
   choose(exerciseId: string): Promise<void>;
   /**
@@ -109,13 +116,20 @@ export function createSessionActions(
   const serial = (work: () => Promise<void>) => (queue = queue.then(work, work));
   let retrying: Promise<void> | null = null;
   /** The doubt on screen and where it belongs: a closed session's, on screen 1, isn't `ctx`'s. */
-  let doubt: { entryId: string; sessionId: string; groups: readonly string[] } | null = null;
+  let doubt: { entryId: string; sessionId: string; groups: readonly string[]; imageUri: string | null } | null = null;
   /** Doubts put off with "Ahora no", until the app opens again. */
   const dismissed = new Set<string>();
 
-  const ask = (entryId: string, said: string, sessionId: string, groups: readonly string[], out: Extract<Outcome, { kind: 'ask' }>) => {
-    doubt = { entryId, sessionId, groups };
-    dispatch({ type: 'ASK', entryId, said, question: out.question, options: out.options });
+  const ask = (
+    entryId: string,
+    said: string,
+    sessionId: string,
+    groups: readonly string[],
+    imageUri: string | null,
+    out: Extract<Outcome, { kind: 'ask' }>,
+  ) => {
+    doubt = { entryId, sessionId, groups, imageUri };
+    dispatch({ type: 'ASK', entryId, said, image: imageUri, question: out.question, options: out.options });
   };
 
   async function ensureSession(): Promise<{ id: string; created: boolean }> {
@@ -127,19 +141,27 @@ export function createSessionActions(
   }
 
   /** Asks /parse about an entry already saved and saves the answer. Dispatches nothing. */
-  async function resolve(entryId: string, rawText: string, sessionId: string, groups: readonly string[], only?: Exercise): Promise<Outcome> {
+  async function resolve(
+    entryId: string,
+    rawText: string,
+    sessionId: string,
+    groups: readonly string[],
+    imageUri: string | null,
+    only?: Exercise,
+  ): Promise<Outcome> {
     const exercises = await getAllExercises(deps.db);
     const context = await contextFor(deps.db, only ? [only] : exercises, groups);
+    const image = imageUri ? await deps.photos.base64(imageUri) : null;
     let res: ParseResponse;
     try {
-      res = await deps.ai.parse({ text: rawText, image: null, context: { muscle_groups: [...groups], exercises: context } });
+      res = await deps.ai.parse({ text: rawText, image, context: { muscle_groups: [...groups], exercises: context } });
     } catch (e) {
       if (!(e instanceof AiUnavailableError)) throw e;
       return { kind: 'offline' }; // kept as pending: nothing is lost
     }
 
     if (res.intent === 'log') {
-      const feedback = await saveLog(deps, entryId, rawText, sessionId, res, exercises);
+      const feedback = await saveLog(deps, entryId, rawText, sessionId, res, exercises, imageUri !== null);
       deps.requestSync();
       return { kind: 'logged', feedback, count: res.entries.length };
     }
@@ -169,10 +191,11 @@ export function createSessionActions(
     rawText: string,
     sessionId: string,
     groups: readonly string[],
+    imageUri: string | null,
     created: boolean,
     only?: Exercise,
   ) {
-    const out = await resolve(entryId, rawText, sessionId, groups, only);
+    const out = await resolve(entryId, rawText, sessionId, groups, imageUri, only);
     if (created && !(out.kind === 'gone' && out.sessionGone)) events.onSessionCreated(sessionId);
     switch (out.kind) {
       case 'offline':
@@ -180,7 +203,7 @@ export function createSessionActions(
       case 'logged':
         return dispatch({ type: 'LOGGED', feedback: out.feedback, count: out.count });
       case 'ask':
-        return ask(entryId, rawText, sessionId, groups, out);
+        return ask(entryId, rawText, sessionId, groups, imageUri, out);
       case 'gone':
         // "Listo": the stop's tip, so they hold it; it never ends the session by itself (CLAUDE.md §8).
         return dispatch(out.endSession ? { type: 'SHOW_STOP_TIP' } : { type: 'REPLY', reply: out.reply });
@@ -214,14 +237,14 @@ export function createSessionActions(
     let out: Outcome | null = await storedDoubt(entry);
     if (!out) {
       await setEntryPending(deps.db, entry.id);
-      out = await resolve(entry.id, entry.rawText, entry.sessionId, entry.groups);
+      out = await resolve(entry.id, entry.rawText, entry.sessionId, entry.groups, entry.imageUri);
     }
     if (out.kind === 'offline') {
       events.onChanged();
       return false;
     }
     if (out.kind === 'ask' && (scope === 'ended' || entry.sessionId === ctx.sessionId) && idle()) {
-      ask(entry.id, entry.rawText, entry.sessionId, entry.groups, out);
+      ask(entry.id, entry.rawText, entry.sessionId, entry.groups, entry.imageUri, out);
     }
     // Otherwise it waits as ambiguous: it's asked again on the next retry with nothing on screen.
     if (out.kind === 'gone' && idle()) dispatch({ type: 'REPLY', reply: copy.unclearRetry(entry.rawText) });
@@ -232,31 +255,37 @@ export function createSessionActions(
   /** Where the doubt on screen belongs: remembered when it was asked; the session screen's otherwise. */
   function originOf(entryId: string) {
     if (doubt?.entryId === entryId) return doubt;
-    return { entryId, sessionId: ctx.sessionId!, groups: ctx.groups };
+    return { entryId, sessionId: ctx.sessionId!, groups: ctx.groups, imageUri: null };
   }
 
   return {
-    send: (text) =>
+    send: (text, photo = null) =>
       serial(async () => {
         const said = text.trim();
-        if (!said) return;
+        if (!said && !photo) return;
         const state = getState();
         if (scope === 'ended' && state.phase !== 'disambiguating') return; // screen 1 only answers doubts
-        dispatch({ type: 'SENT', text: said });
 
         // During a doubt, what they type answers it: it joins the original phrase, parsed again.
         if (state.phase === 'disambiguating') {
           const origin = originOf(state.entryId);
-          const joined = state.options.length === 0 ? `${state.said}, ${said}` : `${state.said} (${said})`;
+          // A photo sent alone ("¿con cuánto peso y cuántas series?"): the answer is the whole phrase.
+          const joined = !state.said ? said : state.options.length === 0 ? `${state.said}, ${said}` : `${state.said} (${said})`;
+          // A new photo in the answer replaces the old one.
+          const imageUri = photo ? deps.photos.keep(photo, state.entryId) : origin.imageUri;
+          dispatch({ type: 'SENT', text: joined, image: imageUri });
           await setEntryRawText(deps.db, state.entryId, joined);
+          if (photo) await setEntryImage(deps.db, state.entryId, imageUri);
           await setEntryPending(deps.db, state.entryId);
-          return process(state.entryId, joined, origin.sessionId, origin.groups, false);
+          return process(state.entryId, joined, origin.sessionId, origin.groups, imageUri, false);
         }
 
         const { id: sessionId, created } = await ensureSession();
         const entryId = deps.newId();
-        await insertPendingEntry(deps.db, { id: entryId, sessionId, rawText: said, createdAt: deps.now() });
-        return process(entryId, said, sessionId, ctx.groups, created);
+        const imageUri = photo ? deps.photos.keep(photo, entryId) : null;
+        dispatch({ type: 'SENT', text: said, image: imageUri });
+        await insertPendingEntry(deps.db, { id: entryId, sessionId, rawText: said, createdAt: deps.now(), imageUri });
+        return process(entryId, said, sessionId, ctx.groups, imageUri, created);
       }),
 
     choose: (exerciseId) =>
@@ -265,13 +294,14 @@ export function createSessionActions(
         if (state.phase !== 'disambiguating') return;
         const exercise = (await getAllExercises(deps.db)).find((e) => e.id === exerciseId);
         if (!exercise) return;
-        dispatch({ type: 'SENT', text: state.said });
+        const origin = originOf(state.entryId);
+        dispatch({ type: 'SENT', text: state.said, image: origin.imageUri });
         // Their words become an alias of the chosen exercise: next time they resolve straight to it.
-        await learnAliasFromChoice(deps.db, state.said, exerciseId);
+        // Not with a photo: "esta" points at the photo, not at the exercise.
+        if (!origin.imageUri) await learnAliasFromChoice(deps.db, state.said, exerciseId);
         await setEntryPending(deps.db, state.entryId);
         // Parsed again with only that exercise, to get the numbers for it.
-        const origin = originOf(state.entryId);
-        return process(state.entryId, state.said, origin.sessionId, origin.groups, false, exercise);
+        return process(state.entryId, state.said, origin.sessionId, origin.groups, origin.imageUri, false, exercise);
       }),
 
     retryPending: () => {
@@ -352,6 +382,8 @@ async function saveLog(
   sessionId: string,
   res: ParseResponse,
   exercises: readonly Exercise[],
+  /** Sent with a photo: their words ("esta, 25 a cada lado") point at it, so they're no alias. */
+  withPhoto: boolean,
 ) {
   let first: ReturnType<typeof feedbackLine> | null = null;
   for (const [i, e] of res.entries.entries()) {
@@ -359,7 +391,7 @@ async function saveLog(
     if (!exercise && e.new_exercise) {
       const n = e.new_exercise;
       const [repFloor, repTop] = REP_RANGES[n.kind];
-      const alias = phraseToAlias(rawText);
+      const alias = withPhoto ? '' : phraseToAlias(rawText);
       exercise = {
         id: deps.newId(),
         canonicalName: n.canonical_name,
@@ -391,8 +423,8 @@ async function saveLog(
 
     const today = { date: deps.today(), loadKg: e.load_kg!, reps: e.reps };
     const prev = previous && { date: localDateOf(previous.createdAt), loadKg: previous.loadKg, reps: previous.reps };
-    first ??= feedbackLine(deltaOf(prev, today, exercise.repFloor), prev?.date ?? null, deps.today());
+    first ??= feedbackLine(deltaOf(prev, today, exercise.repFloor), prev?.date ?? null, deps.today(), exercise.canonicalName);
   }
-  return first ?? feedbackLine({ kind: 'new' }, null, deps.today());
+  return first ?? feedbackLine({ kind: 'new' }, null, deps.today(), '');
 }
 

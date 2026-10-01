@@ -14,6 +14,7 @@ describe('sessionReducer', () => {
       text: '',
       logged: 0,
       bubble: 'press 24 4 de 9',
+      image: null,
     });
   });
 
@@ -36,7 +37,15 @@ describe('sessionReducer', () => {
   it('a doubt → disambiguating with the phrase, the question and the options', () => {
     const options = [{ exerciseId: 'polea', label: 'En polea', lastLoadKg: 7.5 }];
     const s = run([{ type: 'SENT', text: 'laterales con 10' }, { type: 'ASK', entryId: 'e1', said: 'laterales con 10', question: '¿Cuáles laterales?', options }]);
-    expect(s).toEqual({ phase: 'disambiguating', text: '', logged: 0, entryId: 'e1', said: 'laterales con 10', question: '¿Cuáles laterales?', options });
+    expect(s).toEqual({ phase: 'disambiguating', text: '', logged: 0, entryId: 'e1', said: 'laterales con 10', image: null, question: '¿Cuáles laterales?', options });
+  });
+
+  it('a photo travels with the bubble and with its doubt (design/photo.html)', () => {
+    const sent = run([{ type: 'SENT', text: '', image: 'kept/e1.jpg' }]);
+    expect(sent).toMatchObject({ phase: 'sending', bubble: '', image: 'kept/e1.jpg' });
+    expect(sessionReducer(sent, { type: 'LOGGED', feedback: FB, count: 1 })).toMatchObject({ phase: 'feedback', image: 'kept/e1.jpg' });
+    const asked = sessionReducer(sent, { type: 'ASK', entryId: 'e1', said: '', image: 'kept/e1.jpg', question: 'Press de pecho en máquina. ¿Con cuánto peso y cuántas series?', options: [] });
+    expect(asked).toMatchObject({ phase: 'disambiguating', said: '', image: 'kept/e1.jpg' });
   });
 
   it('a reply (not understood, a question, "listo") → ready with the reply shown', () => {

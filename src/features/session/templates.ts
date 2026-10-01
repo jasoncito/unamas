@@ -12,9 +12,12 @@ export interface FeedbackLine {
   tone: 'up' | 'muted';
 }
 
-/** "Anotado · +1 rep por serie vs. el 27", "Anotado · primera vez, queda como referencia". */
-export function feedbackLine(delta: Delta, previousDate: IsoDate | null, today: IsoDate): FeedbackLine {
-  if (delta.kind === 'new' || !previousDate) return { text: 'Anotado · primera vez, queda como referencia', tone: 'muted' };
+/**
+ * "Anotado · +1 rep por serie vs. el 27"; the first time, with the name it got (design/photo.html):
+ * "Anotado · Press de pecho en máquina · primera vez". Never green the first time: it isn't progress.
+ */
+export function feedbackLine(delta: Delta, previousDate: IsoDate | null, today: IsoDate, name: string): FeedbackLine {
+  if (delta.kind === 'new' || !previousDate) return { text: name ? `Anotado · ${name} · primera vez` : 'Anotado · primera vez', tone: 'muted' };
   const when = `el ${sameMonth(previousDate, today) ? Number(previousDate.slice(8, 10)) : formatShortDate(previousDate)}`;
   const tone = delta.tone === 'up' ? 'up' : 'muted';
   switch (delta.kind) {
