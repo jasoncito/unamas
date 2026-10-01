@@ -12,7 +12,7 @@ import { AiUnavailableError, type AiService } from '@/services/ai';
 import { createSessionActions, type SessionContext } from './actions';
 import { initialState, sessionReducer, type SessionEvent, type SessionState } from './reducer';
 
-const COPY = { unclear: 'No te entendí', offline: 'Sin señal', stopTip: 'Mantén el ■', howMuch: '¿Con cuánto peso?' };
+const COPY = { unclear: 'No te entendí', offline: 'Sin señal', stopTip: 'Mantén el ■' };
 const log = (entries: ParseResponse['entries']): ParseResponse => ({ intent: 'log', entries, ambiguity: null, reply: null });
 const entry = (over: Partial<ParseResponse['entries'][number]>): ParseResponse['entries'][number] => ({
   exercise_id: null, new_exercise: null, load_kg: 24, reps: [9, 9, 9, 9], rir_note: null, easy: false, ...over,
@@ -217,6 +217,25 @@ describe('two exercises in one message', () => {
     expect(saved).toHaveLength(2);
     expect(saved.map((e) => [e.status, e.exercise_id]).sort()).toEqual([['ok', polea], ['ok', press]].sort());
     expect(h.state()).toMatchObject({ logged: 2, feedback: { text: 'Anotado · +1 rep por serie vs. el 27' } });
+  });
+});
+
+describe('retry (the app reopened)', () => {
+  it('an entry left pending without signal is parsed again and logged', async () => {
+    const first = harness([new AiUnavailableError('offline')]);
+    await first.actions.send('press 24 4 de 9');
+    const again = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })])], { sessionId: first.ctx.sessionId, groups: ['hombro'] });
+    await again.actions.retry();
+    expect(again.requests[0].text).toBe('press 24 4 de 9');
+    expect(await entries()).toEqual([expect.objectContaining({ status: 'ok' })]);
+    expect(again.state()).toMatchObject({ phase: 'feedback', bubble: 'press 24 4 de 9' });
+  });
+
+  it('nothing unresolved: nothing is sent', async () => {
+    const h = harness([], { sessionId: null, groups: ['hombro'] });
+    await h.actions.retry();
+    expect(h.requests).toEqual([]);
+    expect(h.state()).toBe(initialState);
   });
 });
 

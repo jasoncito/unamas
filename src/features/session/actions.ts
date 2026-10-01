@@ -6,6 +6,7 @@ import {
   deleteUnsyncedEntry,
   getExerciseHistory,
   getLastExposures,
+  getUnresolvedEntry,
   insertPendingEntry,
   resolveEntry,
   setEntryRawText,
@@ -45,7 +46,6 @@ export interface SessionCopy {
   unclear: string;
   offline: string;
   stopTip: string;
-  howMuch: string;
 }
 
 export interface SessionActions {
@@ -53,6 +53,8 @@ export interface SessionActions {
   send(text: string): Promise<void>;
   /** Screen 5: they tapped which exercise they meant. */
   choose(exerciseId: string): Promise<void>;
+  /** The app reopened with an entry still pending or in doubt: ask /parse about it again. */
+  retry(): Promise<void>;
 }
 
 /**
@@ -156,6 +158,16 @@ export function createSessionActions(
         await setEntryStatus(deps.db, state.entryId, 'pending');
         // Parsed again with only that exercise, to get the numbers for it.
         return process(state.entryId, state.said, ctx.sessionId!, false, exercise);
+      }),
+
+    retry: () =>
+      serial(async () => {
+        if (!ctx.sessionId) return;
+        const entry = await getUnresolvedEntry(deps.db, ctx.sessionId);
+        if (!entry) return;
+        dispatch({ type: 'SENT', text: entry.rawText });
+        await setEntryStatus(deps.db, entry.id, 'pending');
+        return process(entry.id, entry.rawText, ctx.sessionId, false);
       }),
   };
 }
