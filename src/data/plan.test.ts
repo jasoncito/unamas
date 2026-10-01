@@ -85,9 +85,9 @@ describe('getLastExposures', () => {
 });
 
 describe('createSession', () => {
-  it('opens a session with the groups in order, dirty to sync', async () => {
-    await createSession(db, 'f0000000-0000-4000-8000-000000000009', ['hombro', 'tríceps']);
-    expect(await getOpenSession(db)).toMatchObject({ id: 'f0000000-0000-4000-8000-000000000009', muscleGroups: ['hombro', 'tríceps'], startedAt: null });
+  it('opens a session with the groups in order and its first entry time, dirty to sync', async () => {
+    await createSession(db, 'f0000000-0000-4000-8000-000000000009', ['hombro', 'tríceps'], '2026-09-29T18:00:00.000Z');
+    expect(await getOpenSession(db)).toMatchObject({ id: 'f0000000-0000-4000-8000-000000000009', muscleGroups: ['hombro', 'tríceps'], startedAt: '2026-09-29T18:00:00.000Z' });
     const row = await db.getFirstAsync<{ dirty: number }>('SELECT dirty FROM session WHERE id = ?', ['f0000000-0000-4000-8000-000000000009']);
     expect(row!.dirty).toBe(1);
   });

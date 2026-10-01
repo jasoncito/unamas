@@ -272,6 +272,15 @@ describe("a phone clock running ahead", () => {
   });
 });
 
+describe('entry.easy', () => {
+	it('defaults to false and can be set by the owner', async () => {
+		const read = async () => (await as<{ easy: boolean }>(A, "select easy from public.entry where id = 'eeeeeeee-0000-4000-8000-0000000000e0'")).rows[0].easy;
+		assert.equal(await read(), false);
+		await as(A, "update public.entry set easy = true where id = 'eeeeeeee-0000-4000-8000-0000000000e0'");
+		assert.equal(await read(), true);
+	});
+});
+
 describe('account deletion', () => {
   it('deleting the auth user removes all of their rows', async () => {
     await db.query('delete from auth.users where id = $1', [A]);

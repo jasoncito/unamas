@@ -57,11 +57,15 @@ export async function getLastTrainedByGroup(db: Db): Promise<Map<string, string>
   return new Map(rows.map((r) => [r.muscle_group, r.last_at]));
 }
 
-/** A new open session for these muscle groups, in the order they were chosen. Dirty, so it syncs. */
-export async function createSession(db: Db, id: string, muscleGroups: readonly string[]): Promise<void> {
-  await db.runAsync('INSERT INTO session (id, muscle_groups, updated_at, dirty) VALUES (?, ?, ?, 1)', [
+/**
+ * The session row, created with its first entry (CLAUDE.md §7): started_at is that entry's time.
+ * Groups in the order they were chosen. Dirty, so it syncs.
+ */
+export async function createSession(db: Db, id: string, muscleGroups: readonly string[], startedAt: string): Promise<void> {
+  await db.runAsync('INSERT INTO session (id, muscle_groups, started_at, updated_at, dirty) VALUES (?, ?, ?, ?, 1)', [
     id,
     JSON.stringify(muscleGroups),
+    startedAt,
     nowIso(),
   ]);
 }

@@ -1,4 +1,5 @@
 import type { Db } from '../db';
+import { nowIso } from '../ids';
 
 /** A logged exercise with a known load, as stored. `createdAt` is an ISO timestamp. */
 export interface LoggedSet {
@@ -6,6 +7,8 @@ export interface LoggedSet {
   loadKg: number;
   reps: number[];
   createdAt: string;
+  /** They said it was easy (3+ reps left). */
+  easy: boolean;
 }
 
 interface LoggedRow {
@@ -13,6 +16,11 @@ interface LoggedRow {
   load_kg: number;
   reps: string;
   created_at: string;
+  easy: number;
+}
+
+function fromLoggedRow(r: LoggedRow): LoggedSet {
+  return { sessionId: r.session_id, loadKg: r.load_kg, reps: JSON.parse(r.reps), createdAt: r.created_at, easy: r.easy === 1 };
 }
 
 /**
@@ -21,18 +29,13 @@ interface LoggedRow {
  */
 export async function getExerciseHistory(db: Db, exerciseId: string): Promise<LoggedSet[]> {
   const rows = await db.getAllAsync<LoggedRow>(
-    `SELECT session_id, load_kg, reps, created_at FROM entry
+    `SELECT session_id, load_kg, reps, created_at, easy FROM entry
      WHERE exercise_id = ? AND deleted_at IS NULL
        AND status = 'ok' AND load_kg IS NOT NULL AND reps IS NOT NULL
      ORDER BY created_at`,
     [exerciseId],
   );
-  return rows.map((r) => ({
-    sessionId: r.session_id,
-    loadKg: r.load_kg,
-    reps: JSON.parse(r.reps),
-    createdAt: r.created_at,
-  }));
+  return rows.map(fromLoggedRow);
 }
 
 /**
@@ -65,17 +68,83 @@ export async function getPlanExerciseIds(db: Db, groups: readonly string[]): Pro
 /** The last logged set of every exercise that has one (for "Última: …" in the suggestions). */
 export async function getLastExposures(db: Db): Promise<Map<string, LoggedSet>> {
   const rows = await db.getAllAsync<LoggedRow & { exercise_id: string }>(
-    `SELECT e.exercise_id, e.session_id, e.load_kg, e.reps, e.created_at FROM entry e
+    `SELECT e.exercise_id, e.session_id, e.load_kg, e.reps, e.created_at, e.easy FROM entry e
      WHERE e.deleted_at IS NULL AND e.status = 'ok' AND e.load_kg IS NOT NULL AND e.reps IS NOT NULL
        AND e.created_at = (SELECT MAX(e2.created_at) FROM entry e2
                            WHERE e2.exercise_id = e.exercise_id AND e2.deleted_at IS NULL AND e2.status = 'ok'
                              AND e2.load_kg IS NOT NULL AND e2.reps IS NOT NULL)`,
     [],
   );
-  return new Map(
-    rows.map((r) => [
-      r.exercise_id,
-      { sessionId: r.session_id, loadKg: r.load_kg, reps: JSON.parse(r.reps), createdAt: r.created_at },
-    ]),
+  return new Map(rows.map((r) => [r.exercise_id, fromLoggedRow(r)]));
+}
+
+// ─── Writing entries (screen 4) ─────────────────────────────────────────────────────────────────
+
+/** What they typed or said, saved before asking /parse: the bubble shows up right away. */
+export async function insertPendingEntry(
+  db: Db,
+  e: { id: string; sessionId: string; rawText: string; createdAt: string },
+): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO entry (id, session_id, raw_text, status, created_at, updated_at, dirty)
+     VALUES (?, ?, ?, 'pending', ?, ?, 1)`,
+    [e.id, e.sessionId, e.rawText, e.createdAt, e.createdAt],
   );
+}
+
+/** /parse understood it: the entry gets its exercise and numbers and is ready to sync. */
+export async function resolveEntry(
+  db: Db,
+  id: string,
+  e: { exerciseId: string; loadKg: number; reps: number[]; rirNote: string | null; easy: boolean },
+): Promise<void> {
+  await db.runAsync(
+    `UPDATE entry SET exercise_id = ?, load_kg = ?, reps = ?, rir_note = ?, easy = ?, status = 'ok', updated_at = ?, dirty = 1
+     WHERE id = ?`,
+    [e.exerciseId, e.loadKg, JSON.stringify(e.reps), e.rirNote, e.easy ? 1 : 0, nowIso(), id],
+  );
+}
+
+export async function setEntryStatus(db: Db, id: string, status: 'pending' | 'ambiguous'): Promise<void> {
+  await db.runAsync('UPDATE entry SET status = ?, updated_at = ? WHERE id = ?', [status, nowIso(), id]);
+}
+
+/** Their answer to "¿Con cuánto peso?" joins the original phrase, which is parsed again. */
+export async function setEntryRawText(db: Db, id: string, rawText: string): Promise<void> {
+  await db.runAsync('UPDATE entry SET raw_text = ?, updated_at = ? WHERE id = ?', [rawText, nowIso(), id]);
+}
+
+/**
+ * A message that wasn't an entry ("unclear", a question): it never synced (only status ok uploads),
+ * so it's simply removed.
+ */
+export async function deleteUnsyncedEntry(db: Db, id: string): Promise<void> {
+  await db.runAsync("DELETE FROM entry WHERE id = ? AND status <> 'ok'", [id]);
+}
+
+/** The session's logged entries, oldest first (screen 4's "Hoy"). */
+export async function getSessionEntries(
+  db: Db,
+  sessionId: string,
+): Promise<(LoggedSet & { id: string; exerciseId: string })[]> {
+  const rows = await db.getAllAsync<LoggedRow & { id: string; exercise_id: string }>(
+    `SELECT id, exercise_id, session_id, load_kg, reps, created_at, easy FROM entry
+     WHERE session_id = ? AND status = 'ok' AND deleted_at IS NULL AND load_kg IS NOT NULL AND reps IS NOT NULL
+     ORDER BY created_at`,
+    [sessionId],
+  );
+  return rows.map((r) => ({ ...fromLoggedRow(r), id: r.id, exerciseId: r.exercise_id }));
+}
+
+/** The session's entry still waiting for /parse or for an answer, if any. */
+export async function getUnresolvedEntry(
+  db: Db,
+  sessionId: string,
+): Promise<{ id: string; rawText: string; status: 'pending' | 'ambiguous' } | null> {
+  const row = await db.getFirstAsync<{ id: string; raw_text: string; status: 'pending' | 'ambiguous' }>(
+    `SELECT id, raw_text, status FROM entry WHERE session_id = ? AND status <> 'ok' AND deleted_at IS NULL
+     ORDER BY created_at DESC LIMIT 1`,
+    [sessionId],
+  );
+  return row && { id: row.id, rawText: row.raw_text, status: row.status };
 }

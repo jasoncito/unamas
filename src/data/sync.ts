@@ -38,6 +38,8 @@ interface TableSpec {
   json: readonly string[];
   /** Timestamps: normalized to ISO with Z when they come down. */
   times: readonly string[];
+  /** 0/1 in SQLite, boolean on the server. */
+  bools?: readonly string[];
 }
 
 export const TABLES: Record<Table, TableSpec> = {
@@ -56,11 +58,12 @@ export const TABLES: Record<Table, TableSpec> = {
   },
   entry: {
     columns: [
-      'id', 'session_id', 'exercise_id', 'load_kg', 'reps', 'raw_text', 'rir_note', 'status', 'created_at',
+      'id', 'session_id', 'exercise_id', 'load_kg', 'reps', 'raw_text', 'rir_note', 'easy', 'status', 'created_at',
       'updated_at', 'deleted_at',
     ],
     json: ['reps'],
     times: ['created_at', 'updated_at', 'deleted_at'],
+    bools: ['easy'],
   },
 };
 
@@ -89,7 +92,7 @@ export async function sync(db: Db, remote: RemoteStore, opts: SyncOptions = {}):
 async function push(db: Db, remote: RemoteStore): Promise<number> {
   let pushed = 0;
   for (const table of PARENTS_FIRST) {
-    const { columns, json } = TABLES[table];
+    const { columns, json, bools = [] } = TABLES[table];
     // Pending or ambiguous entries stay on the phone until they resolve.
     const onlyResolved = table === 'entry' ? " AND status = 'ok'" : '';
     const rows = await db.getAllAsync<Record<string, unknown>>(
@@ -103,6 +106,7 @@ async function push(db: Db, remote: RemoteStore): Promise<number> {
         batch.map((row) => {
           const out = { ...row };
           for (const c of json) out[c] = out[c] == null ? null : JSON.parse(out[c] as string);
+          for (const c of bools) out[c] = out[c] === 1;
           return out;
         }),
       );
@@ -166,9 +170,10 @@ async function applyRemoteRow(db: Db, table: Table, row: RemoteRow): Promise<boo
   );
   if (local && local.dirty === 1 && timeKey(local.updated_at) > timeKey(row.updated_at)) return false;
 
-  const { columns, json, times } = TABLES[table];
+  const { columns, json, times, bools = [] } = TABLES[table];
   const values = columns.map((c) => {
     const v = row[c];
+    if (bools.includes(c)) return v === true ? 1 : 0;
     if (v == null) return null;
     if (json.includes(c)) return JSON.stringify(v);
     if (times.includes(c)) return new Date(v as string).toISOString();
