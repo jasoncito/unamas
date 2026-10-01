@@ -8,12 +8,13 @@ import {
   getSessionEntries,
   getAllPendingEntries,
   getDoubtEntry,
+  getEndedSessionDoubt,
   insertPendingEntry,
   resolveEntry,
   setEntryRawText,
   setEntryStatus,
 } from './repos/entries';
-import { createSession, deleteSessionIfEmpty, getOpenSession } from './repos/sessions';
+import { createSession, deleteSessionIfEmpty, endSession, getOpenSession } from './repos/sessions';
 import { loadSeed, type Seed } from './seed';
 import { sync } from './sync';
 import { FakeServer } from './testing/fakeServer';
@@ -40,7 +41,7 @@ const row = (id = E) =>
 describe('entry lifecycle (screen 4)', () => {
   it('a pending entry has the text and nothing else yet, and is waiting to be retried', async () => {
     expect(await row()).toMatchObject({ status: 'pending', exercise_id: null, load_kg: null, raw_text: 'press de hombro 24 4 de 9, fácil' });
-    expect(await getAllPendingEntries(db)).toEqual([{ id: E, rawText: 'press de hombro 24 4 de 9, fácil', sessionId: S, groups: ['hombro'] }]);
+    expect(await getAllPendingEntries(db, 'open')).toEqual([{ id: E, rawText: 'press de hombro 24 4 de 9, fácil', sessionId: S, groups: ['hombro'] }]);
     expect(await getDoubtEntry(db, S)).toBeNull();
   });
 
@@ -55,7 +56,7 @@ describe('entry lifecycle (screen 4)', () => {
     await add('e5', S, '2026-09-29T20:00:00.000Z');
     await setEntryStatus(db, 'f0000000-0000-4000-8000-0000000000e4', 'ambiguous');
     await db.runAsync("UPDATE entry SET deleted_at = '2026-09-29T21:00:00Z' WHERE id = ?", ['f0000000-0000-4000-8000-0000000000e5']);
-    expect((await getAllPendingEntries(db)).map((e) => [e.rawText, e.groups])).toEqual([
+    expect((await getAllPendingEntries(db, 'open')).map((e) => [e.rawText, e.groups])).toEqual([
       ['e2', ['pierna']],
       ['press de hombro 24 4 de 9, fácil', ['hombro']],
       ['e3', ['hombro']],
@@ -66,17 +67,36 @@ describe('entry lifecycle (screen 4)', () => {
     const press = ids.get('press_hombro_mancuernas')!;
     await resolveEntry(db, E, { exerciseId: press, loadKg: 24, reps: [9, 9, 9, 9], rirNote: 'fácil', easy: true });
     expect(await row()).toMatchObject({ status: 'ok', exercise_id: press, load_kg: 24, easy: 1, dirty: 1 });
-    expect(await getAllPendingEntries(db)).toEqual([]);
+    expect(await getAllPendingEntries(db, 'open')).toEqual([]);
     const history = await getExerciseHistory(db, press);
     expect(history.at(-1)).toMatchObject({ loadKg: 24, reps: [9, 9, 9, 9], easy: true });
     expect(history[0].easy).toBe(false);
+  });
+
+  it('pending and doubts split by whether their session was stopped', async () => {
+    const S2 = 'f0000000-0000-4000-8000-0000000000a2';
+    await createSession(db, S2, ['pierna'], '2026-09-28T18:00:00.000Z');
+    const at = (id: string, t: string) => insertPendingEntry(db, { id: `f0000000-0000-4000-8000-0000000000${id}`, sessionId: S2, rawText: id, createdAt: t });
+    await at('e2', '2026-09-28T18:00:00.000Z');
+    await at('e3', '2026-09-28T18:05:00.000Z');
+    await at('e4', '2026-09-28T18:10:00.000Z');
+    await setEntryStatus(db, 'f0000000-0000-4000-8000-0000000000e3', 'ambiguous');
+    await setEntryStatus(db, 'f0000000-0000-4000-8000-0000000000e4', 'ambiguous');
+    await endSession(db, S2, '2026-09-28T19:00:00.000Z');
+
+    expect((await getAllPendingEntries(db, 'open')).map((e) => e.sessionId)).toEqual([S]);
+    expect((await getAllPendingEntries(db, 'ended')).map((e) => e.rawText)).toEqual(['e2']);
+    expect(await getEndedSessionDoubt(db)).toMatchObject({ rawText: 'e3', sessionId: S2, groups: ['pierna'] });
+    expect(await getEndedSessionDoubt(db, ['f0000000-0000-4000-8000-0000000000e3'])).toMatchObject({ rawText: 'e4' });
+    expect(await getDoubtEntry(db, S)).toBeNull();
+    expect(await getOpenSession(db)).toMatchObject({ id: S });
   });
 
   it('ambiguous, then their answer joins the phrase', async () => {
     await setEntryStatus(db, E, 'ambiguous');
     await setEntryRawText(db, E, 'press de hombro 24 4 de 9, fácil (con mancuernas)');
     expect(await getDoubtEntry(db, S)).toMatchObject({ id: E, rawText: 'press de hombro 24 4 de 9, fácil (con mancuernas)' });
-    expect(await getAllPendingEntries(db)).toEqual([]);
+    expect(await getAllPendingEntries(db, 'open')).toEqual([]);
   });
 
   it('a message that was not an entry is removed; a logged entry never is', async () => {

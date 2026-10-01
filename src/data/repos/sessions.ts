@@ -27,6 +27,17 @@ function fromRow(r: SessionRow): Session {
   };
 }
 
+/** A session by id (screen 7 reads the one just ended). */
+export async function getSession(db: Db, id: string): Promise<Session | null> {
+  const row = await db.getFirstAsync<SessionRow>('SELECT * FROM session WHERE id = ? AND deleted_at IS NULL', [id]);
+  return row && fromRow(row);
+}
+
+/** The stop completed (CLAUDE.md §7: ended_at). Dirty, so it syncs. */
+export async function endSession(db: Db, id: string, endedAt: string): Promise<void> {
+  await db.runAsync('UPDATE session SET ended_at = ?, updated_at = ?, dirty = 1 WHERE id = ? AND ended_at IS NULL', [endedAt, nowIso(), id]);
+}
+
 /** The session left open (the app closed before the stop), if any. */
 export async function getOpenSession(db: Db): Promise<Session | null> {
   const row = await db.getFirstAsync<SessionRow>(

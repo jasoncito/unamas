@@ -178,15 +178,30 @@ const fromUnresolvedRow = (r: UnresolvedRow): UnresolvedEntry => ({
   groups: JSON.parse(r.muscle_groups),
 });
 
-/** Every entry saved without signal, in any session, oldest first: the retry order. */
-export async function getAllPendingEntries(db: Db): Promise<UnresolvedEntry[]> {
+/**
+ * Every entry saved without signal, oldest first: the retry order. `open` = in sessions still going
+ * (the session screen retries those); `ended` = in sessions already stopped (retried from the root).
+ */
+export async function getAllPendingEntries(db: Db, scope: 'open' | 'ended'): Promise<UnresolvedEntry[]> {
   const rows = await db.getAllAsync<UnresolvedRow>(
     `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups FROM entry e JOIN session s ON s.id = e.session_id
-     WHERE e.status = 'pending' AND e.deleted_at IS NULL
+     WHERE e.status = 'pending' AND e.deleted_at IS NULL AND s.ended_at IS ${scope === 'open' ? '' : 'NOT '}NULL
      ORDER BY e.created_at, e.id`,
     [],
   );
   return rows.map(fromUnresolvedRow);
+}
+
+/** The oldest doubt left in a session already stopped, except `skip` ("Ahora no"): asked on screen 1 (decided with Jason). */
+export async function getEndedSessionDoubt(db: Db, skip: readonly string[] = []): Promise<UnresolvedEntry | null> {
+  const row = await db.getFirstAsync<UnresolvedRow>(
+    `SELECT e.id, e.raw_text, e.session_id, s.muscle_groups FROM entry e JOIN session s ON s.id = e.session_id
+     WHERE e.status = 'ambiguous' AND e.deleted_at IS NULL AND s.ended_at IS NOT NULL AND s.deleted_at IS NULL
+       AND e.id NOT IN (SELECT value FROM json_each(?))
+     ORDER BY e.created_at, e.id LIMIT 1`,
+    [JSON.stringify(skip)],
+  );
+  return row ? fromUnresolvedRow(row) : null;
 }
 
 /** The session's latest entry waiting for an answer to "which one?" or "how much?", if any. */
