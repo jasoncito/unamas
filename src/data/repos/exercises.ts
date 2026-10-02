@@ -99,3 +99,25 @@ export async function addExerciseAlias(db: Db, exerciseId: string, alias: string
   ]);
   return 'added';
 }
+
+/** Undo of a learned alias: takes it out again (compared normalized), marked dirty so it syncs. */
+export async function removeExerciseAlias(db: Db, exerciseId: string, alias: string): Promise<void> {
+  const target = await getExercise(db, exerciseId);
+  if (!target) return;
+  const key = normalizeName(alias);
+  const kept = target.aliases.filter((a) => normalizeName(a) !== key);
+  if (kept.length === target.aliases.length) return;
+  await db.runAsync('UPDATE exercise SET aliases = ?, updated_at = ?, dirty = 1 WHERE id = ?', [JSON.stringify(kept), nowIso(), exerciseId]);
+}
+
+/**
+ * Undo of the entry that created an exercise: the exercise goes too, unless something else uses it.
+ * Soft delete (it may have synced). True if it went.
+ */
+export async function deleteExerciseIfUnused(db: Db, exerciseId: string): Promise<boolean> {
+  const used = await db.getFirstAsync<{ n: number }>('SELECT count(*) AS n FROM entry WHERE exercise_id = ? AND deleted_at IS NULL', [exerciseId]);
+  if (used && used.n > 0) return false;
+  const now = nowIso();
+  await db.runAsync('UPDATE exercise SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE id = ? AND deleted_at IS NULL', [now, now, exerciseId]);
+  return true;
+}

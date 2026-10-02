@@ -253,3 +253,11 @@ export async function getPhotosInUse(db: Db): Promise<Set<string>> {
   );
   return new Set(rows.map((r) => r.image_uri));
 }
+
+/** "Deshacer": the entries of the last message go. Soft delete: they may have synced already. */
+export async function deleteEntries(db: Db, ids: readonly string[]): Promise<void> {
+  const now = nowIso();
+  for (const id of ids) {
+    await db.runAsync('UPDATE entry SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE id = ? AND deleted_at IS NULL', [now, now, id]);
+  }
+}

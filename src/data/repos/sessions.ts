@@ -91,3 +91,15 @@ export async function deleteSessionIfEmpty(db: Db, id: string): Promise<boolean>
   await db.runAsync('DELETE FROM session WHERE id = ?', [id]);
   return true;
 }
+
+/**
+ * After "Deshacer": a session left with no entries goes (there are no empty sessions). Soft delete,
+ * since it may have synced with the entry that was undone. True if it went.
+ */
+export async function deleteSessionIfNoEntries(db: Db, id: string): Promise<boolean> {
+  const row = await db.getFirstAsync<{ n: number }>('SELECT count(*) AS n FROM entry WHERE session_id = ? AND deleted_at IS NULL', [id]);
+  if (row && row.n > 0) return false;
+  const now = nowIso();
+  await db.runAsync('UPDATE session SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE id = ? AND deleted_at IS NULL', [now, now, id]);
+  return true;
+}

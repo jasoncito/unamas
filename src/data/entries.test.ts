@@ -14,8 +14,10 @@ import {
   setEntryRawText,
   setEntryAmbiguous,
   setEntryPending,
+  deleteEntries,
 } from './repos/entries';
-import { createSession, deleteSessionIfEmpty, endSession, getOpenSession } from './repos/sessions';
+import { deleteExerciseIfUnused, insertExercise } from './repos/exercises';
+import { createSession, deleteSessionIfEmpty, deleteSessionIfNoEntries, endSession, getOpenSession } from './repos/sessions';
 import { loadSeed, type Seed } from './seed';
 import { sync, TABLES } from './sync';
 import { FakeServer } from './testing/fakeServer';
@@ -164,5 +166,44 @@ describe('empty sessions', () => {
     await deleteUnsyncedEntry(db, E);
     expect(await deleteSessionIfEmpty(db, S)).toBe(true);
     expect(await getOpenSession(db)).toBeNull();
+  });
+});
+
+describe('undo through sync ("Deshacer" after the entry went up)', () => {
+  it('the entry, its new exercise and its empty session are deleted on the server and on another phone', async () => {
+    const NEW = 'f0000000-0000-4000-8000-0000000000c1';
+    await insertExercise(db, {
+      id: NEW, canonicalName: 'Remo al mentón', aliases: [], muscleGroups: ['shoulders'], kind: 'compound',
+      repFloor: 8, repTop: 12, stepKg: 2.5, loadBasis: 'total', createdAt: '2026-09-29T18:00:00.000Z',
+    });
+    await resolveEntry(db, E, { exerciseId: NEW, loadKg: 15, reps: [12, 12, 12], rirNote: null, easy: false });
+    const server = new FakeServer();
+    await sync(db, server.store()); // it went up within seconds
+    expect(server.rows.entry.get(E)!.deleted_at).toBeNull();
+
+    await deleteEntries(db, [E]);
+    expect(await deleteExerciseIfUnused(db, NEW)).toBe(true);
+    expect(await deleteSessionIfNoEntries(db, S)).toBe(true);
+    await sync(db, server.store());
+    expect([server.rows.entry.get(E)!.deleted_at, server.rows.exercise.get(NEW)!.deleted_at, server.rows.session.get(S)!.deleted_at]).toEqual([
+      expect.any(String),
+      expect.any(String),
+      expect.any(String),
+    ]);
+
+    const other = openMemoryDb();
+    await initDb(other, null);
+    await sync(other, server.store());
+    expect(await other.getFirstAsync('SELECT count(*) AS n FROM entry WHERE id = ? AND deleted_at IS NULL', [E])).toEqual({ n: 0 });
+    expect(await getOpenSession(other)).toBeNull();
+  });
+
+  it('an exercise still used elsewhere, or a session with other entries, stay', async () => {
+    const press = ids.get('press_hombro_mancuernas')!;
+    await resolveEntry(db, E, { exerciseId: press, loadKg: 24, reps: [9, 9, 9, 9], rirNote: null, easy: false });
+    await insertPendingEntry(db, { id: 'f0000000-0000-4000-8000-0000000000e2', sessionId: S, rawText: 'otro', createdAt: '2026-09-29T18:05:00.000Z' });
+    await deleteEntries(db, [E]);
+    expect(await deleteExerciseIfUnused(db, press)).toBe(false); // the seed's history uses it
+    expect(await deleteSessionIfNoEntries(db, S)).toBe(false);
   });
 });
