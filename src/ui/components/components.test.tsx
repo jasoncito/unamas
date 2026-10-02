@@ -163,6 +163,19 @@ describe('TodayList (screen 4)', () => {
 });
 
 describe('Bubble (screen 4)', () => {
+  it('"Deshacer" at the end of "Anotado", never green', async () => {
+    const onUndo = jest.fn();
+    await render(<Bubble text="press 24 4 de 9" pending={false} feedback={{ text: 'Anotado · +1 rep por serie vs. el 27', tone: 'up' }} onUndo={onUndo} />);
+    expect(screen.getByText('Deshacer')).toHaveStyle({ color: color.text });
+    await fireEvent.press(screen.getByRole('button', { name: 'Deshacer' }));
+    expect(onUndo).toHaveBeenCalled();
+  });
+
+  it('without onUndo (waiting, or a retry), no "Deshacer"', async () => {
+    await render(<Bubble text="press" pending feedback={null} />);
+    expect(screen.queryByText('Deshacer')).toBeNull();
+  });
+
   it('with a photo: the thumbnail, and the text if any', async () => {
     await render(<Bubble text="" image="file:///p.jpg" pending feedback={null} />);
     expect(screen.queryByText(/./)).toBeNull();

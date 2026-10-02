@@ -50,6 +50,8 @@ export function useComposer({ send, setText, hints }: Options) {
       else if (result) setPhoto(result.uri);
     },
     removePhoto: () => setPhoto(null),
+    /** "Deshacer": the photo of the undone message, back in the input. */
+    restorePhoto: (uri: string | null) => setPhoto(uri),
     /** The mic: start dictating, or stop. */
     toggleMic: () => {
       setNotice(null);

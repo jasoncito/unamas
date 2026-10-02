@@ -4,7 +4,7 @@ import type { ParseRequest, ParseResponse } from '../../../shared/contract';
 import type { Db } from '@/data/db';
 import { initDb } from '@/data/init';
 import { getAllExercises, getExercise } from '@/data/repos/exercises';
-import { insertPendingEntry, setEntryAmbiguous } from '@/data/repos/entries';
+import { getSessionEntries, insertPendingEntry, setEntryAmbiguous } from '@/data/repos/entries';
 import { createSession, endSession, getOpenSession, getSession } from '@/data/repos/sessions';
 import { loadSeed, type Seed } from '@/data/seed';
 import { openMemoryDb } from '@/data/testing/memoryDb';
@@ -484,6 +484,91 @@ describe('photo of a machine (design/photo.html)', () => {
     fakePhotos.lose = true;
     await h.actions.send('press 24 4 de 9', 'cache/tmp.jpg');
     expect(h.requests[0].image).toBeNull();
+  });
+});
+
+describe('undo ("Deshacer" during "Anotado")', () => {
+  const press = () => log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })]);
+  const row = (id: string) =>
+    db.getFirstAsync<{ deleted_at: string | null; dirty: number }>('SELECT deleted_at, dirty FROM entry WHERE id = ?', [id]);
+
+  it('the message goes (soft: it may have synced), their words go back to the input', async () => {
+    const h = harness([press(), log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 7.5, reps: [11, 11, 11, 11] })])]);
+    await h.actions.send('press 24 4 de 9');
+    h.dispatch({ type: 'FEEDBACK_DONE' });
+    await h.actions.send('laterales 7,5 4 de 11');
+    const laterales = (await entries()).find((e) => e.raw_text === 'laterales 7,5 4 de 11')!;
+    const syncsBefore = h.syncs();
+
+    expect(await h.actions.undo()).toEqual({ photo: null });
+    expect(h.state()).toEqual({ phase: 'ready', text: 'laterales 7,5 4 de 11', logged: 1, reply: null });
+    expect(await row(laterales.id)).toMatchObject({ deleted_at: expect.any(String), dirty: 1 });
+    expect(h.syncs()).toBe(syncsBefore + 1);
+    expect(h.changes()).toBe(1);
+    // The press, logged before, stays; so does the session.
+    expect((await getSessionEntries(db, h.ctx.sessionId!)).map((e) => e.loadKg)).toEqual([24]);
+    expect(await getOpenSession(db)).not.toBeNull();
+  });
+
+  it('the first entry: its session goes too, and screen 2 can go back again', async () => {
+    const h = harness([press()]);
+    await h.actions.send('press 24 4 de 9');
+    const session = h.ctx.sessionId!;
+    await h.actions.undo();
+    expect(h.ctx.sessionId).toBeNull();
+    expect(await getOpenSession(db)).toBeNull();
+    expect(await db.getFirstAsync('SELECT deleted_at IS NOT NULL AS gone, dirty FROM session WHERE id = ?', [session])).toEqual({ gone: 1, dirty: 1 });
+  });
+
+  it('two exercises in one message: both go', async () => {
+    const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! }), entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 7.5, reps: [10, 10, 10, 10] })])]);
+    await h.actions.send('press 24 4 de 9 y laterales 7,5 4 de 10');
+    await h.actions.undo();
+    expect(await db.getFirstAsync("SELECT count(*) AS n FROM entry WHERE created_at >= '2026-09-29' AND deleted_at IS NULL", [])).toEqual({ n: 0 });
+    expect(h.state()).toMatchObject({ phase: 'ready', logged: 0 });
+  });
+
+  it('an exercise it created goes too; one that existed stays', async () => {
+    const h = harness([log([entry({ load_kg: 15, reps: [12, 12, 12], new_exercise: { canonical_name: 'Remo al mentón', muscle_groups: ['shoulders'], kind: 'compound', load_basis: 'total' } })])]);
+    await h.actions.send('remo al mentón 15 3 de 12');
+    await h.actions.undo();
+    expect((await getAllExercises(db)).find((e) => e.canonicalName === 'Remo al mentón')).toBeUndefined();
+    expect(await getExercise(db, ids.get('press_hombro_mancuernas')!)).not.toBeNull();
+  });
+
+  it('a doubt answered by tapping: the alias it taught goes too', async () => {
+    const polea = ids.get('laterales_polea')!;
+    const which: ParseResponse = { intent: 'ambiguous', entries: [], reply: null, ambiguity: { question: '¿Cuáles?', options: [{ exercise_id: polea, label: 'En polea' }] } };
+    const h = harness([which, log([entry({ exercise_id: polea, load_kg: 10, reps: [11, 11, 11, 11] })])]);
+    const before = (await getExercise(db, polea))!.aliases;
+    await h.actions.send('laterales con 10, 4 de 11');
+    await h.actions.choose(polea);
+    expect((await getExercise(db, polea))!.aliases).toContain('laterales');
+    await h.actions.undo();
+    expect((await getExercise(db, polea))!.aliases).toEqual(before);
+  });
+
+  it('a message with a photo: the photo comes back too', async () => {
+    const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })])]);
+    await h.actions.send('esta, 24, 4 de 9', 'cache/tmp.jpg');
+    const id = (await entries())[0].id;
+    expect(await h.actions.undo()).toEqual({ photo: `kept/${id}.jpg` });
+  });
+
+  it('only while "Anotado" is on screen, and only once', async () => {
+    const h = harness([press()]);
+    expect(await h.actions.undo()).toBeNull();
+    await h.actions.send('press 24 4 de 9');
+    h.dispatch({ type: 'FEEDBACK_DONE' });
+    expect(await h.actions.undo()).toBeNull();
+    expect(await entries()).toEqual([expect.objectContaining({ status: 'ok' })]);
+  });
+
+  it('a message that did not log (a doubt) leaves nothing to undo', async () => {
+    const h = harness([press(), { intent: 'ambiguous', entries: [], reply: null, ambiguity: { question: '¿Con cuánto peso?', options: [] } }]);
+    await h.actions.send('press 24 4 de 9');
+    await h.actions.send('laterales 4 de 11'); // during "Anotado": a new message, now a doubt
+    expect(await h.actions.undo()).toBeNull();
   });
 });
 

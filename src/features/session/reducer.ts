@@ -46,6 +46,8 @@ export type SessionEvent =
   | { type: 'REPLY'; reply: string }
   /** "Listo" / "terminamos": show the stop's tip; it never ends the session by itself (CLAUDE.md §8). */
   | { type: 'SHOW_STOP_TIP' }
+  /** "Deshacer" during "Anotado": the bubble goes and their words are back in the input. */
+  | { type: 'UNDONE'; text: string; count: number }
   /** "Ahora no" on a doubt: back to ready, the entry keeps waiting. */
   | { type: 'DISMISS' }
   | { type: 'ENDED'; summary: SessionSummary }
@@ -97,6 +99,10 @@ export function sessionReducer(state: SessionState, event: SessionEvent): Sessio
         reply: null,
         stopTip: (state.phase === 'ready' ? (state.stopTip ?? 0) : 0) + 1,
       };
+
+    case 'UNDONE':
+      if (state.phase !== 'feedback') return state;
+      return { phase: 'ready', text: event.text, logged: state.logged - event.count, reply: null };
 
     case 'DISMISS':
       if (state.phase !== 'disambiguating') return state;

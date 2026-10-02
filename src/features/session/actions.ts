@@ -1,8 +1,9 @@
 import type { ContextExercise, ParseResponse } from '../../../shared/contract';
 
 import type { Db } from '@/data/db';
-import { getAllExercises, insertExercise, type Exercise } from '@/data/repos/exercises';
+import { deleteExerciseIfUnused, getAllExercises, insertExercise, removeExerciseAlias, type Exercise } from '@/data/repos/exercises';
 import {
+  deleteEntries,
   deleteUnsyncedEntry,
   getExerciseHistory,
   getAllPendingEntries,
@@ -18,7 +19,7 @@ import {
   type StoredAmbiguity,
   type UnresolvedEntry,
 } from '@/data/repos/entries';
-import { createSession, deleteSessionIfEmpty, endSession } from '@/data/repos/sessions';
+import { createSession, deleteSessionIfEmpty, deleteSessionIfNoEntries, endSession } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
 import { deltaOf } from '@/domain/delta';
 import { REP_RANGES } from '@/domain/engine';
@@ -90,12 +91,18 @@ export interface SessionActions {
   dismissDoubt(): void;
   /** The stop completed: the session ends, and its summary. Doesn't wait for a message on its way. */
   end(): Promise<SessionSummary | null>;
+  /**
+   * "Deshacer" during "Anotado" (decided with Jason): the whole message goes — its entries, an exercise
+   * it created (if nothing else uses it), the alias it taught, and its session if it was the first entry.
+   * Their words go back to the input; returns the photo to put back with them.
+   */
+  undo(): Promise<{ photo: string | null } | null>;
 }
 
 /** What asking /parse about a saved entry ended in, with the database already updated. */
 type Outcome =
   | { kind: 'offline' }
-  | { kind: 'logged'; feedback: FeedbackLine; count: number }
+  | { kind: 'logged'; feedback: FeedbackLine; count: number; entryIds: string[]; createdExerciseIds: string[] }
   | { kind: 'ask'; question: string; options: AmbiguityOption[] }
   | { kind: 'gone'; reply: string; endSession: boolean; sessionGone: boolean };
 
@@ -119,6 +126,17 @@ export function createSessionActions(
   let doubt: { entryId: string; sessionId: string; groups: readonly string[]; imageUri: string | null } | null = null;
   /** Doubts put off with "Ahora no", until the app opens again. */
   const dismissed = new Set<string>();
+  /** What the message on screen ("Anotado") did, so "Deshacer" can take it back. */
+  let lastLogged: {
+    text: string;
+    imageUri: string | null;
+    sessionId: string;
+    entryIds: string[];
+    createdExerciseIds: string[];
+    learned: { exerciseId: string; alias: string } | null;
+  } | null = null;
+  /** The alias learned by the choice being parsed (screen 5), to undo it with the entry. */
+  let learning: { exerciseId: string; alias: string } | null = null;
 
   const ask = (
     entryId: string,
@@ -161,9 +179,9 @@ export function createSessionActions(
     }
 
     if (res.intent === 'log') {
-      const feedback = await saveLog(deps, entryId, rawText, sessionId, res, exercises, imageUri !== null);
+      const saved = await saveLog(deps, entryId, rawText, sessionId, res, exercises, imageUri !== null);
       deps.requestSync();
-      return { kind: 'logged', feedback, count: res.entries.length };
+      return { kind: 'logged', feedback: saved.feedback, count: res.entries.length, entryIds: saved.entryIds, createdExerciseIds: saved.createdExerciseIds };
     }
 
     if (res.intent === 'ambiguous' && res.ambiguity) {
@@ -195,12 +213,16 @@ export function createSessionActions(
     created: boolean,
     only?: Exercise,
   ) {
+    const learned = learning; // only this message's
+    learning = null;
+    lastLogged = null;
     const out = await resolve(entryId, rawText, sessionId, groups, imageUri, only);
     if (created && !(out.kind === 'gone' && out.sessionGone)) events.onSessionCreated(sessionId);
     switch (out.kind) {
       case 'offline':
         return dispatch({ type: 'REPLY', reply: copy.offline });
       case 'logged':
+        lastLogged = { text: rawText, imageUri, sessionId, entryIds: out.entryIds, createdExerciseIds: out.createdExerciseIds, learned };
         return dispatch({ type: 'LOGGED', feedback: out.feedback, count: out.count });
       case 'ask':
         return ask(entryId, rawText, sessionId, groups, imageUri, out);
@@ -298,7 +320,9 @@ export function createSessionActions(
         dispatch({ type: 'SENT', text: state.said, image: origin.imageUri });
         // Their words become an alias of the chosen exercise: next time they resolve straight to it.
         // Not with a photo: "esta" points at the photo, not at the exercise.
-        if (!origin.imageUri) await learnAliasFromChoice(deps.db, state.said, exerciseId);
+        if (!origin.imageUri && (await learnAliasFromChoice(deps.db, state.said, exerciseId)) === 'added') {
+          learning = { exerciseId, alias: phraseToAlias(state.said)! };
+        }
         await setEntryPending(deps.db, state.entryId);
         // Parsed again with only that exercise, to get the numbers for it.
         return process(state.entryId, state.said, origin.sessionId, origin.groups, origin.imageUri, false, exercise);
@@ -339,6 +363,21 @@ export function createSessionActions(
       if (state.phase !== 'disambiguating') return;
       dismissed.add(state.entryId);
       dispatch({ type: 'DISMISS' });
+    },
+
+    undo: async () => {
+      if (getState().phase !== 'feedback' || !lastLogged) return null;
+      const u = lastLogged;
+      lastLogged = null;
+      // The screen first: their words back in the input, the bubble gone.
+      dispatch({ type: 'UNDONE', text: u.text, count: u.entryIds.length });
+      await deleteEntries(deps.db, u.entryIds);
+      for (const id of u.createdExerciseIds) await deleteExerciseIfUnused(deps.db, id);
+      if (u.learned) await removeExerciseAlias(deps.db, u.learned.exerciseId, u.learned.alias);
+      if ((await deleteSessionIfNoEntries(deps.db, u.sessionId)) && ctx.sessionId === u.sessionId) ctx.sessionId = null;
+      deps.requestSync();
+      events.onChanged();
+      return { photo: u.imageUri };
     },
 
     end: async () => {
@@ -386,6 +425,8 @@ async function saveLog(
   withPhoto: boolean,
 ) {
   let first: ReturnType<typeof feedbackLine> | null = null;
+  const entryIds: string[] = [];
+  const createdExerciseIds: string[] = [];
   for (const [i, e] of res.entries.entries()) {
     let exercise = e.exercise_id ? exercises.find((x) => x.id === e.exercise_id) : undefined;
     if (!exercise && e.new_exercise) {
@@ -406,6 +447,7 @@ async function saveLog(
         createdAt: deps.now(),
       };
       await insertExercise(deps.db, exercise);
+      createdExerciseIds.push(exercise.id);
     }
     if (!exercise) continue;
 
@@ -413,6 +455,7 @@ async function saveLog(
     const previous = history.at(-1) ?? null;
     const id = i === 0 ? entryId : deps.newId();
     if (i > 0) await insertPendingEntry(deps.db, { id, sessionId, rawText, createdAt: deps.now() });
+    entryIds.push(id);
     await resolveEntry(deps.db, id, {
       exerciseId: exercise.id,
       loadKg: e.load_kg!,
@@ -425,6 +468,6 @@ async function saveLog(
     const prev = previous && { date: localDateOf(previous.createdAt), loadKg: previous.loadKg, reps: previous.reps };
     first ??= feedbackLine(deltaOf(prev, today, exercise.repFloor), prev?.date ?? null, deps.today(), exercise.canonicalName);
   }
-  return first ?? feedbackLine({ kind: 'new' }, null, deps.today(), '');
+  return { feedback: first ?? feedbackLine({ kind: 'new' }, null, deps.today(), ''), entryIds, createdExerciseIds };
 }
 

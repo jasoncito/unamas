@@ -101,6 +101,8 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
     setText: (text: string) => dispatch({ type: 'TYPE', text }),
     send: (text: string, photo: string | null = null) => void actions.current?.send(text, photo),
     choose: (exerciseId: string) => void actions.current?.choose(exerciseId),
+    /** "Deshacer" during "Anotado". */
+    undo: () => actions.current?.undo() ?? Promise.resolve(null),
     /** The stop completed. Null if there was nothing to end. */
     end: () => actions.current?.end() ?? Promise.resolve(null),
     /** CERRAR: a fresh state for the next session. */

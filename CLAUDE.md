@@ -344,6 +344,7 @@ Secuencia al enviar:
 1. El texto **sube desde el input** como burbuja alineada a la derecha (surface, radio 18/18/6/18). El input se vacía, el teclado se cierra, el título cambia a "¿Qué sigue?" y vuelve el micrófono.
 2. Bajo la burbuja: "✓ Anotado · +1 rep por serie vs. el 27" (check y texto en verde si subió; check en surface y texto muted si igual o bajó). Un ejercicio nuevo: "Anotado · Press de pecho en máquina · primera vez", con el nombre que recibió y **en gris, nunca en verde** (no es progreso).
 3. A los **4.5 s** (parámetro) la burbuja se desvanece y en la lista de arriba ese ejercicio pasa a check verde con la marca de hoy y el delta.
+4. **Deshacer** (decidido con Jason, 2 oct 2026): al final de la línea "Anotado", visible solo esos 4,5 s, subrayado y nunca verde. Deshace **el mensaje entero**: sus entradas, el ejercicio que creó (si nada más lo usa), el alias que enseñó al elegir una opción, y su sesión si era la primera entrada (vuelve el "‹"). Borrado suave, porque puede haberse sincronizado ya. La frase (y la foto) vuelven al input para corregir y reenviar. Háptica suave. Pasados los 4,5 s no se borra desde "Hoy" (se diseña aparte).
 
 Mientras espera la respuesta de la función: la burbuja aparece enseguida con un estado de "pendiente" sutil.
 

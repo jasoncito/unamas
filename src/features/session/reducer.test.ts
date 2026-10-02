@@ -89,4 +89,10 @@ describe('sessionReducer', () => {
     expect(sessionReducer(summary, { type: 'FLOOD_DONE' })).toBe(summary);
     expect(sessionReducer(initialState, { type: 'FLOOD_DONE' })).toBe(initialState);
   });
+
+  it('"Deshacer" during "Anotado": back to ready with their words, one fewer logged; elsewhere nothing', () => {
+    const fb = run([{ type: 'SENT', text: 'press 24 4 de 9' }, { type: 'LOGGED', feedback: FB, count: 1 }]);
+    expect(sessionReducer(fb, { type: 'UNDONE', text: 'press 24 4 de 9', count: 1 })).toEqual({ phase: 'ready', text: 'press 24 4 de 9', logged: 0, reply: null });
+    expect(sessionReducer(initialState, { type: 'UNDONE', text: 'x', count: 1 })).toBe(initialState);
+  });
 });

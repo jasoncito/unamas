@@ -17,6 +17,7 @@ import { suggestionsFor, textAfterPicking } from '@/features/session/controller'
 import { pastSessionActions } from '@/features/session/pastSessions';
 import { useComposer } from '@/features/session/useComposer';
 import { useSessionScreen } from '@/features/session/useSessionScreen';
+import { haptics } from '@/services/haptics';
 import { copy } from '@/ui/copy';
 import { AmbiguityPanel } from '@/ui/components/AmbiguityPanel';
 import { Bubble } from '@/ui/components/Bubble';
@@ -39,7 +40,7 @@ const MAX_BLUR = 18;
 export default function SessionRoute() {
   const params = useLocalSearchParams<{ groups?: string }>();
   const pending = params.groups ? (JSON.parse(params.groups) as string[]) : null;
-  const { screen, state, setText, send, choose, end, close } = useSessionScreen(pending, () => router.replace('/'));
+  const { screen, state, setText, send, choose, undo, end, close } = useSessionScreen(pending, () => router.replace('/'));
   const flood = useSharedValue(0);
   // Their exercise names and aliases help the recognizer with "jalón", "Smith"…
   const hints = useMemo(() => (screen ? screen.exercises.flatMap((e) => [e.canonicalName, ...e.aliases]) : []), [screen]);
@@ -72,6 +73,11 @@ export default function SessionRoute() {
   const onEnd = async () => {
     Keyboard.dismiss();
     if (!(await end())) flood.value = withTiming(0, { duration: 350 });
+  };
+  const onUndo = async () => {
+    haptics.tap();
+    const undone = await undo();
+    if (undone?.photo) composer.restorePhoto(undone.photo);
   };
   const onClose = () => {
     close();
@@ -122,6 +128,7 @@ export default function SessionRoute() {
                     image={state.image}
                     pending={state.phase === 'sending'}
                     feedback={state.phase === 'feedback' ? state.feedback : null}
+                    onUndo={state.phase === 'feedback' ? onUndo : undefined}
                   />
                 )}
 

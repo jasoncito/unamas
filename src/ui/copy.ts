@@ -49,6 +49,7 @@ export const copy = {
     unclearRetry: (said: string) => `No entendí “${said}”. Dímelo de nuevo.`,
     planTitleStarted: 'Hoy te toca',
     // M7: voice and photo (design/photo.html)
+    undo: 'Deshacer',
     camera: 'Foto de la máquina',
     removePhoto: 'Quitar la foto',
     photoHint: 'Dile peso y series; la máquina la reconoce de la foto.',
