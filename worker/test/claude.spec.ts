@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { describe, expect, it, vi } from 'vitest';
 
 import { UNCLEAR, type ContextExercise, type ParseRequest, type ParseResponse } from '../../shared/contract';
-import { MAX_TOKENS, MODEL, numbersIn, OUTPUT_SCHEMA, parseWithClaude, sanitize } from '../src/claude';
+import { MAX_TOKENS, MODEL, numbersIn, OUTPUT_SCHEMA, parseWithClaude, sanitize, TEMPERATURE } from '../src/claude';
 
 const EXERCISES: ContextExercise[] = [
 	{ id: 'laterales_polea', name: 'Elevaciones laterales en polea', aliases: [], muscle_groups: ['shoulders'], last: null },
@@ -56,6 +56,9 @@ describe('parseWithClaude', () => {
 		const body = sent[0];
 		expect(body.model).toBe('claude-haiku-4-5-20251001');
 		expect(body.max_tokens).toBe(MAX_TOKENS);
+		expect(body.temperature).toBe(TEMPERATURE);
+		expect(TEMPERATURE).toBe(0);
+		expect(body).not.toHaveProperty('top_p');
 		expect(body.output_config.format.type).toBe('json_schema');
 		expect(body.output_config.format.schema.properties.intent.enum).toContain('ambiguous');
 		expect(body.system).toMatch(/exercise_id is copied exactly from context\.exercises/);

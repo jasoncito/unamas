@@ -9,6 +9,11 @@ import { SYSTEM_PROMPT } from './prompt';
 export const MODEL = 'claude-haiku-4-5-20251001';
 export const MAX_TOKENS = 400;
 export const TIMEOUT_MS = 15_000;
+/**
+ * Deterministic: the same phrase parses the same way, and evals can be compared run to run. Haiku 4.5
+ * accepts it (only models after Opus 4.6 reject temperature), also with structured outputs. Verified 2 oct 2026.
+ */
+export const TEMPERATURE = 0;
 
 /**
  * Text (and optional photo) → structured workout data, via structured outputs. API and network errors
@@ -28,6 +33,7 @@ export async function parseWithClaude(client: Anthropic, request: ParseRequest):
 		{
 			model: MODEL,
 			max_tokens: MAX_TOKENS,
+			temperature: TEMPERATURE,
 			system: SYSTEM_PROMPT,
 			messages: [{ role: 'user', content }],
 			output_config: { format: { type: 'json_schema', schema: OUTPUT_SCHEMA } },
