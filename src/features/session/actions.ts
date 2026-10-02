@@ -5,6 +5,7 @@ import { deleteExerciseIfUnused, getAllExercises, insertExercise, removeExercise
 import {
   deleteEntries,
   deleteUnsyncedEntry,
+  getEntryRef,
   getExerciseHistory,
   getAllPendingEntries,
   getDoubtEntry,
@@ -97,6 +98,12 @@ export interface SessionActions {
    * Their words go back to the input; returns the photo to put back with them.
    */
   undo(): Promise<{ photo: string | null } | null>;
+  /**
+   * "Borrar" on a row of "Hoy" (decided with Jason): that entry goes, as "Deshacer" would — with its
+   * exercise if nothing else uses it, and its session if it ends up empty. A pending one (never
+   * synced) is simply removed.
+   */
+  deleteEntry(entryId: string): Promise<void>;
 }
 
 /** What asking /parse about a saved entry ended in, with the database already updated. */
@@ -379,6 +386,18 @@ export function createSessionActions(
       events.onChanged();
       return { photo: u.imageUri };
     },
+
+    deleteEntry: (entryId) =>
+      serial(async () => {
+        const ref = await getEntryRef(deps.db, entryId);
+        if (!ref) return;
+        if (ref.status === 'ok') await deleteEntries(deps.db, [entryId]);
+        else await deleteUnsyncedEntry(deps.db, entryId);
+        if (ref.exerciseId) await deleteExerciseIfUnused(deps.db, ref.exerciseId);
+        if ((await deleteSessionIfNoEntries(deps.db, ref.sessionId)) && ctx.sessionId === ref.sessionId) ctx.sessionId = null;
+        deps.requestSync();
+        events.onChanged();
+      }),
 
     end: async () => {
       if (!ctx.sessionId) return null;

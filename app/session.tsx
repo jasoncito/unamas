@@ -40,7 +40,7 @@ const MAX_BLUR = 18;
 export default function SessionRoute() {
   const params = useLocalSearchParams<{ groups?: string }>();
   const pending = params.groups ? (JSON.parse(params.groups) as string[]) : null;
-  const { screen, state, setText, send, choose, undo, end, close } = useSessionScreen(pending, () => router.replace('/'));
+  const { screen, state, setText, send, choose, undo, deleteEntry, end, close } = useSessionScreen(pending, () => router.replace('/'));
   const flood = useSharedValue(0);
   // Their exercise names and aliases help the recognizer with "jalón", "Smith"…
   const hints = useMemo(() => (screen ? screen.exercises.flatMap((e) => [e.canonicalName, ...e.aliases]) : []), [screen]);
@@ -109,7 +109,7 @@ export default function SessionRoute() {
               )}
               <Animated.View style={[styles.content, contentStyle]}>
                 <ScrollView style={styles.planScroll} contentContainerStyle={styles.planContent} keyboardShouldPersistTaps="handled">
-                  {hasToday && <TodayList lines={screen.today} pending={screen.pending} />}
+                  {hasToday && <TodayList lines={screen.today} pending={screen.pending} onDelete={deleteEntry} />}
                   {screen.plan.length > 0 ? (
                     <PlanTable
                       title={started ? copy.session.planTitleStarted : `${screen.groupsLabel} · ${copy.session.planTitle}`}

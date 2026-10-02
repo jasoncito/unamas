@@ -131,6 +131,33 @@ describe('GroupsTitle', () => {
   });
 });
 
+describe('TodayList: "Borrar"', () => {
+  const line = { entryId: 'a', exerciseId: 'p', name: 'Press de hombro', loadBasis: 'per_dumbbell' as const, loadKg: 24, reps: [9, 9, 9, 9], comparedTo: '2026-09-27', delta: { kind: 'reps_per_set' as const, diff: 1, tone: 'up' as const }, createdAt: '2026-09-29T18:00:00.000Z' };
+
+  it('tapping a row shows "Borrar" in place of its value; tapping it deletes that entry', async () => {
+    const onDelete = jest.fn();
+    await render(<TodayList lines={[line]} pending={[{ entryId: 'b', rawText: 'laterales 7,5', createdAt: '2026-09-29T18:10:00.000Z' }]} onDelete={onDelete} />);
+    expect(screen.queryByText('Borrar')).toBeNull();
+    await fireEvent.press(screen.getByText('Press de hombro'));
+    expect(screen.getByText('Borrar')).toBeTruthy();
+    expect(screen.queryByText(/24 kg · 4×9/)).toBeNull();
+    await fireEvent.press(screen.getByText('Borrar'));
+    expect(onDelete).toHaveBeenCalledWith('a');
+    expect(screen.queryByText('Borrar')).toBeNull();
+  });
+
+  it('tapping the row again hides it; a pending row can be deleted too', async () => {
+    const onDelete = jest.fn();
+    await render(<TodayList lines={[line]} pending={[{ entryId: 'b', rawText: 'laterales 7,5', createdAt: '2026-09-29T18:10:00.000Z' }]} onDelete={onDelete} />);
+    await fireEvent.press(screen.getByText('Press de hombro'));
+    await fireEvent.press(screen.getByText('Press de hombro'));
+    expect(screen.queryByText('Borrar')).toBeNull();
+    await fireEvent.press(screen.getByText('laterales 7,5'));
+    await fireEvent.press(screen.getByText('Borrar'));
+    expect(onDelete).toHaveBeenCalledWith('b');
+  });
+});
+
 describe('TodayList (screen 4)', () => {
   beforeEach(async () => {
     await render(

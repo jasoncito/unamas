@@ -572,6 +572,37 @@ describe('undo ("Deshacer" during "Anotado")', () => {
   });
 });
 
+describe('"Borrar" on a row of "Hoy"', () => {
+  it('a logged entry goes (soft, synced); the session stays while it has others', async () => {
+    const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })]), log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 7.5, reps: [11, 11, 11, 11] })])]);
+    await h.actions.send('press 24 4 de 9');
+    await h.actions.send('laterales 7,5 4 de 11');
+    const lat = (await entries()).find((e) => e.raw_text === 'laterales 7,5 4 de 11')!;
+    await h.actions.deleteEntry(lat.id);
+    expect(await db.getFirstAsync('SELECT deleted_at IS NOT NULL AS gone, dirty FROM entry WHERE id = ?', [lat.id])).toEqual({ gone: 1, dirty: 1 });
+    expect(await getOpenSession(db)).not.toBeNull();
+    expect(h.changes()).toBe(1);
+  });
+
+  it('the last one: the session goes too, and a new exercise with it', async () => {
+    const h = harness([log([entry({ load_kg: 15, reps: [12, 12, 12], new_exercise: { canonical_name: 'Remo al mentón', muscle_groups: ['shoulders'], kind: 'compound', load_basis: 'total' } })])]);
+    await h.actions.send('remo al mentón 15 3 de 12');
+    await h.actions.deleteEntry((await entries())[0].id);
+    expect(await getOpenSession(db)).toBeNull();
+    expect(h.ctx.sessionId).toBeNull();
+    expect((await getAllExercises(db)).find((e) => e.canonicalName === 'Remo al mentón')).toBeUndefined();
+  });
+
+  it('a pending row (never synced) is removed outright', async () => {
+    const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })]), new AiUnavailableError('offline')]);
+    await h.actions.send('press 24 4 de 9');
+    await h.actions.send('laterales 7,5 4 de 11');
+    const pending = (await entries()).find((e) => e.status === 'pending')!;
+    await h.actions.deleteEntry(pending.id);
+    expect(await db.getFirstAsync('SELECT count(*) AS n FROM entry WHERE id = ?', [pending.id])).toEqual({ n: 0 });
+  });
+});
+
 describe('order', () => {
   it('two messages sent at once are processed one after the other', async () => {
     const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })]), log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 7.5, reps: [11, 11, 11, 11] })])]);

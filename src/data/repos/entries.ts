@@ -261,3 +261,15 @@ export async function deleteEntries(db: Db, ids: readonly string[]): Promise<voi
     await db.runAsync('UPDATE entry SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE id = ? AND deleted_at IS NULL', [now, now, id]);
   }
 }
+
+/** What deleting an entry from "Hoy" needs to know about it. */
+export async function getEntryRef(
+  db: Db,
+  id: string,
+): Promise<{ sessionId: string; exerciseId: string | null; status: 'ok' | 'pending' | 'ambiguous' } | null> {
+  const row = await db.getFirstAsync<{ session_id: string; exercise_id: string | null; status: 'ok' | 'pending' | 'ambiguous' }>(
+    'SELECT session_id, exercise_id, status FROM entry WHERE id = ? AND deleted_at IS NULL',
+    [id],
+  );
+  return row && { sessionId: row.session_id, exerciseId: row.exercise_id, status: row.status };
+}

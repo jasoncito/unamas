@@ -50,6 +50,7 @@ export const copy = {
     planTitleStarted: 'Hoy te toca',
     // M7: voice and photo (design/photo.html)
     undo: 'Deshacer',
+    delete: 'Borrar',
     camera: 'Foto de la máquina',
     removePhoto: 'Quitar la foto',
     photoHint: 'Dile peso y series; la máquina la reconoce de la foto.',
