@@ -241,6 +241,7 @@ Response (esquema JSON con structured outputs):
 - `easy`: `true` solo si dicen "fácil" o que les sobraron 3 o más reps; es la señal que usa el motor para saltarse el modo confirmar (PROGRESSION.md §6). `rir_note` guarda sus palabras tal cual.
 - Si el JSON no valida en la app → se trata como `unclear`.
 - El Worker, además, revisa el sentido de la respuesta: un `exercise_id` que no está en el contexto, un `log` sin peso o sin reps, o un `new_exercise` vacío → `unclear`. Las opciones de ambigüedad con ids inventados se descartan.
+- **Redes por palabras** (un solo ejercicio en la frase; decidido con Jason, 2 oct 2026): (1) si la frase sin números es **exactamente** un nombre o alias de un ejercicio, es ese, sin preguntar, aunque la IA haya elegido otro; (2) si la IA eligió X pero la frase contiene todas las palabras de un nombre o alias de otro ejercicio Y, se pregunta "¿Cuál de estos?" con X e Y, salvo que ese alias de Y esté contenido en uno de X que también calce. Se simulan gratis sobre las 32 frases del seed en `worker/test/nets.spec.ts`. El Worker llama a Claude con `temperature: 0`.
 - El esquema de structured outputs se arma en `worker/src/claude.ts` a partir de `shared/contract.ts`, conservando los `enum` (el helper `zodOutputFormat` del SDK los pasa a la descripción).
 - Verifica en la documentación qué subconjunto de JSON Schema soporta structured outputs (por ejemplo, nulos y `anyOf`) antes de fijar el esquema.
 
