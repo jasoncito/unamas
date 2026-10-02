@@ -48,14 +48,17 @@ export interface TallyLine {
   tone: 'up' | 'text' | 'muted';
 }
 
-/** "2 subieron", "1 igual", "1 bajó", "1 nuevo" — only what happened, in that order. */
+/**
+ * "2 subieron", "1 igual", "1 bajó", "1 nuevo" — only what happened, in that order. Nothing logged
+ * (only pending, or all deleted): "Nada anotado".
+ */
 export function tallyLines(t: Tally): TallyLine[] {
   const lines: TallyLine[] = [];
   if (t.up) lines.push({ text: t.up === 1 ? '1 subió' : `${t.up} subieron`, tone: 'up' });
   if (t.same) lines.push({ text: t.same === 1 ? '1 igual' : `${t.same} iguales`, tone: 'text' });
   if (t.down) lines.push({ text: t.down === 1 ? '1 bajó' : `${t.down} bajaron`, tone: 'muted' });
   if (t.new) lines.push({ text: t.new === 1 ? '1 nuevo' : `${t.new} nuevos`, tone: 'muted' });
-  return lines;
+  return lines.length > 0 ? lines : [{ text: 'Nada anotado', tone: 'muted' }];
 }
 
 /** "1 pendiente": saved without signal, not in the count until it's understood. */

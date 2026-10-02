@@ -45,6 +45,7 @@ export const copy = {
     noLastLoad: 'sin registro',
     // Replies that aren't an entry
     unclear: 'No te entendí. Dime el ejercicio, el peso y las series.',
+    noSignal: 'Sin señal: lo que anotes se guarda y se anota cuando vuelva.',
     offline: 'Sin señal: lo guardé y lo anoto cuando vuelva.',
     unclearRetry: (said: string) => `No entendí “${said}”. Dímelo de nuevo.`,
     planTitleStarted: 'Hoy te toca',

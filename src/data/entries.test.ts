@@ -17,7 +17,7 @@ import {
   deleteEntries,
 } from './repos/entries';
 import { deleteExerciseIfUnused, insertExercise } from './repos/exercises';
-import { createSession, deleteSessionIfEmpty, deleteSessionIfNoEntries, endSession, getOpenSession } from './repos/sessions';
+import { createSession, deleteSessionIfEmpty, deleteSessionIfNoEntries, endSession, endStaleSessions, getOpenSession } from './repos/sessions';
 import { loadSeed, type Seed } from './seed';
 import { sync, TABLES } from './sync';
 import { FakeServer } from './testing/fakeServer';
@@ -205,5 +205,27 @@ describe('undo through sync ("Deshacer" after the entry went up)', () => {
     await deleteEntries(db, [E]);
     expect(await deleteExerciseIfUnused(db, press)).toBe(false); // the seed's history uses it
     expect(await deleteSessionIfNoEntries(db, S)).toBe(false);
+  });
+});
+
+describe('sessions left open (M8)', () => {
+  const at = (iso: string, id: string) =>
+    insertPendingEntry(db, { id, sessionId: S, rawText: 'x', createdAt: iso }).then(() =>
+      resolveEntry(db, id, { exerciseId: ids.get('press_hombro_mancuernas')!, loadKg: 24, reps: [9, 9, 9, 9], rirNote: null, easy: false }),
+    );
+
+  it('no entry for 4 h: closed, ending at its last entry', async () => {
+    await resolveEntry(db, E, { exerciseId: ids.get('press_hombro_mancuernas')!, loadKg: 24, reps: [9, 9, 9, 9], rirNote: null, easy: false });
+    await at('2026-09-29T18:40:00.000Z', 'f0000000-0000-4000-8000-0000000000e9');
+    expect(await endStaleSessions(db, '2026-09-29T22:39:00.000Z')).toBe(0); // 3 h 59 min: still going
+    expect(await endStaleSessions(db, '2026-09-29T22:41:00.000Z')).toBe(1);
+    expect(await getOpenSession(db)).toBeNull();
+    expect(await db.getFirstAsync('SELECT ended_at, dirty FROM session WHERE id = ?', [S])).toEqual({ ended_at: '2026-09-29T18:40:00.000Z', dirty: 1 });
+  });
+
+  it('an ended session is left alone', async () => {
+    await endSession(db, S, '2026-09-29T19:00:00.000Z');
+    expect(await endStaleSessions(db, '2026-09-30T19:00:00.000Z')).toBe(0);
+    expect(await db.getFirstAsync('SELECT ended_at FROM session WHERE id = ?', [S])).toEqual({ ended_at: '2026-09-29T19:00:00.000Z' });
   });
 });

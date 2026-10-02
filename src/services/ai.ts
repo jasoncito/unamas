@@ -14,9 +14,16 @@ const TIMEOUT_MS = 20_000;
  * The Worker's POST /parse with the Supabase access token. The response is checked against the shared
  * contract: anything that doesn't match is `unclear` (CLAUDE.md §6).
  */
-export function workerAi(baseUrl: string, getAccessToken: () => Promise<string | null>, fetcher: typeof fetch = fetch): AiService {
+export function workerAi(
+  baseUrl: string,
+  getAccessToken: () => Promise<string | null>,
+  fetcher: typeof fetch = fetch,
+  /** False when the phone knows it has no connection: the entry stays pending at once, no 20 s wait. */
+  isOnline: () => Promise<boolean> = async () => true,
+): AiService {
   return {
     async parse(request) {
+      if (!(await isOnline())) throw new AiUnavailableError('offline');
       const token = await getAccessToken();
       if (!token) throw new AiUnavailableError('no session');
       let res: Response;

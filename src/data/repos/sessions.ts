@@ -103,3 +103,24 @@ export async function deleteSessionIfNoEntries(db: Db, id: string): Promise<bool
   await db.runAsync('UPDATE session SET deleted_at = ?, updated_at = ?, dirty = 1 WHERE id = ? AND deleted_at IS NULL', [now, now, id]);
   return true;
 }
+
+/** A session with no entry for this long was left open (the stop was never held). */
+export const STALE_SESSION_MS = 4 * 60 * 60 * 1000;
+
+/**
+ * Closes sessions left open: no entry in the last STALE_SESSION_MS. ended_at = their last entry, so
+ * the duration is the real one (decided by Claude for M8, see docs/DECISIONES.md). Returns how many.
+ */
+export async function endStaleSessions(db: Db, now: string, staleMs = STALE_SESSION_MS): Promise<number> {
+  const cutoff = new Date(Date.parse(now) - staleMs).toISOString();
+  const rows = await db.getAllAsync<{ id: string; last_at: string }>(
+    `SELECT s.id, MAX(e.created_at) AS last_at FROM session s JOIN entry e ON e.session_id = s.id AND e.deleted_at IS NULL
+     WHERE s.ended_at IS NULL AND s.deleted_at IS NULL
+     GROUP BY s.id HAVING MAX(e.created_at) < ?`,
+    [cutoff],
+  );
+  for (const r of rows) {
+    await db.runAsync('UPDATE session SET ended_at = ?, updated_at = ?, dirty = 1 WHERE id = ? AND ended_at IS NULL', [r.last_at, nowIso(), r.id]);
+  }
+  return rows.length;
+}

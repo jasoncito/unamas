@@ -7,6 +7,14 @@ export const haptics = {
     const style = step < 2 ? Haptics.ImpactFeedbackStyle.Light : step < 4 ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Heavy;
     void Haptics.impactAsync(style).catch(() => {});
   },
+  /** "Anotado": light, or a firmer one when it went up (M8). */
+  logged(up: boolean): void {
+    void Haptics.impactAsync(up ? Haptics.ImpactFeedbackStyle.Medium : Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+  },
+  /** Screen 1: a muscle group tapped. */
+  select(): void {
+    void Haptics.selectionAsync().catch(() => {});
+  },
   /** A light tap: "Deshacer". */
   tap(): void {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});

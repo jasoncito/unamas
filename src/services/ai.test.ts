@@ -22,6 +22,12 @@ describe('workerAi', () => {
     expect(JSON.parse(calls[0].init.body as string)).toEqual(REQ);
   });
 
+  it('the phone knows it has no connection: unavailable at once, nothing is sent (M8)', async () => {
+    const { fetcher, calls } = fakeFetch(() => Response.json(LOG));
+    await expect(workerAi('https://api.test', async () => 'tok', fetcher, async () => false).parse(REQ)).rejects.toBeInstanceOf(AiUnavailableError);
+    expect(calls).toEqual([]);
+  });
+
   it('an answer that does not match the contract is unclear', async () => {
     const { fetcher } = fakeFetch(() => Response.json({ intent: 'dance' }));
     await expect(workerAi('https://api.test', async () => 'tok', fetcher).parse(REQ)).resolves.toEqual(UNCLEAR);

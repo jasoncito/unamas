@@ -2,9 +2,11 @@ import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { newId, nowIso } from '@/data/ids';
+import { endStaleSessions, getOpenSession } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
 import { requestSync } from '@/features/sync/useSync';
 import { ai } from '@/services/aiClient';
+import { haptics } from '@/services/haptics';
 import { photos } from '@/services/image';
 import { onReconnectOrForeground } from '@/services/network';
 import { copy } from '@/ui/copy';
@@ -61,7 +63,11 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
       );
       // Entries saved without signal: retried now, and on every new chance to reach the network.
       void actions.current.retryPending();
-      stopWatching = onReconnectOrForeground(() => void actions.current?.retryPending());
+      stopWatching = onReconnectOrForeground(async () => {
+        // Back after hours with the stop never held: that session was closed; start on screen 1.
+        if (ctx.sessionId && (await endStaleSessions(db, nowIso())) > 0 && !(await getOpenSession(db))) return onMissing();
+        void actions.current?.retryPending();
+      });
     });
     return () => {
       cancelled = true;
@@ -69,12 +75,15 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
     };
   }, [db, reload, reset]);
 
-  // The bubble stays FEEDBACK_MS, then goes to the list.
+  // The bubble stays FEEDBACK_MS, then goes to the list. Keyed on each new "Anotado" (logged moves on
+  // every LOGGED), so typing meanwhile neither restarts the countdown nor buzzes again.
+  const feedbackKey = state.phase === 'feedback' ? `${state.logged}:${state.feedback.tone}` : null;
   useEffect(() => {
-    if (state.phase !== 'feedback') return;
+    if (!feedbackKey) return;
+    haptics.logged(feedbackKey.endsWith(':up'));
     const t = setTimeout(() => dispatch({ type: 'FEEDBACK_DONE' }), FEEDBACK_MS);
     return () => clearTimeout(t);
-  }, [state, dispatch]);
+  }, [feedbackKey, dispatch]);
 
   // The screen stays green with the count FLOOD_MS, then recedes to the summary.
   useEffect(() => {

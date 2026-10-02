@@ -44,6 +44,10 @@ describe('screen 7 lines', () => {
     expect(tallyLines({ up: 1, same: 2, down: 2, new: 0 }).map((l) => l.text)).toEqual(['1 subió', '2 iguales', '2 bajaron']);
   });
 
+  it('nothing logged (only pending, or all deleted): "Nada anotado"', () => {
+    expect(tallyLines({ up: 0, same: 0, down: 0, new: 0 })).toEqual([{ text: 'Nada anotado', tone: 'muted' }]);
+  });
+
   it('pending', () => {
     expect([pendingLine(0), pendingLine(1), pendingLine(2)]).toEqual([
       null,

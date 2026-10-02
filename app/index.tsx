@@ -10,6 +10,7 @@ import { useMuscleGroups } from '@/features/picker/useMuscleGroups';
 import { pastSessionActions, usePastDoubt } from '@/features/session/pastSessions';
 import { useComposer } from '@/features/session/useComposer';
 import { useOpenSessionRedirect } from '@/features/session/useOpenSessionRedirect';
+import { haptics } from '@/services/haptics';
 import { PastDoubt } from '@/ui/components/PastDoubt';
 import { copy } from '@/ui/copy';
 import { font, tabular } from '@/ui/text';
@@ -65,7 +66,10 @@ export default function PickerScreen() {
             const order = selected.indexOf(g.name);
             const on = order >= 0;
             return (
-              <Pressable key={g.name} onPress={() => toggle(g.name)} style={styles.row} accessibilityRole="button" accessibilityState={{ selected: on }}>
+              <Pressable key={g.name} onPress={() => {
+                  haptics.select();
+                  toggle(g.name);
+                }} style={styles.row} accessibilityRole="button" accessibilityState={{ selected: on }}>
                 <Text style={[styles.muscle, on && styles.on]}>{muscleGroupLabel(g.name)}</Text>
                 <Text style={styles.date}>{g.lastDate ? formatShortDate(g.lastDate) : copy.picker.never}</Text>
                 {on && <Text style={styles.order}>{order + 1}</Text>}

@@ -18,6 +18,7 @@ import { pastSessionActions } from '@/features/session/pastSessions';
 import { useComposer } from '@/features/session/useComposer';
 import { useSessionScreen } from '@/features/session/useSessionScreen';
 import { haptics } from '@/services/haptics';
+import { useIsOnline } from '@/services/network';
 import { copy } from '@/ui/copy';
 import { AmbiguityPanel } from '@/ui/components/AmbiguityPanel';
 import { Bubble } from '@/ui/components/Bubble';
@@ -45,6 +46,7 @@ export default function SessionRoute() {
   // Their exercise names and aliases help the recognizer with "jalón", "Smith"…
   const hints = useMemo(() => (screen ? screen.exercises.flatMap((e) => [e.canonicalName, ...e.aliases]) : []), [screen]);
   const composer = useComposer({ send, setText, hints });
+  const online = useIsOnline();
 
   // While the stop is held the content moves away and blurs (the bar stays sharp); the green covers it once it ends.
   const contentStyle = useAnimatedStyle(() => ({ transform: [{ scale: interpolate(flood.value, [0, 1], [1, 0.94]) }] }));
@@ -108,7 +110,12 @@ export default function SessionRoute() {
                 </View>
               )}
               <Animated.View style={[styles.content, contentStyle]}>
-                <ScrollView style={styles.planScroll} contentContainerStyle={styles.planContent} keyboardShouldPersistTaps="handled">
+                <ScrollView
+                  style={styles.planScroll}
+                  contentContainerStyle={styles.planContent}
+                  keyboardShouldPersistTaps="handled"
+                  keyboardDismissMode="on-drag"
+                >
                   {hasToday && <TodayList lines={screen.today} pending={screen.pending} onDelete={deleteEntry} />}
                   {screen.plan.length > 0 ? (
                     <PlanTable
@@ -140,6 +147,9 @@ export default function SessionRoute() {
                   <>
                     {composer.notice ? (
                       <Text style={styles.reply}>{composer.notice}</Text>
+                    ) : !online ? (
+                      // Always visible while there's no signal: anotar never waits for the network.
+                      <Text style={styles.reply}>{copy.session.noSignal}</Text>
                     ) : (
                       state.phase === 'ready' && state.reply && <Text style={styles.reply}>{state.reply}</Text>
                     )}

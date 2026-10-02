@@ -1,3 +1,5 @@
+import NetInfo from '@react-native-community/netinfo';
+
 import { ensureSession } from './auth';
 import { AiUnavailableError, workerAi, type AiService } from './ai';
 import { supabase } from './supabase';
@@ -15,7 +17,7 @@ export const ai: AiService =
         if (!(await ensureSession(client.auth))) return null;
         const { data } = await client.auth.getSession();
         return data.session?.access_token ?? null;
-      })
+      }, fetch, async () => (await NetInfo.fetch()).isConnected !== false)
     : {
         parse: async () => {
           throw new AiUnavailableError('EXPO_PUBLIC_API_URL or Supabase not configured');

@@ -1,4 +1,4 @@
-import NetInfo from '@react-native-community/netinfo';
+import NetInfo, { useNetInfo } from '@react-native-community/netinfo';
 import { AppState } from 'react-native';
 
 /**
@@ -18,4 +18,9 @@ export function onReconnectOrForeground(onChance: () => void): () => void {
     appState.remove();
     unsubscribeNet();
   };
+}
+
+/** False only when the phone knows it has no connection (unknown counts as online). */
+export function useIsOnline(): boolean {
+  return useNetInfo().isConnected !== false;
 }
