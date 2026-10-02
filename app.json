@@ -9,8 +9,8 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "icon": "./assets/expo.icon",
-      "bundleIdentifier": "com.jason.unamas",
-      "appleTeamId": "CWMF62297J"
+      "bundleIdentifier": "com.jasoncito.unamas",
+      "appleTeamId": "95S8WDTXCF"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +20,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.jason.unamas"
+      "package": "com.jasoncito.unamas"
     },
     "web": {
       "output": "static",
