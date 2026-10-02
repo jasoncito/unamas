@@ -2,7 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { z } from 'zod';
 
 import { ParseResponse, UNCLEAR, type ContextExercise, type ParseRequest } from '../../shared/contract';
-import { nameHasAllWords, normalizeName, significantWords } from '../../shared/names';
+import { nameHasAllWords, normalizeName, phraseToAlias, significantWords } from '../../shared/names';
 import { SYSTEM_PROMPT } from './prompt';
 
 /** Pinned snapshot (CLAUDE.md §3): the same phrases keep parsing the same way. */
@@ -104,6 +104,12 @@ export function sanitize(response: ParseResponse, exercises: readonly ContextExe
 				if (!identified) return UNCLEAR;
 				entries.push(e.exercise_id !== null ? { ...e, new_exercise: null } : e);
 			}
+			// One exercise in the phrase: their own words can settle it, or show it could be another one.
+			if (entries.length === 1) {
+				const settled = settleByWords(entries[0], exercises, text);
+				if (settled === 'ask') return whichOf(rivalsOf(entries[0].exercise_id!, exercises, text, true));
+				entries[0] = settled;
+			}
 			// Exercise known but a number missing: ask for it instead of inventing it (CLAUDE.md §6).
 			if (entries.some((e) => e.load_kg === null)) return askFor('¿Con cuánto peso?');
 			if (entries.some((e) => e.reps.length === 0)) return askFor('¿Cuántas series y repeticiones?');
@@ -130,6 +136,43 @@ export function sanitize(response: ParseResponse, exercises: readonly ContextExe
 		case 'unclear':
 			return { intent: response.intent, entries: [], ambiguity: null, reply: response.reply };
 	}
+}
+
+type Entry = ParseResponse['entries'][number];
+
+/**
+ * Nets on which exercise a single-exercise phrase is (decided with Jason, 2 oct 2026):
+ * - The phrase, without numbers, is exactly a name or alias of one of their exercises (one they taught
+ *   the app by choosing it): that exercise, without asking, whatever Claude picked.
+ * - Claude picked X, but the phrase also holds every word of a name or alias of another exercise Y,
+ *   and that alias of Y isn't contained in one of X's that fits too: it could be either, so ask
+ *   ('ask'). Never merge two histories on a guess ("tríceps en polea con barra en v por detrás de la
+ *   cabeza" fits both the barra V pushdown and the tras-nuca one).
+ */
+function settleByWords(entry: Entry, exercises: readonly ContextExercise[], text: string): Entry | 'ask' {
+	const phrase = phraseToAlias(text);
+	const exact = phrase ? exercises.filter((e) => [e.name, ...e.aliases].some((n) => normalizeName(n) === phrase)) : [];
+	if (exact.length === 1) return { ...entry, exercise_id: exact[0].id, new_exercise: null };
+	if (entry.exercise_id === null) return entry;
+	return rivalsOf(entry.exercise_id, exercises, text, false).length > 0 ? 'ask' : entry;
+}
+
+/**
+ * The other exercises the phrase fits as well as `chosenId` (see settleByWords). With `withChosen`,
+ * the chosen one first and then its rivals: the options of the question.
+ */
+export function rivalsOf(chosenId: string, exercises: readonly ContextExercise[], text: string, withChosen: boolean): ContextExercise[] {
+	const said = new Set(significantWords(text));
+	const fitting = (e: ContextExercise) =>
+		[e.name, ...e.aliases].map((n) => significantWords(n)).filter((w) => w.length > 0 && w.every((x) => said.has(x)));
+	const chosen = exercises.find((e) => e.id === chosenId);
+	if (!chosen) return [];
+	const chosenFits = fitting(chosen);
+	const within = (small: string[], big: string[]) => small.every((w) => big.includes(w));
+	const rivals = exercises.filter(
+		(e) => e.id !== chosenId && fitting(e).some((words) => !chosenFits.some((own) => within(words, own))),
+	);
+	return withChosen ? [chosen, ...rivals] : rivals;
 }
 
 function askFor(question: string): ParseResponse {

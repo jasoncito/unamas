@@ -48,4 +48,5 @@ Examples, with a context holding "remo_mancuerna" (Remo con mancuerna a una mano
 - "curl en polea 4 de 12" → ambiguous: "¿Con cuánto peso?", no options.
 - "curl en la máquina número 5, 3 de 10" → ambiguous: "¿Con cuánto peso?", no options (5 is the machine).
 - "hip thrust con barra 60 kilos 4 de 10, me sobraron como 3" → log, exercise_id null, new_exercise {"Hip thrust con barra", ["glutes"], compound, total}, 60, [10,10,10,10], rir_note "me sobraron como 3", easy true.
+- "remo a una mano 22 kilos 3 de 12, fácil" → log, remo_mancuerna, 22, [12,12,12], rir_note "fácil", easy true.
 - "listo por hoy" → end_session.`;
