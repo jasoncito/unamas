@@ -425,9 +425,9 @@ export const space  = { screenX: 20, rowY: 9 };
 | M3 | Worker `/parse` (Haiku 4.5 + structured outputs) **con verificación de JWT** y rate limit por usuario, + `/account/delete` | Sin token → 401; las 32 frases del seed parsean bien con `wrangler dev`; desplegado ✓ (y `/account/delete` probado con cascada real) |
 | M4 | Pantallas 1–3 | Flujo hasta escribir, con sugerencias locales |
 | M5 | Pantallas 4–5 | Enviar → animación → guardado → delta. Ambigüedad resuelta con toque ✓ |
-| M6 | Pantallas 6–7 | Mantener el stop → inundación → resumen con comparación por ejercicio |
-| M7 | Voz (development build) y foto | Dictar "press de hombro 24 4 de 9" funciona de punta a punta |
-| M8 | Sin conexión, háptica fina, estados vacíos | Uso real en el gym una semana |
+| M6 | Pantallas 6–7 | Mantener el stop → inundación → resumen con comparación por ejercicio ✓ (código; falta probarlo en el iPhone) |
+| M7 | Voz (development build) y foto | Dictar "press de hombro 24 4 de 9" funciona de punta a punta ✓ (código; el eval de fotos espera `dev/photos/`) |
+| M8 | Sin conexión, háptica fina, estados vacíos | Uso real en el gym una semana (código ✓; decisiones en `docs/DECISIONES.md`; instalación en el iPhone, ahí mismo) |
 
 Jason quiere **aprender a hacer funciones** con el worker (M3) y a usar Supabase (M2b): explícale los pasos (wrangler init, secrets, bindings, deploy; proyecto de Supabase, migraciones con el CLI, RLS, auth) mientras lo construyen, no los hagas en silencio.
 
