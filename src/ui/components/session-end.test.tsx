@@ -85,13 +85,31 @@ describe('SessionBar', () => {
   it('the groups and the stopwatch from the first entry, ticking', async () => {
     function Bar() {
       const flood = useSharedValue(0);
-      return <SessionBar groupsLabel="Hombro" startedAt="2026-09-28T18:00:00.000Z" flood={flood} onEnd={jest.fn()} />;
+      return <SessionBar groupsLabel="Hombro" startedAt="2026-09-28T18:00:00.000Z" flood={flood} onEnd={jest.fn()} showStop />;
     }
     await render(<Bar />);
     expect(screen.getByText('Hombro')).toBeTruthy();
     expect(screen.getByText('42:10')).toBeTruthy();
     await act(() => jest.advanceTimersByTime(1000));
     expect(screen.getByText('42:11')).toBeTruthy();
+  });
+});
+
+describe('SessionBar from EMPEZAR (backlog: gym test)', () => {
+  beforeEach(() => jest.useFakeTimers({ now: new Date('2026-09-28T18:03:20.000Z') }));
+  afterEach(() => jest.useRealTimers());
+
+  it('before the first entry: the clock runs, no stop, and "‹" goes back', async () => {
+    const onBack = jest.fn();
+    function Bar() {
+      const flood = useSharedValue(0);
+      return <SessionBar groupsLabel="Hombro" startedAt="2026-09-28T18:00:00.000Z" flood={flood} onEnd={jest.fn()} showStop={false} onBack={onBack} />;
+    }
+    await render(<Bar />);
+    expect(screen.getByText('3:20')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Terminar la sesión' })).toBeNull();
+    await fireEvent.press(screen.getByText('Hombro', { exact: false }));
+    expect(onBack).toHaveBeenCalled();
   });
 });
 

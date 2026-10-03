@@ -39,9 +39,13 @@ const MAX_BLUR = 18;
 
 // Screens 2–7 are states of this one route (CLAUDE.md §4.2).
 export default function SessionRoute() {
-  const params = useLocalSearchParams<{ groups?: string }>();
+  const params = useLocalSearchParams<{ groups?: string; startedAt?: string }>();
   const pending = params.groups ? (JSON.parse(params.groups) as string[]) : null;
-  const { screen, state, setText, send, choose, undo, deleteEntry, end, close } = useSessionScreen(pending, () => router.replace('/'));
+  const { screen, state, setText, send, choose, undo, deleteEntry, end, close } = useSessionScreen(
+    pending,
+    () => router.replace('/'),
+    params.startedAt ?? null,
+  );
   const flood = useSharedValue(0);
   // Their exercise names and aliases help the recognizer with "jalón", "Smith"…
   const hints = useMemo(() => (screen ? screen.exercises.flatMap((e) => [e.canonicalName, ...e.aliases]) : []), [screen]);
@@ -98,7 +102,7 @@ export default function SessionRoute() {
         ) : (
           <LayoutAnimationConfig skipEntering>
             <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-              {started && screen.startedAt && (
+              {screen.startedAt && (
                 <View style={styles.bar}>
                   <SessionBar
                     groupsLabel={screen.groupsLabel}
@@ -106,6 +110,8 @@ export default function SessionRoute() {
                     flood={flood}
                     onEnd={onEnd}
                     stopTip={state.phase === 'ready' ? state.stopTip : undefined}
+                    showStop={started}
+                    onBack={onBack}
                   />
                 </View>
               )}
@@ -118,13 +124,10 @@ export default function SessionRoute() {
                 >
                   {hasToday && <TodayList lines={screen.today} pending={screen.pending} onDelete={deleteEntry} />}
                   {screen.plan.length > 0 ? (
-                    <PlanTable
-                      title={started ? copy.session.planTitleStarted : `${screen.groupsLabel} · ${copy.session.planTitle}`}
-                      lines={screen.plan}
-                      onBack={onBack}
-                    />
+                    // The bar above already says the groups and holds "‹".
+                    <PlanTable title={copy.session.planTitleStarted} lines={screen.plan} />
                   ) : (
-                    !hasToday && !started && <GroupsTitle text={screen.groupsLabel} onBack={onBack} />
+                    !screen.startedAt && !hasToday && !started && <GroupsTitle text={screen.groupsLabel} onBack={onBack} />
                   )}
                 </ScrollView>
 

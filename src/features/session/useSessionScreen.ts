@@ -23,7 +23,7 @@ const today = () => localDateOf(nowIso());
  * "Anotado" timer and reloads the lists when something was logged. Null `screen` = still loading;
  * `onMissing` runs when there's neither an open session nor chosen groups.
  */
-export function useSessionScreen(pendingGroups: string[] | null, onMissing: () => void) {
+export function useSessionScreen(pendingGroups: string[] | null, onMissing: () => void, pendingStartedAt: string | null = null) {
   const db = useSQLiteContext();
   const { state, dispatch, reset } = useSessionStore();
   const [screen, setScreen] = useState<SessionScreen | null>(null);
@@ -35,12 +35,12 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
     // Once the stop completes, the summary stays: nothing reloads under it.
     const phase = useSessionStore.getState().state.phase;
     if (phase === 'ending' || phase === 'summary') return;
-    const s = await loadSessionScreen(db, today(), pendingGroups);
+    const s = await loadSessionScreen(db, today(), pendingGroups, pendingStartedAt);
     if (!s) return onMissing();
     setScreen(s);
     return s;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [db, pendingKey]);
+  }, [db, pendingKey, pendingStartedAt]);
 
   // First load: a fresh state, the actions for this session, and whatever was left unresolved.
   useEffect(() => {
@@ -50,7 +50,7 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
     let stopWatching = () => {};
     void reload().then((s) => {
       if (!s || cancelled) return;
-      const ctx: SessionContext = { sessionId: s.sessionId, groups: s.groups };
+      const ctx: SessionContext = { sessionId: s.sessionId, groups: s.groups, startedAt: s.startedAt };
       actions.current = createSessionActions(
         { db, ai, newId, now: nowIso, today, requestSync, photos },
         ctx,

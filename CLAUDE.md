@@ -312,7 +312,7 @@ CREATE TABLE sync_state (table_name TEXT PRIMARY KEY, cursor TEXT);
 - `reps` siempre como lista por serie.
 - `entry.ambiguity` no se sincroniza (las entradas en duda no suben) y se limpia al resolverse o al volver a `pending`.
 - `entry.image_uri`: la foto vive en `Documents/photos/<entry>.jpg` (≤ 1024 px, JPEG 0,6) hasta que la entrada se entiende; se reenvía en reintentos y respuestas. Al abrir la app se borran las fotos que ninguna entrada necesita. No se sincroniza.
-- La fila de `session` se crea **con la primera entrada**: `started_at` = hora de esa entrada. `ended_at` = cuando se completa el stop. No hay sesiones vacías.
+- La fila de `session` se crea **con la primera entrada**, pero `started_at` = la hora en que se tocó **EMPEZAR** (prueba en el gym, 3 oct 2026: el tiempo real de la sesión empieza ahí). `ended_at` = cuando se completa el stop. No hay sesiones vacías.
 - `canonical_name` es **corto** (~28 caracteres, "Laterales en polea"); el detalle ("Elevaciones laterales en polea con cuerda") va en `aliases`. Sin campo nuevo. Para ejercicios nuevos, la IA propone el nombre corto (regla en el prompt) y la app guarda la frase del usuario sin números como alias (M5).
 - `dev/seed.json` usa ids de texto legibles. Al cargarlo (solo en desarrollo, con `EXPO_PUBLIC_SEED=1`), cada id se cambia por un UUID nuevo, manteniendo las relaciones. Queda todo `dirty = 1`.
 
@@ -333,7 +333,7 @@ Las mismas tablas, con `user_id uuid not null default auth.uid() references auth
 
 ### 2 · Primer ejercicio
 - El teclado se abre solo (`autoFocus`). Título "¿Con qué empiezas?" pegado al input.
-- **Volver a la pantalla 1, mientras no haya entradas:** el encabezado de grupos lleva "‹" delante ("‹ Hombro y tríceps · hoy te toca", o solo "‹ Core" si no hay lista) y tocarlo vuelve; el gesto de volver de iOS también. Con la primera entrada desaparecen el "‹" y el gesto.
+- **Volver a la pantalla 1, mientras no haya entradas:** la barra de sesión lleva "‹" delante de los grupos ("‹ Hombro y tríceps", con el cronómetro ya corriendo) y tocarlo vuelve; la lista se titula solo "Hoy te toca"; el gesto de volver de iOS también. Con la primera entrada desaparecen el "‹" y el gesto.
 - Arriba, la **meta de hoy** (decidido con Jason, ver `design/meta.html`): encabezado "<grupos> · hoy te toca" (13/600, muted) y columnas fijas **PESO** y **SERIES** (11/600, mayúsculas, muted), alineadas a la derecha y con números tabulares. Una fila por ejercicio de la última sesión que tuvo esos grupos: el nombre a la izquierda (15, text) y la meta que calcula el motor en las dos columnas (16/700).
   - **Solo el valor que sube va en verde**, con "antes X" debajo en gris (11/500): si sube el peso, PESO en verde ("32.5 kg", "antes 30") y SERIES en blanco con "vuelves a 6" debajo, que explica por qué bajan las reps (prueba en el gym, 3 oct 2026); si suben las reps, SERIES en verde ("4×9", "antes 4×8") y PESO en blanco. Lo que no cambia va en blanco y sin "antes".
   - "Por lado" va como nota chica bajo el peso, no en el nombre (dice cómo dictarlo sin alargar la fila).
@@ -370,7 +370,7 @@ La lista tiene dos secciones: **"Hoy"** (lo anotado, cada uno con "vs. <fecha de
 - Al tocar una opción, la frase (sin números) queda como alias de ese ejercicio: la próxima vez no pregunta (§6, "Alias aprendidos").
 
 ### 6 · Terminar (mantener presionado)
-- Barra de sesión, visible desde la primera entrada: grupo (20/700), cronómetro (17/700, tabular) y **botón stop** circular de 52 px (surface, cuadrado blanco de 16 px con radio 4).
+- Barra de sesión, visible **desde EMPEZAR** (el cronómetro cuenta desde ahí): grupos (20/700, con "‹" delante mientras no hay entradas), cronómetro (17/700, tabular) y, **desde la primera entrada**, el **botón stop** circular de 52 px (surface, cuadrado blanco de 16 px con radio 4).
 - **Toque corto** (< 400 ms): globo "Mantén para terminar" durante 2.2 s. No termina.
 - **Mantener 1.5 s:** anillo verde alrededor del botón, el cuadrado se pone verde, escala 1.12. La **pantalla se llena de verde desde abajo** con aceleración (cubic-bezier(.55,0,.9,.6)), y el contenido se aleja (scale .94) y se desenfoca. Háptica cada vez más fuerte (`impactAsync` Light → Medium → Heavy).
 - Soltar antes: el verde baja en 0.35 s y no pasa nada.

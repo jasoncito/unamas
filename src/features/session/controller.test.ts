@@ -66,6 +66,12 @@ describe('loadSessionScreen (design/meta.html)', () => {
     expect(s.placeholder).toBeNull();
   });
 
+  it('right after EMPEZAR the stopwatch already has its start; an open session keeps its own', async () => {
+    expect((await loadSessionScreen(db, TODAY, ['shoulders'], '2026-09-29T17:52:00.000Z'))!.startedAt).toBe('2026-09-29T17:52:00.000Z');
+    await createSession(db, 'f0000000-0000-4000-8000-00000000000c', ['legs'], '2026-09-29T17:00:00.000Z');
+    expect((await loadSessionScreen(db, TODAY, ['shoulders'], '2026-09-29T17:52:00.000Z'))!.startedAt).toBe('2026-09-29T17:00:00.000Z');
+  });
+
   it('right after EMPEZAR: no session row, no id, and going back is allowed', async () => {
     const s = await screenFor(['shoulders']);
     expect([s.sessionId, s.canGoBack]).toEqual([null, true]);

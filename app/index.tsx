@@ -33,7 +33,9 @@ export default function PickerScreen() {
 
   // No session row yet: it's created with the first entry (CLAUDE.md §7). The groups travel with the
   // route and the selection stays, so going back shows it as it was.
-  const start = () => router.push({ pathname: '/session', params: { groups: JSON.stringify(selected) } });
+  // The stopwatch starts here, at EMPEZAR (backlog: gym test); the session row still waits for the first entry.
+  const start = () =>
+    router.push({ pathname: '/session', params: { groups: JSON.stringify(selected), startedAt: new Date().toISOString() } });
 
   // A doubt left in a session already stopped goes first, before picking groups (decided with Jason).
   if (past.active) {

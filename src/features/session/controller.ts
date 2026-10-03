@@ -45,7 +45,7 @@ export interface SessionScreen {
   sessionId: string | null;
   /** No entries yet: the groups header shows "‹" and going back to screen 1 is allowed. */
   canGoBack: boolean;
-  /** The first entry's time, for the session bar's stopwatch. Null before it. */
+  /** When EMPEZAR was tapped (the session's started_at once it exists): the stopwatch counts from it. */
   startedAt: string | null;
   groups: string[];
   /** "Hombro y tríceps" */
@@ -70,6 +70,8 @@ export async function loadSessionScreen(
   db: Db,
   today: IsoDate,
   pendingGroups: readonly string[] | null,
+  /** When EMPEZAR was tapped: the stopwatch counts from there, before any entry (backlog: gym test). */
+  pendingStartedAt: string | null = null,
 ): Promise<SessionScreen | null> {
   const open = await getOpenSession(db);
   const groups = open?.muscleGroups ?? (pendingGroups?.length ? [...pendingGroups] : null);
@@ -97,7 +99,7 @@ export async function loadSessionScreen(
   return {
     sessionId: open?.id ?? null,
     canGoBack: !open,
-    startedAt: open?.startedAt ?? null,
+    startedAt: open?.startedAt ?? pendingStartedAt,
     groups,
     groupsLabel: groupsLabel(groups.map(muscleGroupLabel)),
     today: logged,

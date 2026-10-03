@@ -52,6 +52,8 @@ export interface SessionContext {
   /** Null until the first entry creates the session row. */
   sessionId: string | null;
   groups: readonly string[];
+  /** When EMPEZAR was tapped: the session's started_at (backlog: gym test). Null = the first entry's time. */
+  startedAt?: string | null;
 }
 
 export interface SessionCopy {
@@ -160,7 +162,7 @@ export function createSessionActions(
   async function ensureSession(): Promise<{ id: string; created: boolean }> {
     if (ctx.sessionId) return { id: ctx.sessionId, created: false };
     const id = deps.newId();
-    await createSession(deps.db, id, ctx.groups, deps.now());
+    await createSession(deps.db, id, ctx.groups, ctx.startedAt ?? deps.now());
     ctx.sessionId = id;
     return { id, created: true };
   }

@@ -625,6 +625,18 @@ describe('an exercise of another group (backlog: gym test)', () => {
   });
 });
 
+describe('the stopwatch starts at EMPEZAR (backlog: gym test)', () => {
+  it('the session row, created with the first entry, starts when EMPEZAR was tapped', async () => {
+    const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })])], {
+      sessionId: null,
+      groups: ['shoulders'],
+      startedAt: '2026-09-29T17:52:00.000Z',
+    });
+    await h.actions.send('press 24 4 de 9'); // at 18:00
+    expect((await getOpenSession(db))!.startedAt).toBe('2026-09-29T17:52:00.000Z');
+  });
+});
+
 describe('order', () => {
   it('two messages sent at once are processed one after the other', async () => {
     const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })]), log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 7.5, reps: [11, 11, 11, 11] })])]);
