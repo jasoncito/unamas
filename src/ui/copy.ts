@@ -21,6 +21,20 @@ export const copy = {
     otherPlaceholder: 'Escribe el grupo',
     start: 'Empezar',
   },
+  /** Screen 2 of the per-exercise flow: the weight selector. */
+  selector: {
+    lastTime: (day: string) => `La última vez · ${day}`,
+    unit: { bar: 'kg por lado', stack: 'kg', rack_per_dumbbell: 'kg c/u', rack_total: 'kg' },
+    up: (diff: string, floor: number) => `+${diff} kg · apunta a ${floor} o más`,
+    same: (day: string, target: string | null) => `igual que el ${day}${target ? ` · apunta a ${target}` : ''}`,
+    down: (diff: string, day: string) => `−${diff} kg que el ${day}`,
+    suggested: 'sugerido',
+    backToSuggested: (kg: string) => `↺ sugerido ${kg}`,
+    start: (kg: string, unit: string) => `Empezar con ${kg} ${unit}`,
+    addPlate: (kg: string) => `Agregar disco de ${kg} kg`,
+    removePlate: (kg: string) => `Quitar disco de ${kg} kg`,
+    choose: (kg: string) => `${kg} kg`,
+  },
   session: {
     planTitle: 'hoy te toca',
     load: 'Peso',
