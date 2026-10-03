@@ -1,4 +1,5 @@
 import { Image } from 'expo-image';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { copy } from '../copy';
@@ -29,7 +30,23 @@ interface Props {
  * button (CLAUDE.md §8, design/photo.html).
  */
 export function InputBar(p: Props) {
-  const canSend = p.value.trim().length > 0 || !!p.photo;
+  // The input keeps its own text so every key shows at once; the store's value only replaces it when it
+  // changes from outside (a suggestion, dictation, "Deshacer", sending). A controlled input fed through
+  // the store lagged behind the keyboard, placeholder included (backlog: gym test).
+  const [text, setText] = useState(p.value);
+  const lastSent = useRef(p.value);
+  useEffect(() => {
+    if (p.value !== lastSent.current) {
+      lastSent.current = p.value;
+      setText(p.value);
+    }
+  }, [p.value]);
+  const change = (t: string) => {
+    setText(t);
+    lastSent.current = t;
+    p.onChangeText(t);
+  };
+  const canSend = text.trim().length > 0 || !!p.photo;
   return (
     <View style={[styles.card, p.photo && styles.withPhoto]}>
       {p.photo && (
@@ -42,8 +59,8 @@ export function InputBar(p: Props) {
       )}
       <TextInput
         style={styles.input}
-        value={p.value}
-        onChangeText={p.onChangeText}
+        value={text}
+        onChangeText={change}
         placeholder={p.listening ? copy.session.listening : p.placeholder}
         placeholderTextColor={color.muted}
         selectionColor={color.green}

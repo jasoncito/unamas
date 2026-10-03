@@ -83,6 +83,18 @@ describe('InputBar', () => {
     expect(screen.queryByLabelText('Dictar')).toBeNull();
   });
 
+  it('typing shows at once, even before the store answers; a value from outside replaces it', async () => {
+    const onChangeText = jest.fn();
+    const { rerender } = await render(<InputBar value="" placeholder="p" onChangeText={onChangeText} />);
+    await fireEvent.changeText(screen.getByPlaceholderText('p'), 'press');
+    expect(screen.getByDisplayValue('press')).toBeTruthy(); // the prop is still ""
+    expect(onChangeText).toHaveBeenCalledWith('press');
+    await rerender(<InputBar value="Press de hombro con mancuernas, " placeholder="p" onChangeText={onChangeText} />);
+    expect(screen.getByDisplayValue('Press de hombro con mancuernas, ')).toBeTruthy();
+    await rerender(<InputBar value="" placeholder="p" onChangeText={onChangeText} />); // sent
+    expect(screen.queryByDisplayValue('Press de hombro con mancuernas, ')).toBeNull();
+  });
+
   it('shows the placeholder it is given', async () => {
     await render(<InputBar value="" placeholder="press de hombros, 24 kg, 4 de 9" onChangeText={() => {}} />);
     expect(screen.getByPlaceholderText('press de hombros, 24 kg, 4 de 9')).toBeTruthy();
