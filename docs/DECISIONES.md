@@ -42,3 +42,13 @@ Jason pidió terminar el MVP sin aprobación paso a paso, decidiendo con el crit
 5. La primera vez, en el iPhone: **Ajustes › General › VPN y gestión de dispositivos** › tu Apple ID › **Confiar**.
 
 Con un Apple ID gratuito la app vence a los **7 días**: se reinstala con el mismo comando, sin `EXPO_PUBLIC_SEED=1`, y los datos se conservan. Con la cuenta de desarrollador de pago ($99/año) dura un año, y es la que se necesita para TestFlight.
+
+# Errores de la primera prueba en el gym (3 oct 2026)
+
+Decisiones de Claude al arreglarlos, sin aprobación paso a paso:
+- **Cronómetro desde EMPEZAR:** la sesión se sigue creando con la primera entrada (no hay sesiones vacías), pero con `started_at` = hora de EMPEZAR. La barra se ve desde EMPEZAR con "‹" para volver; el stop aparece con la primera entrada, porque antes no hay nada que terminar.
+- **Ejercicio de otro grupo:** se agregan todos sus grupos a la sesión (sentadilla Smith suma pierna y glúteo). Deshacer o Borrar no los quita.
+- **Sugerencias:** un ejercicio hecho hoy va al final, no desaparece: puede ser una segunda vez.
+- **"Por lado":** sale del nombre y queda como nota chica bajo el peso, porque dice cómo dictarlo ("32,5 a cada lado").
+- **Placeholder que se quedaba atrás:** no se pudo reproducir desde aquí. Se aplicó el arreglo para la causa conocida (input controlado a través del store): el input guarda su propio texto y se sincroniza cuando cambia desde afuera. A confirmar en el iPhone.
+- **"máquina leg press":** regla en el prompt + red en el Worker (CLAUDE.md §6). Una primera versión de la red, más estricta, habría pasado dos frases del seed de ⚠️ a ❌ (descripciones como "bíceps un brazo sentado…"); la simulación lo detectó antes de gastar, y la red quedó limitada a una sola palabra suelta compartida. Eval: ✅ 28 · ⚠️ 4 · ❌ 0 (37/37), $0.1865.
