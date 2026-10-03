@@ -17,8 +17,20 @@ describe('deltaOf', () => {
     expect(deltaOf(x(7.5, sets(4, 10)), x(7.5, [11, 11, 11, 9]), 10)).toEqual({ kind: 'reps_total', diff: 2, tone: 'up' });
   });
 
-  it('a different number of sets is compared in total', () => {
-    expect(deltaOf(x(25, sets(3, 10)), x(25, sets(4, 10)), 10)).toEqual({ kind: 'reps_total', diff: 10, tone: 'up' });
+  it('one more set, same reps: "+1 serie"', () => {
+    const d = deltaOf(x(25, sets(3, 10)), x(25, sets(4, 10)), 10);
+    expect(d).toEqual({ kind: 'sets', setsDiff: 1, repsDiff: 0, tone: 'up' });
+    expect(shortDelta(d)).toBe('+1 serie');
+  });
+
+  it('sets and reps at once (pantorrilla 4×17 → 3×20): "−1 serie · +3 reps", not a lone "−8"', () => {
+    const d = deltaOf(x(12, sets(4, 17)), x(12, sets(3, 20)), 12);
+    expect(d).toEqual({ kind: 'sets', setsDiff: -1, repsDiff: 3, tone: 'down' });
+    expect(shortDelta(d)).toBe('−1 serie · +3 reps');
+  });
+
+  it('uneven sets: just the sets, plural', () => {
+    expect(shortDelta(deltaOf(x(20, [12, 10, 8]), x(20, [12, 12, 10, 9, 8]), 8))).toBe('+2 series');
   });
 
   it('same numbers → same', () => {

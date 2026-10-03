@@ -18,6 +18,16 @@ describe('feedbackLine (screen 4)', () => {
     expect(feedbackLine({ kind: 'load', diffKg: 2.5, tone: 'up' }, '2026-08-30', TODAY, 'Press').text).toBe('Anotado · +2.5 kg vs. el 30 ago');
   });
 
+  it('sets and reps at once: both, per set', () => {
+    expect(feedbackLine({ kind: 'sets', setsDiff: -1, repsDiff: 3, tone: 'down' }, '2026-09-27', TODAY, 'Pantorrilla').text).toBe(
+      'Anotado · −1 serie · +3 reps por serie vs. el 27',
+    );
+    expect(feedbackLine({ kind: 'sets', setsDiff: 1, repsDiff: 0, tone: 'up' }, '2026-09-27', TODAY, 'Remo')).toEqual({
+      text: 'Anotado · +1 serie vs. el 27',
+      tone: 'up',
+    });
+  });
+
   it('same or down is muted, never green', () => {
     expect(feedbackLine({ kind: 'same', tone: 'same' }, '2026-09-27', TODAY, 'Press')).toEqual({ text: 'Anotado · igual que el 27', tone: 'muted' });
     expect(feedbackLine({ kind: 'reps_per_set', diff: -1, tone: 'down' }, '2026-09-27', TODAY, 'Press')).toEqual({

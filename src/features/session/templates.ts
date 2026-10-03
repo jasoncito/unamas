@@ -1,4 +1,4 @@
-import { signed, type Delta } from '@/domain/delta';
+import { setsChange, signed, type Delta } from '@/domain/delta';
 import type { Target } from '@/domain/engine';
 import { formatLoad, formatSets, formatShortDate } from '@/domain/format';
 import type { NextTimeReason, SummaryItem, Tally } from '@/domain/summary';
@@ -29,6 +29,8 @@ export function feedbackLine(delta: Delta, previousDate: IsoDate | null, today: 
       return { text: `Anotado · ${signed(delta.diff)} ${reps(delta.diff)} por serie vs. ${when}`, tone };
     case 'reps_total':
       return { text: `Anotado · ${signed(delta.diff)} ${reps(delta.diff)} vs. ${when}`, tone };
+    case 'sets':
+      return { text: `Anotado · ${setsChange(delta.setsDiff, delta.repsDiff)}${delta.repsDiff ? ' por serie' : ''} vs. ${when}`, tone };
   }
 }
 
