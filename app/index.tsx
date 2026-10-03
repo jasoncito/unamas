@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { formatShortDate } from '@/domain/format';
 import { muscleGroupLabel } from '@/features/picker/groups';
 import { usePicker } from '@/features/picker/store';
+import { useDevLaunch } from '@/features/dev/useDevLaunch';
 import { useMuscleGroups } from '@/features/picker/useMuscleGroups';
 import { pastSessionActions, usePastDoubt } from '@/features/session/pastSessions';
 import { useComposer } from '@/features/session/useComposer';
@@ -19,6 +20,7 @@ import { color, radius, space } from '@/ui/tokens';
 // Screen 1 · pick the muscle groups (CLAUDE.md §8).
 export default function PickerScreen() {
   useOpenSessionRedirect();
+  useDevLaunch();
   const groups = useMuscleGroups();
   const { selected, custom, toggle, addCustom } = usePicker();
   const [writingOther, setWritingOther] = useState(false);
