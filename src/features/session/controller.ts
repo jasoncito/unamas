@@ -141,13 +141,17 @@ export interface Suggestion {
 
 /**
  * Screen 3: local suggestions for what's typed (no AI per keystroke). None once the text has a comma or
- * a number: by then they're dictating the numbers, not looking for the exercise.
+ * a number: by then they're dictating the numbers, not looking for the exercise. Exercises already done
+ * today go last.
  */
 export function suggestionsFor(text: string, screen: SessionScreen): Suggestion[] {
   if (/[,\d]/.test(text)) return [];
   const byId = new Map(screen.exercises.map((e) => [e.id, e]));
   const candidates = screen.exercises.map((e) => ({ id: e.id, name: e.canonicalName, aliases: e.aliases, muscleGroups: e.muscleGroups }));
-  return searchExercises(text, candidates, screen.groups).map((r) => ({
+  // Already done today: last, not gone (they might be logging it a second time).
+  const doneToday = new Set(screen.today.map((t) => t.exerciseId));
+  const found = searchExercises(text, candidates, screen.groups);
+  return [...found.filter((r) => !doneToday.has(r.id)), ...found.filter((r) => doneToday.has(r.id))].map((r) => ({
     exercise: byId.get(r.id)!,
     highlight: r.highlight,
     last: screen.lastSets.get(r.id) ?? null,

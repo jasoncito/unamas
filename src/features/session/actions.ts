@@ -20,7 +20,7 @@ import {
   type StoredAmbiguity,
   type UnresolvedEntry,
 } from '@/data/repos/entries';
-import { createSession, deleteSessionIfEmpty, deleteSessionIfNoEntries, endSession } from '@/data/repos/sessions';
+import { addSessionGroups, createSession, deleteSessionIfEmpty, deleteSessionIfNoEntries, endSession } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
 import { deltaOf } from '@/domain/delta';
 import { REP_RANGES } from '@/domain/engine';
@@ -187,6 +187,10 @@ export function createSessionActions(
 
     if (res.intent === 'log') {
       const saved = await saveLog(deps, entryId, rawText, sessionId, res, exercises, imageUri !== null);
+      // An exercise of another group joins its groups to the session's (chose biceps, logged a shoulder press).
+      const logged = (await getAllExercises(deps.db)).filter((e) => saved.exerciseIds.includes(e.id));
+      const groupsNow = await addSessionGroups(deps.db, sessionId, logged.flatMap((e) => e.muscleGroups));
+      if (groupsNow && ctx.sessionId === sessionId) ctx.groups = groupsNow;
       deps.requestSync();
       return { kind: 'logged', feedback: saved.feedback, count: res.entries.length, entryIds: saved.entryIds, createdExerciseIds: saved.createdExerciseIds };
     }
@@ -445,6 +449,7 @@ async function saveLog(
 ) {
   let first: ReturnType<typeof feedbackLine> | null = null;
   const entryIds: string[] = [];
+  const exerciseIds: string[] = [];
   const createdExerciseIds: string[] = [];
   for (const [i, e] of res.entries.entries()) {
     let exercise = e.exercise_id ? exercises.find((x) => x.id === e.exercise_id) : undefined;
@@ -475,6 +480,7 @@ async function saveLog(
     const id = i === 0 ? entryId : deps.newId();
     if (i > 0) await insertPendingEntry(deps.db, { id, sessionId, rawText, createdAt: deps.now() });
     entryIds.push(id);
+    exerciseIds.push(exercise.id);
     await resolveEntry(deps.db, id, {
       exerciseId: exercise.id,
       loadKg: e.load_kg!,
@@ -487,6 +493,6 @@ async function saveLog(
     const prev = previous && { date: localDateOf(previous.createdAt), loadKg: previous.loadKg, reps: previous.reps };
     first ??= feedbackLine(deltaOf(prev, today, exercise.repFloor), prev?.date ?? null, deps.today(), exercise.canonicalName);
   }
-  return { feedback: first ?? feedbackLine({ kind: 'new' }, null, deps.today(), ''), entryIds, createdExerciseIds };
+  return { feedback: first ?? feedbackLine({ kind: 'new' }, null, deps.today(), ''), entryIds, exerciseIds, createdExerciseIds };
 }
 

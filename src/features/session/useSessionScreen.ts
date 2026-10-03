@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { newId, nowIso } from '@/data/ids';
 import { endStaleSessions, getOpenSession } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
+import { usePicker } from '@/features/picker/store';
 import { requestSync } from '@/features/sync/useSync';
 import { ai } from '@/services/aiClient';
 import { haptics } from '@/services/haptics';
@@ -65,7 +66,10 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
       void actions.current.retryPending();
       stopWatching = onReconnectOrForeground(async () => {
         // Back after hours with the stop never held: that session was closed; start on screen 1.
-        if (ctx.sessionId && (await endStaleSessions(db, nowIso())) > 0 && !(await getOpenSession(db))) return onMissing();
+        if (ctx.sessionId && (await endStaleSessions(db, nowIso())) > 0 && !(await getOpenSession(db))) {
+          usePicker.getState().reset();
+          return onMissing();
+        }
         void actions.current?.retryPending();
       });
     });
@@ -116,7 +120,10 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
     undo: () => actions.current?.undo() ?? Promise.resolve(null),
     /** The stop completed. Null if there was nothing to end. */
     end: () => actions.current?.end() ?? Promise.resolve(null),
-    /** CERRAR: a fresh state for the next session. */
-    close: () => reset(),
+    /** CERRAR: a fresh state for the next session, and screen 1 with nothing selected. */
+    close: () => {
+      reset();
+      usePicker.getState().reset();
+    },
   };
 }

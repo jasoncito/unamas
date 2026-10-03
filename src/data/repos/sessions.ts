@@ -124,3 +124,17 @@ export async function endStaleSessions(db: Db, now: string, staleMs = STALE_SESS
   }
   return rows.length;
 }
+
+/**
+ * An exercise of another group was logged (chose biceps, logged a shoulder press): its groups join the
+ * session's, after the chosen ones (decided with Jason). Returns the new list, or null if nothing changed.
+ */
+export async function addSessionGroups(db: Db, sessionId: string, groups: readonly string[]): Promise<string[] | null> {
+  const session = await getSession(db, sessionId);
+  if (!session) return null;
+  const missing = groups.filter((g, i) => !session.muscleGroups.includes(g) && groups.indexOf(g) === i);
+  if (missing.length === 0) return null;
+  const next = [...session.muscleGroups, ...missing];
+  await db.runAsync('UPDATE session SET muscle_groups = ?, updated_at = ?, dirty = 1 WHERE id = ?', [JSON.stringify(next), nowIso(), sessionId]);
+  return next;
+}

@@ -603,6 +603,28 @@ describe('"Borrar" on a row of "Hoy"', () => {
   });
 });
 
+describe('an exercise of another group (backlog: gym test)', () => {
+  it('chose biceps, logged a shoulder press: accepted, and shoulders joins the session', async () => {
+    const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })])], { sessionId: null, groups: ['biceps'] });
+    await h.actions.send('press de hombro 24 4 de 9');
+    expect(await entries()).toEqual([expect.objectContaining({ status: 'ok' })]);
+    expect((await getOpenSession(db))!.muscleGroups).toEqual(['biceps', 'shoulders']);
+    expect(h.ctx.groups).toEqual(['biceps', 'shoulders']);
+  });
+
+  it('one of the chosen groups: nothing changes', async () => {
+    const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })])], { sessionId: null, groups: ['shoulders', 'triceps'] });
+    await h.actions.send('press de hombro 24 4 de 9');
+    expect((await getOpenSession(db))!.muscleGroups).toEqual(['shoulders', 'triceps']);
+  });
+
+  it('an exercise of two new groups adds both, once', async () => {
+    const h = harness([log([entry({ exercise_id: ids.get('sentadilla_smith')!, load_kg: 32.5, reps: [6, 6, 6, 6] })])], { sessionId: null, groups: ['legs'] });
+    await h.actions.send('sentadilla smith 32,5 4 de 6');
+    expect((await getOpenSession(db))!.muscleGroups).toEqual(['legs', 'glutes']);
+  });
+});
+
 describe('order', () => {
   it('two messages sent at once are processed one after the other', async () => {
     const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })]), log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 7.5, reps: [11, 11, 11, 11] })])]);

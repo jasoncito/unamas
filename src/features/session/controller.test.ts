@@ -102,6 +102,14 @@ describe('suggestionsFor (screen 3)', () => {
     expect(names).toHaveLength(3); // the third, from another group, comes after
   });
 
+  it('an exercise already done today goes last, not first (backlog: gym test)', async () => {
+    const s = await screenFor(['shoulders']);
+    const mancuernas = s.exercises.find((e) => e.canonicalName === 'Press de hombro con mancuernas')!;
+    const done = { ...s, today: [{ exerciseId: mancuernas.id } as (typeof s.today)[number]] };
+    const names = suggestionsFor('press de hom', done).map((x) => x.exercise.canonicalName);
+    expect(names).toEqual(['Press de hombro en máquina', 'Press de hombro con mancuernas']);
+  });
+
   it('stops suggesting once there is a comma or a number', async () => {
     const s = await screenFor(['shoulders']);
     expect(suggestionsFor('press de hombro con mancuernas, ', s)).toEqual([]);
