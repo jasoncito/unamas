@@ -8,7 +8,11 @@ import { font, tabular } from '../text';
 import { color, space } from '../tokens';
 import { GroupsTitle } from './GroupsTitle';
 
-/** Screen 2's "hoy te toca" (design/meta.html): only what goes up is green, with "antes" below. */
+/**
+ * Screen 2's "hoy te toca" (design/meta.html): only what goes up is green, with "antes" below. When the
+ * load goes up, SERIES says "vuelves a 6" (more load, back to the floor); "por lado" goes under the load,
+ * not in the name (backlog: gym test).
+ */
 export function PlanTable({ title, lines, onBack }: { title: string; lines: readonly PlanLine[]; onBack?: () => void }) {
   return (
     <View>
@@ -21,23 +25,43 @@ export function PlanTable({ title, lines, onBack }: { title: string; lines: read
       </View>
       {lines.map((l, i) => (
         <View key={l.exerciseId} style={[styles.row, i < lines.length - 1 && styles.divider]}>
-          <Text style={styles.name}>
-            {l.name}
-            {l.loadBasis === 'per_side' ? ` ${copy.session.perSide}` : ''}
-          </Text>
-          <Cell style={styles.loadCol} value={`${formatKg(l.loadKg)} kg`} up={l.loadUp} before={formatKg(l.before.loadKg)} />
-          <Cell style={styles.setsCol} value={formatSets(l.reps)} up={l.setsUp} before={formatSets(l.before.reps)} />
+          <Text style={styles.name}>{l.name}</Text>
+          <Cell
+            style={styles.loadCol}
+            value={`${formatKg(l.loadKg)} kg`}
+            up={l.loadUp}
+            notes={[
+              ...(l.loadUp ? [`${copy.session.before} ${formatKg(l.before.loadKg)}`] : []),
+              ...(l.loadBasis === 'per_side' ? [copy.session.perSideShort] : []),
+            ]}
+          />
+          <Cell
+            style={styles.setsCol}
+            value={formatSets(l.reps)}
+            up={l.setsUp}
+            notes={
+              l.setsUp
+                ? [`${copy.session.before} ${formatSets(l.before.reps)}`]
+                : l.loadUp && l.reps.every((r) => r === l.reps[0])
+                  ? [copy.session.backTo(l.reps[0])]
+                  : []
+            }
+          />
         </View>
       ))}
     </View>
   );
 }
 
-function Cell({ value, up, before, style }: { value: string; up: boolean; before: string; style: object }) {
+function Cell({ value, up, notes, style }: { value: string; up: boolean; notes: string[]; style: object }) {
   return (
     <View style={style}>
       <Text style={[styles.value, up && styles.up]}>{value}</Text>
-      {up && <Text style={styles.before}>{`${copy.session.before} ${before}`}</Text>}
+      {notes.map((n) => (
+        <Text key={n} style={styles.before}>
+          {n}
+        </Text>
+      ))}
     </View>
   );
 }

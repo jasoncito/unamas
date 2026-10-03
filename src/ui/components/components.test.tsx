@@ -32,12 +32,19 @@ describe('PlanTable (design/meta.html)', () => {
     expect(screen.queryByText('antes 4×10')).toBeNull();
   });
 
-  it('shows the header, the columns, and "(por lado)" for per-side loads', async () => {
+  it('shows the header and the columns; "por lado" under the load, not in the name', async () => {
     await render(<PlanTable title="Hombro y pierna · hoy te toca" lines={lines} />);
     expect(screen.getByText('Hombro y pierna · hoy te toca')).toBeTruthy();
     expect(screen.getByText('Peso')).toBeTruthy();
     expect(screen.getByText('Series')).toBeTruthy();
-    expect(screen.getByText('Sentadilla en máquina Smith (por lado)')).toBeTruthy();
+    expect(screen.getByText('Sentadilla en máquina Smith')).toBeTruthy();
+    expect(screen.getAllByText('por lado')).toHaveLength(1);
+  });
+
+  it('the load goes up: SERIES explains it, "vuelves a 6" (backlog: gym test)', async () => {
+    await render(<PlanTable title="t" lines={lines} />);
+    expect(screen.getByText('vuelves a 6')).toBeTruthy();
+    expect(screen.queryByText('vuelves a 9')).toBeNull(); // reps going up: "antes 4×8" instead
   });
 });
 

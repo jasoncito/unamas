@@ -335,7 +335,8 @@ Las mismas tablas, con `user_id uuid not null default auth.uid() references auth
 - El teclado se abre solo (`autoFocus`). Título "¿Con qué empiezas?" pegado al input.
 - **Volver a la pantalla 1, mientras no haya entradas:** el encabezado de grupos lleva "‹" delante ("‹ Hombro y tríceps · hoy te toca", o solo "‹ Core" si no hay lista) y tocarlo vuelve; el gesto de volver de iOS también. Con la primera entrada desaparecen el "‹" y el gesto.
 - Arriba, la **meta de hoy** (decidido con Jason, ver `design/meta.html`): encabezado "<grupos> · hoy te toca" (13/600, muted) y columnas fijas **PESO** y **SERIES** (11/600, mayúsculas, muted), alineadas a la derecha y con números tabulares. Una fila por ejercicio de la última sesión que tuvo esos grupos: el nombre a la izquierda (15, text) y la meta que calcula el motor en las dos columnas (16/700).
-  - **Solo el valor que sube va en verde**, con "antes X" debajo en gris (11/500): si sube el peso, PESO en verde ("32.5 kg", "antes 30") y SERIES en blanco sin "antes" (aunque las reps vuelvan al piso); si suben las reps, SERIES en verde ("4×9", "antes 4×8") y PESO en blanco. Lo que no cambia va en blanco y sin "antes".
+  - **Solo el valor que sube va en verde**, con "antes X" debajo en gris (11/500): si sube el peso, PESO en verde ("32.5 kg", "antes 30") y SERIES en blanco con "vuelves a 6" debajo, que explica por qué bajan las reps (prueba en el gym, 3 oct 2026); si suben las reps, SERIES en verde ("4×9", "antes 4×8") y PESO en blanco. Lo que no cambia va en blanco y sin "antes".
+  - "Por lado" va como nota chica bajo el peso, no en el nombre (dice cómo dictarlo sin alargar la fila).
   - **Si no hay historial para esos grupos, no hay lista.**
 - Placeholder del input: **la meta del primer ejercicio sugerido**, en el formato en que se dicta ("press de hombros, 24 kg, 4 de 9"). Sin lista, el genérico "press de hombro, 24 kg, 4 de 8". Micrófono dentro del input.
 
