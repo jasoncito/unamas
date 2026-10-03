@@ -20,7 +20,14 @@ import {
   type StoredAmbiguity,
   type UnresolvedEntry,
 } from '@/data/repos/entries';
-import { addSessionGroups, createSession, deleteSessionIfEmpty, deleteSessionIfNoEntries, endSession } from '@/data/repos/sessions';
+import {
+  addSessionGroups,
+  createSession,
+  deleteSessionIfEmpty,
+  deleteSessionIfNoEntries,
+  dropUnusedAddedGroups,
+  endSession,
+} from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
 import { deltaOf } from '@/domain/delta';
 import { REP_RANGES } from '@/domain/engine';
@@ -287,6 +294,12 @@ export function createSessionActions(
     return true;
   }
 
+  /** A group an undone or deleted entry had added goes again, if nothing else works it (never a chosen one). */
+  async function dropAddedGroups(sessionId: string) {
+    const groupsNow = await dropUnusedAddedGroups(deps.db, sessionId);
+    if (groupsNow && ctx.sessionId === sessionId) ctx.groups = groupsNow;
+  }
+
   /** Where the doubt on screen belongs: remembered when it was asked; the session screen's otherwise. */
   function originOf(entryId: string) {
     if (doubt?.entryId === entryId) return doubt;
@@ -387,6 +400,7 @@ export function createSessionActions(
       await deleteEntries(deps.db, u.entryIds);
       for (const id of u.createdExerciseIds) await deleteExerciseIfUnused(deps.db, id);
       if (u.learned) await removeExerciseAlias(deps.db, u.learned.exerciseId, u.learned.alias);
+      await dropAddedGroups(u.sessionId);
       if ((await deleteSessionIfNoEntries(deps.db, u.sessionId)) && ctx.sessionId === u.sessionId) ctx.sessionId = null;
       deps.requestSync();
       events.onChanged();
@@ -400,6 +414,7 @@ export function createSessionActions(
         if (ref.status === 'ok') await deleteEntries(deps.db, [entryId]);
         else await deleteUnsyncedEntry(deps.db, entryId);
         if (ref.exerciseId) await deleteExerciseIfUnused(deps.db, ref.exerciseId);
+        await dropAddedGroups(ref.sessionId);
         if ((await deleteSessionIfNoEntries(deps.db, ref.sessionId)) && ctx.sessionId === ref.sessionId) ctx.sessionId = null;
         deps.requestSync();
         events.onChanged();

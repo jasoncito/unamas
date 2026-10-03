@@ -637,6 +637,63 @@ describe('the stopwatch starts at EMPEZAR (backlog: gym test)', () => {
   });
 });
 
+describe('undoing an exercise of another group (decided with Jason, 3 oct 2026)', () => {
+  const press = () => log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })]);
+  const curl = () => log([entry({ exercise_id: ids.get('curl_barra_z')!, load_kg: 11.5, reps: [11, 11, 11, 11] })]);
+  const groups = async () => (await getOpenSession(db))!.muscleGroups;
+
+  it('Deshacer: the group it added goes, when nothing else in the session works it', async () => {
+    const h = harness([curl(), press()], { sessionId: null, groups: ['biceps'] });
+    await h.actions.send('curl barra z 11,5 4 de 11');
+    h.dispatch({ type: 'FEEDBACK_DONE' });
+    await h.actions.send('press de hombro 24 4 de 9');
+    expect(await groups()).toEqual(['biceps', 'shoulders']);
+    await h.actions.undo();
+    expect(await groups()).toEqual(['biceps']);
+    expect(h.ctx.groups).toEqual(['biceps']);
+  });
+
+  it('a chosen group never goes, even with no entry left that works it', async () => {
+    const h = harness([curl(), press()], { sessionId: null, groups: ['biceps', 'shoulders'] });
+    await h.actions.send('curl barra z 11,5 4 de 11');
+    h.dispatch({ type: 'FEEDBACK_DONE' });
+    await h.actions.send('press de hombro 24 4 de 9');
+    await h.actions.undo();
+    expect(await groups()).toEqual(['biceps', 'shoulders']);
+  });
+
+  it('the added group stays while another entry still works it', async () => {
+    const lat = () => log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 7.5, reps: [11, 11, 11, 11] })]);
+    const h = harness([curl(), press(), lat()], { sessionId: null, groups: ['biceps'] });
+    await h.actions.send('curl barra z 11,5 4 de 11');
+    h.dispatch({ type: 'FEEDBACK_DONE' });
+    await h.actions.send('press de hombro 24 4 de 9');
+    h.dispatch({ type: 'FEEDBACK_DONE' });
+    await h.actions.send('laterales 7,5 4 de 11');
+    await h.actions.undo();
+    expect(await groups()).toEqual(['biceps', 'shoulders']);
+  });
+
+  it('"Borrar" from "Hoy" does the same', async () => {
+    const h = harness([curl(), press()], { sessionId: null, groups: ['biceps'] });
+    await h.actions.send('curl barra z 11,5 4 de 11');
+    await h.actions.send('press de hombro 24 4 de 9');
+    const pressEntry = (await entries()).find((e) => e.raw_text === 'press de hombro 24 4 de 9')!;
+    await h.actions.deleteEntry(pressEntry.id);
+    expect(await groups()).toEqual(['biceps']);
+  });
+
+  it('a session that doesn\'t know which groups were chosen (from before, or another phone) keeps them all', async () => {
+    const h = harness([curl(), press()], { sessionId: null, groups: ['biceps'] });
+    await h.actions.send('curl barra z 11,5 4 de 11');
+    h.dispatch({ type: 'FEEDBACK_DONE' });
+    await h.actions.send('press de hombro 24 4 de 9');
+    await db.runAsync('UPDATE session SET chosen_groups = NULL', []);
+    await h.actions.undo();
+    expect(await groups()).toEqual(['biceps', 'shoulders']);
+  });
+});
+
 describe('order', () => {
   it('two messages sent at once are processed one after the other', async () => {
     const h = harness([log([entry({ exercise_id: ids.get('press_hombro_mancuernas')! })]), log([entry({ exercise_id: ids.get('laterales_polea')!, load_kg: 7.5, reps: [11, 11, 11, 11] })])]);

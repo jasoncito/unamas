@@ -229,3 +229,14 @@ describe('sessions left open (M8)', () => {
     expect(await db.getFirstAsync('SELECT ended_at FROM session WHERE id = ?', [S])).toEqual({ ended_at: '2026-09-29T19:00:00.000Z' });
   });
 });
+
+describe('chosen groups (local only)', () => {
+  it('kept on this phone: they never go up, and a pull leaves them alone', async () => {
+    await resolveEntry(db, E, { exerciseId: ids.get('press_hombro_mancuernas')!, loadKg: 24, reps: [9, 9, 9, 9], rirNote: null, easy: false });
+    const server = new FakeServer();
+    await sync(db, server.store());
+    expect(server.rows.session.get(S)).not.toHaveProperty('chosen_groups');
+    await sync(db, server.store()); // pull again
+    expect(await db.getFirstAsync('SELECT chosen_groups FROM session WHERE id = ?', [S])).toEqual({ chosen_groups: '["shoulders"]' });
+  });
+});

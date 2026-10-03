@@ -73,8 +73,9 @@ export async function getLastTrainedByGroup(db: Db): Promise<Map<string, string>
  * Groups in the order they were chosen. Dirty, so it syncs.
  */
 export async function createSession(db: Db, id: string, muscleGroups: readonly string[], startedAt: string): Promise<void> {
-  await db.runAsync('INSERT INTO session (id, muscle_groups, started_at, updated_at, dirty) VALUES (?, ?, ?, ?, 1)', [
+  await db.runAsync('INSERT INTO session (id, muscle_groups, chosen_groups, started_at, updated_at, dirty) VALUES (?, ?, ?, ?, ?, 1)', [
     id,
+    JSON.stringify(muscleGroups),
     JSON.stringify(muscleGroups),
     startedAt,
     nowIso(),
@@ -137,4 +138,32 @@ export async function addSessionGroups(db: Db, sessionId: string, groups: readon
   const next = [...session.muscleGroups, ...missing];
   await db.runAsync('UPDATE session SET muscle_groups = ?, updated_at = ?, dirty = 1 WHERE id = ?', [JSON.stringify(next), nowIso(), sessionId]);
   return next;
+}
+
+/**
+ * After "Deshacer" or "Borrar": a group an exercise of another group added to the session goes again
+ * once no entry left in the session works it. Groups chosen on screen 1 never go (decided with Jason).
+ * Returns the new list, or null if nothing changed.
+ */
+export async function dropUnusedAddedGroups(db: Db, sessionId: string): Promise<string[] | null> {
+  const row = await db.getFirstAsync<{ muscle_groups: string; chosen_groups: string | null }>(
+    'SELECT muscle_groups, chosen_groups FROM session WHERE id = ? AND deleted_at IS NULL',
+    [sessionId],
+  );
+  if (!row || row.chosen_groups === null) return null; // unknown: everything counts as chosen
+  const groups: string[] = JSON.parse(row.muscle_groups);
+  const chosen = new Set<string>(JSON.parse(row.chosen_groups));
+  const worked = new Set(
+    (
+      await db.getAllAsync<{ muscle_groups: string }>(
+        `SELECT x.muscle_groups FROM entry e JOIN exercise x ON x.id = e.exercise_id
+         WHERE e.session_id = ? AND e.deleted_at IS NULL`,
+        [sessionId],
+      )
+    ).flatMap((r) => JSON.parse(r.muscle_groups) as string[]),
+  );
+  const kept = groups.filter((g) => chosen.has(g) || worked.has(g));
+  if (kept.length === groups.length) return null;
+  await db.runAsync('UPDATE session SET muscle_groups = ?, updated_at = ?, dirty = 1 WHERE id = ?', [JSON.stringify(kept), nowIso(), sessionId]);
+  return kept;
 }

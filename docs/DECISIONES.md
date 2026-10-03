@@ -47,7 +47,7 @@ Con un Apple ID gratuito la app vence a los **7 días**: se reinstala con el mis
 
 Decisiones de Claude al arreglarlos, sin aprobación paso a paso:
 - **Cronómetro desde EMPEZAR:** la sesión se sigue creando con la primera entrada (no hay sesiones vacías), pero con `started_at` = hora de EMPEZAR. La barra se ve desde EMPEZAR con "‹" para volver; el stop aparece con la primera entrada, porque antes no hay nada que terminar.
-- **Ejercicio de otro grupo:** se agregan todos sus grupos a la sesión (sentadilla Smith suma pierna y glúteo). Deshacer o Borrar no los quita.
+- **Ejercicio de otro grupo:** se agregan todos sus grupos a la sesión (sentadilla Smith suma pierna y glúteo). **Cambiado por Jason (3 oct 2026):** al deshacer o borrar una entrada, un grupo que se había agregado así se quita si ya no queda ninguna entrada de la sesión que lo trabaje. Los grupos elegidos en la pantalla 1 nunca se quitan. Para distinguirlos, la sesión guarda sus grupos elegidos en `session.chosen_groups` (solo local, migración v6); una sesión sin ese dato (anterior, o bajada de otro teléfono) los trata a todos como elegidos.
 - **Sugerencias:** un ejercicio hecho hoy va al final, no desaparece: puede ser una segunda vez.
 - **"Por lado":** sale del nombre y queda como nota chica bajo el peso, porque dice cómo dictarlo ("32,5 a cada lado").
 - **Placeholder que se quedaba atrás:** no se pudo reproducir desde aquí. Se aplicó el arreglo para la causa conocida (input controlado a través del store): el input guarda su propio texto y se sincroniza cuando cambia desde afuera. A confirmar en el iPhone.

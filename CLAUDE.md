@@ -289,6 +289,7 @@ CREATE TABLE session (
   id TEXT PRIMARY KEY,
   muscle_groups TEXT NOT NULL,                               -- JSON, en el orden elegido
   started_at TEXT, ended_at TEXT, avg_bpm INTEGER,
+  chosen_groups TEXT,                                        -- JSON: los grupos elegidos en la pantalla 1; solo local (v6)
   updated_at TEXT NOT NULL, deleted_at TEXT, dirty INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE entry (
@@ -351,7 +352,7 @@ Secuencia al enviar:
 1. El texto **sube desde el input** como burbuja alineada a la derecha (surface, radio 18/18/6/18). El input se vacía, el teclado se cierra, el título cambia a "¿Qué sigue?" y vuelve el micrófono.
 2. Bajo la burbuja: "✓ Anotado · +1 rep por serie vs. el 27" (check y texto en verde si subió; check en surface y texto muted si igual o bajó). Un ejercicio nuevo: "Anotado · Press de pecho en máquina · primera vez", con el nombre que recibió y **en gris, nunca en verde** (no es progreso).
 3. A los **4.5 s** (parámetro) la burbuja se desvanece y en la lista de arriba ese ejercicio pasa a check verde con la marca de hoy y el delta.
-4. **Deshacer** (decidido con Jason, 2 oct 2026): al final de la línea "Anotado", visible solo esos 4,5 s, subrayado y nunca verde. Deshace **el mensaje entero**: sus entradas, el ejercicio que creó (si nada más lo usa), el alias que enseñó al elegir una opción, y su sesión si era la primera entrada (vuelve el "‹"). Borrado suave, porque puede haberse sincronizado ya. La frase (y la foto) vuelven al input para corregir y reenviar. Háptica suave. Pasados los 4,5 s se borra desde "Hoy" (abajo).
+4. **Deshacer** (decidido con Jason, 2 oct 2026): al final de la línea "Anotado", visible solo esos 4,5 s, subrayado y nunca verde. Deshace **el mensaje entero**: sus entradas, el ejercicio que creó (si nada más lo usa), el alias que enseñó al elegir una opción, el grupo que agregó a la sesión si ya nada más lo trabaja (nunca uno elegido en la pantalla 1), y su sesión si era la primera entrada (vuelve el "‹"). Borrado suave, porque puede haberse sincronizado ya. La frase (y la foto) vuelven al input para corregir y reenviar. Háptica suave. Pasados los 4,5 s se borra desde "Hoy" (abajo).
 5. **Borrar desde "Hoy"** (decidido con Jason, 2 oct 2026): tocar una fila muestra "Borrar" en lugar de su valor (tocarla otra vez lo oculta); tocar "Borrar" borra esa entrada como Deshacer: su ejercicio si nada más lo usa y la sesión si queda vacía. Sin diálogo de confirmación (ya son dos toques). No quita un alias aprendido (una fila no sabe cuál enseñó; un alias de más no hace daño). Una fila pendiente también se borra (nunca subió: se elimina).
 
 Mientras espera la respuesta de la función: la burbuja aparece enseguida con un estado de "pendiente" sutil.
