@@ -4,6 +4,12 @@ Nombre de la app: **unamas** (junto, en minúsculas). Slug y carpeta: `unamas`.
 
 Lee este archivo completo antes de escribir código. Los detalles del algoritmo están en `docs/PROGRESSION.md`, los de cuentas y sincronización en `docs/MULTIUSER.md` (manda sobre este archivo si se contradicen), y los mockups aprobados en `design/flow.html` (ábrelo en un navegador; las pantallas 1, 4 y 6 son interactivas).
 
+## Backlog
+
+- **Al empezar, lee `BACKLOG.md`.**
+- **Al terminar un ítem,** márcalo como hecho en tu reporte y sácalo de `BACKLOG.md` (el historial queda en git).
+- **Si un ítem no está en "Ahora", no se trabaja sin preguntarle a Jason.** Lo que aparezca en el camino se agrega a "Pronto" o "Después", con su porqué, y se le avisa.
+
 ## 1. Qué es
 
 Una app móvil para registrar el entrenamiento de fuerza **hablándole o escribiéndole como a una persona** ("press de hombro 24 kg, 4 de 9"). La app lo convierte en datos, lo compara con tu última vez y te sugiere la próxima meta con sobrecarga progresiva basada en evidencia.
