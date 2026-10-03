@@ -53,7 +53,7 @@ export async function parseWithClaude(client: Anthropic, request: ParseRequest):
 	} catch {
 		return UNCLEAR;
 	}
-	return parsed.success ? sanitize(parsed.data, request.context.exercises, request.text) : UNCLEAR;
+	return parsed.success ? sanitize(parsed.data, request.context.exercises, request.text, request.image !== null) : UNCLEAR;
 }
 
 /**
@@ -88,7 +88,13 @@ function toStructuredOutputSchema(schema: Record<string, unknown>): Record<strin
  * Structured outputs guarantee the shape, not the meaning. Keeps only what's consistent with the
  * user's exercises; anything that would make the app invent data becomes `unclear`.
  */
-export function sanitize(response: ParseResponse, exercises: readonly ContextExercise[], text: string): ParseResponse {
+export function sanitize(
+	response: ParseResponse,
+	exercises: readonly ContextExercise[],
+	text: string,
+	/** With a photo, "esta" names the machine: the word nets can't judge the options. */
+	withPhoto = false,
+): ParseResponse {
 	const known = new Set(exercises.map((e) => e.id));
 
 	switch (response.intent) {
@@ -125,9 +131,15 @@ export function sanitize(response: ParseResponse, exercises: readonly ContextExe
 		}
 		case 'ambiguous': {
 			if (!response.ambiguity?.question) return UNCLEAR;
-			const options = response.ambiguity.options.filter((o) => known.has(o.exercise_id));
+			let options = response.ambiguity.options.filter((o) => known.has(o.exercise_id));
+			// "Which one?" only among exercises the phrase really names: one loose shared word ("máquina",
+			// "leg") is no reason to offer it (backlog: "máquina leg press" offered extensions and Smith).
+			const isWhichOne = options.length > 0;
+			if (isWhichOne && !withPhoto) options = options.filter((o) => namesIt(exercises.find((e) => e.id === o.exercise_id)!, text));
 			// "Which one?" (not "how much weight?"): make sure every exercise the words fit is offered.
-			if (options.length > 0) options.push(...missingCandidates(options, exercises, text));
+			if (isWhichOne) options.push(...missingCandidates(options, exercises, text));
+			// None of theirs is named after all: it's likely new, but only Claude can describe it.
+			if (isWhichOne && options.length === 0) return askFor('¿Qué ejercicio es? Si es nuevo, dime su nombre.');
 			return { intent: 'ambiguous', entries: [], ambiguity: { question: response.ambiguity.question, options }, reply: null };
 		}
 		case 'end_session':
@@ -173,6 +185,27 @@ export function rivalsOf(chosenId: string, exercises: readonly ContextExercise[]
 		(e) => e.id !== chosenId && fitting(e).some((words) => !chosenFits.some((own) => within(words, own))),
 	);
 	return withChosen ? [chosen, ...rivals] : rivals;
+}
+
+/** Equipment and generic words: sharing only one of these doesn't make the phrase name an exercise. */
+const LOOSE_WORDS = new Set(['maquin', 'pole', 'barr', 'mancuern', 'leg', 'pres', 'banc', 'cabl']);
+
+/** Word stem for comparing: "inclinada" = "inclinado", "banca" = "banco" (after significantWords' singular). */
+const stem = (w: string) => (w.length > 3 ? w.replace(/[aoe]$/, '') : w);
+
+/**
+ * Whether a "which one?" option is a fair guess for the phrase (backlog: "máquina leg press" offered leg
+ * extension and Smith). It's dropped only when all it shares with the phrase is one loose word ("leg",
+ * "máquina"). Options Claude offered by meaning — sharing no word, or a specific one like "sentado" —
+ * stay: descriptions such as "bíceps un brazo sentado con el codo en la rodilla" name nothing literally.
+ */
+export function namesIt(exercise: ContextExercise, text: string): boolean {
+	const said = new Set(significantWords(text).map(stem));
+	if (said.size === 0) return true;
+	const shared = new Set(
+		[exercise.name, ...exercise.aliases].flatMap((n) => significantWords(n).map(stem)).filter((w) => said.has(w)),
+	);
+	return !(shared.size === 1 && LOOSE_WORDS.has([...shared][0]));
 }
 
 function askFor(question: string): ParseResponse {

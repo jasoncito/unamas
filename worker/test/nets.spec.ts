@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import seed from '../../dev/seed.json';
 import type { ContextExercise, ParseResponse } from '../../shared/contract';
-import { sanitize } from '../src/claude';
+import { namesIt, sanitize } from '../src/claude';
 
 // Free simulation of the word nets (claude.ts: settleByWords) on the 32 seed phrases: if Claude answers
 // each one right, which would the nets turn into a question? Same context the eval sends.
@@ -107,5 +107,16 @@ describe('two exercises in one message: the nets stay out', () => {
 			reply: null,
 		};
 		expect(sanitize(both, ctx, 'press de hombros 24 4 de 9 y laterales en polea 7,5 4 de 11').intent).toBe('log');
+	});
+});
+
+describe('the option net never drops the right exercise of a seed phrase', () => {
+	it('if Claude asks "which one?" and offers the right one, it stays (⚠️ never turns ❌)', () => {
+		const dropped = seed.entries.filter((e) => {
+			const ex = contextOn(dateOf.get(e.session_id)!).find((x) => x.id === e.exercise_id)!;
+			return !namesIt(ex, e.raw_text);
+		});
+		for (const d of dropped) console.log(`[nets] would drop ${d.exercise_id} for ${d.id}: "${d.raw_text}"`);
+		expect(dropped.map((d) => d.id)).toEqual([]);
 	});
 });

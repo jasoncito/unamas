@@ -119,6 +119,13 @@ describe('beyond the seed', () => {
 		expect((await parse('listo, terminamos por hoy')).intent).toBe('end_session');
 	});
 
+	it('"máquina leg press" is a new exercise, not a question between leg extension and Smith (backlog: gym test)', async () => {
+		const res = await parse('máquina leg press 80 kilos 4 de 10', '2026-09-28', ['legs']);
+		expect(res.intent).toBe('log');
+		expect(res.entries[0]).toMatchObject({ exercise_id: null, load_kg: 80, reps: [10, 10, 10, 10] });
+		expect(res.entries[0].new_exercise?.muscle_groups).toContain('legs');
+	});
+
 	it('"fácil" sets easy and keeps the note', async () => {
 		// "press de hombro" alone would be ambiguous: this user also has "Press de hombro en máquina".
 		const res = await parse('press de hombro con mancuernas 24 4 de 12, fácil');

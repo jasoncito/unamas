@@ -161,27 +161,40 @@ describe('completing "which one?" options', () => {
 	});
 
 	it('needs every significant word: "laterales en polea" only fits the polea one', () => {
+		// Claude's "laterales de pie" stays ("laterales" is no loose word); the polea one is added.
 		const res = sanitize(asked(['laterales_pie']), LATERALES, 'laterales en polea 10 4 de 11');
 		expect(ids(res)).toEqual(['laterales_pie', 'laterales_polea']);
 	});
 
 	it('singular/plural and accents: "lateral" and "pájaro" match "laterales" and "pájaros"', () => {
-		expect(ids(sanitize(asked(['press']), LATERALES, 'lateral 10 4 de 11'))).toEqual(['press', 'laterales_pie', 'laterales_polea', 'laterales_rodillas']);
-		expect(ids(sanitize(asked(['press']), LATERALES, 'pajaro con 8'))).toEqual(['press', 'laterales_rodillas']);
+		expect(ids(sanitize(asked(['laterales_pie']), LATERALES, 'lateral 10 4 de 11'))).toEqual(['laterales_pie', 'laterales_polea', 'laterales_rodillas']);
+		expect(ids(sanitize(asked(['laterales_rodillas']), LATERALES, 'pajaro con 8'))).toEqual(['laterales_rodillas']);
 	});
 
 	it('ignores empty words: "laterales de polea" fits "Elevaciones laterales en polea"', () => {
-		expect(ids(sanitize(asked(['press']), LATERALES, 'laterales de la polea 10'))).toEqual(['press', 'laterales_polea']);
+		expect(ids(sanitize(asked(['laterales_pie']), LATERALES, 'laterales de la polea 10'))).toEqual(['laterales_pie', 'laterales_polea']);
 	});
 
 	it('uses aliases too', () => {
-		expect(ids(sanitize(asked(['press']), LATERALES, 'jalon polea deltoide posterior 25'))).toEqual(['press', 'face_pull']);
+		expect(ids(sanitize(asked(['face_pull']), LATERALES, 'jalon polea deltoide posterior 25'))).toEqual(['face_pull']);
 	});
 
-	it("never removes Claude's options, even ones the words don't fit", () => {
-		expect(ids(sanitize(asked(['press', 'face_pull']), LATERALES, 'laterales 10'))).toEqual([
-			'press', 'face_pull', 'laterales_pie', 'laterales_polea', 'laterales_rodillas',
-		]);
+	it('drops options that share only a loose word with the phrase (backlog: "máquina leg press")', () => {
+		const LEGS: ContextExercise[] = [
+			{ id: 'leg_extension', name: 'Extensión de pierna', aliases: ['leg extension'], muscle_groups: ['legs'], last: null },
+			{ id: 'smith', name: 'Sentadilla en máquina Smith', aliases: ['sentadilla smith'], muscle_groups: ['legs'], last: null },
+			{ id: 'prensa', name: 'Prensa de pierna', aliases: ['leg press'], muscle_groups: ['legs'], last: null },
+		];
+		// Claude offered the two that share one word ("leg", "máquina"): none is left, so it asks what it is.
+		const none = sanitize(asked(['leg_extension', 'smith']), LEGS.slice(0, 2), 'máquina leg press 80 kilos 4 de 10');
+		expect(none.ambiguity).toEqual({ question: '¿Qué ejercicio es? Si es nuevo, dime su nombre.', options: [] });
+		// With a real leg press among theirs, only that one stays.
+		expect(ids(sanitize(asked(['leg_extension', 'smith', 'prensa']), LEGS, 'máquina leg press 80 kilos 4 de 10'))).toEqual(['prensa']);
+	});
+
+	it('with a photo the options are left alone ("esta" names the machine, not words)', () => {
+		const res = sanitize(asked(['press', 'face_pull']), LATERALES, 'esta, 25 a cada lado', true);
+		expect(ids(res)).toEqual(['press', 'face_pull']);
 	});
 
 	it('at most 5 in total, and never trims Claude below its own count', () => {
