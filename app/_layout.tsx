@@ -1,6 +1,7 @@
 import { Stack } from 'expo-router';
 import { SQLiteProvider, type SQLiteDatabase } from 'expo-sqlite';
 import { StatusBar } from 'expo-status-bar';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 import { initDb } from '@/data/init';
 import type { Seed } from '@/data/seed';
@@ -18,11 +19,13 @@ export default function RootLayout() {
   useSupabaseSession();
 
   return (
-    <SQLiteProvider databaseName="unamas.db" onInit={onInit}>
-      <SyncRunner />
-      <StatusBar style="light" />
-      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.bg } }} />
-    </SQLiteProvider>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: color.bg }}>
+      <SQLiteProvider databaseName="unamas.db" onInit={onInit}>
+        <SyncRunner />
+        <StatusBar style="light" />
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: color.bg } }} />
+      </SQLiteProvider>
+    </GestureHandlerRootView>
   );
 }
 

@@ -15,6 +15,10 @@ export const haptics = {
   select(): void {
     void Haptics.selectionAsync().catch(() => {});
   },
+  /** Something can't be done (the sleeve is full). */
+  warn(): void {
+    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+  },
   /** A light tap: "Deshacer". */
   tap(): void {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});

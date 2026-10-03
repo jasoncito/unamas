@@ -10,6 +10,17 @@ export const color = {
   ink: '#100E11',
 } as const;
 
+/** Equipment in the weight selector (design/selector.html): neutral metal for what repeats, green for what goes up. */
+export const metal = {
+  light: '#D8D5D9',
+  dark: '#8F8C90',
+  shine: '#F4F2F5',
+  dim: '#4A484B',
+  dimLight: '#6E6B6F',
+  greenDark: '#12B866',
+  greenShine: '#9DFFCC',
+} as const;
+
 // Fuente del sistema (SF Pro en iOS). tracking en em.
 export const type = {
   tally: { size: 34, weight: '800', tracking: -0.025 },
