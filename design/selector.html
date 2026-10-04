@@ -1,10 +1,10 @@
 <title>Selector de peso unamas</title>
 <style>
-/* Layout: one phone-height column. Header, last time, big number, then the equipment selector fills the rest, with the button at the bottom */
+/* Layout: header, number, then a stage that owns all remaining height: bar centered in its zone, plate tree pinned above the button */
 :root {
   color-scheme: dark;
   --green: #29FF94;
-  --green-d: #12B866;
+  --green-rim: #1FD67C;
   --bg: #100E11;
   --surface: #2B2B2B;
   --raised: #1C1A1D;
@@ -13,305 +13,487 @@
   --text: #FCF9FC;
   --muted: #7E7C7F;
   --ink: #100E11;
-  --metal: #D8D5D9;
-  --metal-d: #8F8C90;
+  --plate: #E7E4E8;
+  --plate-rim: #C9C6CA;
+  --steel: #5B595C;
+  --steel-hi: #7E7C7F;
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Helvetica Neue", Arial, sans-serif;
 }
 html, body { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); font-family: var(--font); -webkit-font-smoothing: antialiased;
-  -webkit-tap-highlight-color: transparent; overscroll-behavior: none; }
+  -webkit-tap-highlight-color: transparent; overscroll-behavior: none; user-select: none; -webkit-user-select: none; }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 button:focus-visible { outline: 2px solid var(--text); outline-offset: 3px; border-radius: 8px; }
 
-.app { height: 100%; max-width: 430px; margin: 0 auto; display: flex; flex-direction: column; padding: 8px 20px 16px; }
-@media (min-width: 600px) { .app { border-left: 1px solid var(--divider); border-right: 1px solid var(--divider); } }
-
-.proto { display: flex; gap: 4px; background: var(--raised); border-radius: 999px; padding: 4px; flex-shrink: 0; }
-.proto button { flex: 1; padding: 8px 0; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); }
-.proto button[aria-pressed="true"] { background: var(--surface); color: var(--text); }
-
-.screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
-.back { font-size: 15px; font-weight: 600; color: var(--muted); margin-top: 14px; }
-.name { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.12; margin-top: 6px; text-wrap: balance; }
-.last { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 14px; padding: 12px 0;
+.app { position: relative; height: 100%; max-width: 430px; margin: 0 auto; display: flex; flex-direction: column; padding: 8px 20px 16px; overflow: hidden; }
+.back { font-size: 15px; font-weight: 600; color: var(--muted); }
+.name { font-size: 28px; font-weight: 800; letter-spacing: -0.02em; line-height: 1.12; margin-top: 4px; }
+.last { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-top: 16px; padding: 12px 0;
   border-top: 1px solid var(--divider); border-bottom: 1px solid var(--divider); }
 .last .lab { font-size: 13px; font-weight: 600; color: var(--muted); }
 .last .v { text-align: right; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
 .last .v small { font-size: 13px; font-weight: 600; color: var(--muted); margin-left: 4px; }
 .last .v .cfg { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-top: 2px; }
 
-.val { text-align: center; margin-top: 18px; }
-.num { display: inline-block; font-size: 80px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; font-variant-numeric: tabular-nums; transition: color .2s; }
+.val { text-align: center; margin-top: 24px; }
+.num { display: inline-block; font-size: 80px; font-weight: 800; letter-spacing: -0.045em; line-height: 1; font-variant-numeric: tabular-nums; transition: color .25s; }
 .num.up { color: var(--green); }
-.unit { font-size: 22px; font-weight: 700; color: var(--muted); margin-left: 4px; letter-spacing: 0; }
-.line { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 10px; min-height: 30px; flex-wrap: wrap; }
+.unit { font-size: 22px; font-weight: 700; color: var(--muted); margin-left: 4px; }
+.line { display: flex; justify-content: center; align-items: center; gap: 8px; margin-top: 12px; min-height: 32px; flex-wrap: wrap; }
 .delta { font-size: 15px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
 .delta.up { color: var(--green); }
-.tag { font-size: 12px; font-weight: 800; padding: 5px 10px; border-radius: 999px; background: var(--raised); color: var(--text); }
-.reset { font-size: 13px; font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--border); color: var(--text); font-variant-numeric: tabular-nums; }
+.tag { font-size: 12px; font-weight: 800; padding: 6px 10px; border-radius: 999px; background: var(--raised); }
+.reset { font-size: 13px; font-weight: 700; padding: 6px 12px; border-radius: 999px; border: 1.5px solid var(--border); font-variant-numeric: tabular-nums; }
 
-.stage { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; position: relative; }
-.go { flex-shrink: 0; margin-top: 12px; background: var(--green); color: var(--ink); border-radius: 999px; padding: 16px; text-align: center;
-  font-size: 15px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; width: 100%; font-variant-numeric: tabular-nums; }
+.stage { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 24px; padding-top: 16px; }
+.bararea { flex: 1; min-height: 0; position: relative; }
+.bar { position: absolute; inset: 0; }
+.shaft { position: absolute; border-radius: 2px; background: var(--steel); }
+.sleeve { position: absolute; border-radius: 3px; background: var(--steel-hi); }
+.collar { position: absolute; border-radius: 3px; background: var(--steel-hi); }
+.plate { position: absolute; display: flex; align-items: center; justify-content: center; cursor: pointer;
+  background: var(--plate); transition: left .26s cubic-bezier(.4,0,.2,1); }
+.plate span { writing-mode: vertical-rl; transform: rotate(180deg); font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; pointer-events: none; }
+.plate.up { background: var(--green); }
+.plate::before { content: ""; position: absolute; top: 0; bottom: 0; left: -5px; right: -5px; }
 
-/* ---------- A: barra con discos ---------- */
-.barwrap { position: relative; height: 230px; touch-action: manipulation; }
-.shaft { position: absolute; left: -20px; width: 60px; top: 108px; height: 14px; border-radius: 3px;
-  background: linear-gradient(180deg, #6E6B6F, #3E3C3F); -webkit-mask-image: linear-gradient(90deg, transparent, #000 60%); mask-image: linear-gradient(90deg, transparent, #000 60%); }
-.collar { position: absolute; left: 34px; top: 88px; width: 14px; height: 54px; border-radius: 4px; background: linear-gradient(90deg, #5B595C, #A3A0A4, #5B595C); }
-.sleeve { position: absolute; left: 48px; right: 0; top: 104px; height: 22px; border-radius: 4px;
-  background: linear-gradient(180deg, #9C999D, #5B595C 55%, #3A383B); }
-.plate { position: absolute; left: 0; top: 0; border-radius: 5px; display: flex; align-items: center; justify-content: center;
-  transition: transform .32s cubic-bezier(.25,.9,.3,1), top .32s; will-change: transform; cursor: pointer;
-  background: linear-gradient(90deg, var(--metal-d) 0%, var(--metal) 30%, #F4F2F5 50%, var(--metal) 70%, var(--metal-d) 100%);
-  box-shadow: inset 0 0 0 1px rgba(0,0,0,.25), 0 6px 14px rgba(0,0,0,.45); }
-.plate.up { background: linear-gradient(90deg, var(--green-d) 0%, var(--green) 35%, #9DFFCC 50%, var(--green) 65%, var(--green-d) 100%); }
-.plate span { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 11px; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; pointer-events: none; }
-.tray { display: flex; justify-content: space-between; align-items: flex-end; gap: 6px; margin-top: 18px; height: 92px; }
-.tp { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 8px; height: 100%; border-radius: 14px; padding-bottom: 8px; }
-.tp:active { background: var(--raised); }
-.tp i { display: block; border-radius: 3px; background: linear-gradient(90deg, #4A484B, #6E6B6F 50%, #4A484B); }
-.tp b { font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }
-.tp b::before { content: "+"; color: var(--muted); margin-right: 1px; }
+.tree { flex-shrink: 0; display: flex; justify-content: space-around; align-items: center; height: 96px; }
+.tp { border-radius: 50%; background: var(--surface);
+  display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums;
+  transition: transform .12s; }
+.tp:active { transform: scale(.94); }
+.fly { position: absolute; z-index: 5; pointer-events: none; }
 
-/* ---------- B: pila de placas ---------- */
-.stackarea { position: relative; display: flex; justify-content: center; touch-action: none; user-select: none; -webkit-user-select: none; cursor: ns-resize; padding: 6px 0 16px; }
-.cols { position: relative; display: grid; grid-template-columns: 74px 184px 74px; }
-.tags { position: relative; }
-.stk { position: relative; }
-.sp { position: absolute; left: 0; right: 0; height: 28px; border-radius: 5px; display: flex; align-items: center; padding: 0 12px;
-  background: var(--surface); color: var(--muted); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums;
-  transition: transform .28s cubic-bezier(.25,.9,.3,1), background .18s, color .18s; }
-.sp::after { content: ""; position: absolute; right: 22px; top: 9px; width: 10px; height: 10px; border-radius: 50%; background: var(--bg); }
-.sp.on { background: linear-gradient(180deg, #F2F0F3, var(--metal) 60%, #B5B2B6); color: var(--ink); }
-.sp.up { background: linear-gradient(180deg, #8CFFC4, var(--green) 60%, #1FD67C); color: var(--ink); }
-.pin { position: absolute; left: 140px; width: 100px; height: 28px; transition: top .22s cubic-bezier(.25,.9,.3,1.2); pointer-events: none; }
-.pin .rod { position: absolute; left: 0; right: 30px; top: 11px; height: 6px; border-radius: 3px; background: linear-gradient(180deg, #FFFFFF, #A3A0A4); }
-.pin .knob { position: absolute; right: 0; top: -4px; width: 36px; height: 36px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #FFFFFF, #CFCCD0 55%, #8F8C90);
-  box-shadow: 0 4px 12px rgba(0,0,0,.5); }
-.stag { position: absolute; right: 10px; height: 28px; display: flex; align-items: center; transition: top .2s; }
-.stag span { font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 999px; background: var(--raised); color: var(--text); white-space: nowrap; }
+.proto { display: flex; gap: 4px; background: var(--raised); border-radius: 999px; padding: 4px; flex-shrink: 0; margin-bottom: 14px; }
+.proto button { flex: 1; padding: 8px 0; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--muted); }
+.proto button[aria-pressed="true"] { background: var(--surface); color: var(--text); }
+.screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 
-/* ---------- C: rack de mancuernas ---------- */
-.rack { overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; display: flex; align-items: center; height: 250px;
-  padding-inline: calc(50% - 40px); margin-inline: -20px; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+/* pila de placas, vista de frente */
+.stackarea { flex: 1; min-height: 0; position: relative; overflow: hidden; touch-action: none; cursor: ns-resize; }
+.cable { position: absolute; width: 3px; top: 0; background: var(--steel); border-radius: 2px; transform-origin: top; }
+.rod { position: absolute; width: 4px; border-radius: 2px; background: var(--steel); }
+.stk { position: absolute; left: 0; right: 0; top: 0; transition: transform .25s cubic-bezier(.4,0,.2,1); }
+.sp { position: absolute; border-radius: 4px; background: var(--surface); color: var(--muted); display: flex; align-items: center;
+  padding-left: 12px; font-weight: 800; font-variant-numeric: tabular-nums; transition: background .12s, color .12s; }
+.sp.on { background: var(--plate); color: var(--ink); }
+.sp.up { background: var(--green); color: var(--ink); }
+.sp i { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; margin: -4px 0 0 -4px; border-radius: 50%; background: var(--bg); }
+.knob { position: absolute; border-radius: 50%; background: var(--text); pointer-events: none; z-index: 2;
+  transition: top .16s cubic-bezier(.5,0,.2,1); }
+.knob::after { content: ""; position: absolute; inset: 30%; border-radius: 50%; background: var(--steel-hi); }
+.stag { position: absolute; font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 999px; background: var(--raised); white-space: nowrap; }
+.fade { position: absolute; left: 0; right: 0; height: 40px; pointer-events: none; z-index: 3; transition: opacity .2s; }
+.fade.t { top: 0; background: linear-gradient(var(--bg), transparent); }
+.fade.b { bottom: 0; background: linear-gradient(transparent, var(--bg)); }
+
+/* rack de mancuernas, vista de frente */
+.rackarea { flex: 1; min-height: 0; position: relative; display: flex; }
+.rack { flex: 1; display: flex; align-items: stretch; overflow: hidden; touch-action: pan-y; cursor: grab; margin-inline: -20px; } .rackx { overflow-y: hidden; scroll-snap-type: x mandatory; scrollbar-width: none;
+  margin-inline: -20px; -webkit-overflow-scrolling: touch; }
 .rack::-webkit-scrollbar { display: none; }
-.db { flex: 0 0 80px; height: 100%; scroll-snap-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-.dbv { display: flex; flex-direction: column; align-items: center; gap: 12px; will-change: transform, opacity; transform-origin: 50% 70%; }
-.dbs { display: flex; align-items: center; }
-.dbs .hd { border-radius: 7px; background: linear-gradient(90deg, #5B595C, #8F8C90 50%, #5B595C); transition: background .2s; }
-.dbs .hn { height: 9px; width: 16px; background: linear-gradient(180deg, #A3A0A4, #5B595C); }
-.db b { font-size: 15px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; transition: color .2s; }
-.db.sel .hd { background: linear-gradient(90deg, var(--metal-d), #F4F2F5 50%, var(--metal-d)); }
-.db.sel.up .hd { background: linear-gradient(90deg, var(--green-d), #9DFFCC 50%, var(--green-d)); }
-.db.sel b { color: var(--text); }
-.db .dt { height: 22px; display: flex; align-items: center; }
-.db .dt span { font-size: 11px; font-weight: 800; padding: 4px 8px; border-radius: 999px; background: var(--raised); white-space: nowrap; }
-.floor { height: 2px; margin: -40px -20px 0; background: linear-gradient(90deg, transparent, var(--divider) 20%, var(--divider) 80%, transparent); }
+.track { display: flex; align-items: stretch; will-change: transform; }
+.db { flex: 0 0 auto; scroll-snap-align: center; display: flex; flex-direction: column; align-items: center; justify-content: center; cursor: pointer; }
+.db .sh { align-self: stretch; height: 6px; margin: 0 -1px; background: var(--steel); }
+.db .lb { height: 52px; padding-top: 10px; text-align: center; font-size: 14px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; transition: color .15s; }
+.db.sel .lb { color: var(--text); }
+.db .lb small { display: block; margin: 6px auto 0; width: max-content; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: var(--raised); color: var(--text); }
+.dbv { display: flex; align-items: center; will-change: transform; }
+.dbv .hd { border-radius: 5px; background: var(--surface); transition: background .15s; }
+.dbv .hn { border-radius: 3px; background: var(--steel); }
+.dbv .fl { width: 4px; border-radius: 2px; background: var(--steel-hi); }
+.db.sel .hd { background: var(--plate); }
+.db.sel.up .hd { background: var(--green); }
+.shelf { height: 6px; border-radius: 3px; background: var(--steel); margin-inline: -20px; }
+.labels { display: flex; overflow: hidden; margin-inline: -20px; min-height: 52px; align-items: flex-start; }
+.labels b { flex: 0 0 auto; text-align: center; padding-top: 10px; font-size: 14px; font-weight: 800; color: var(--muted); font-variant-numeric: tabular-nums; transition: color .15s; }
+.labels b.sel { color: var(--text); }
+.labels b small { display: block; margin: 6px auto 0; width: max-content; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 999px; background: var(--raised); color: var(--text); }
 
-@keyframes nope { 20%,60% { transform: translateX(-5px); } 40%,80% { transform: translateX(5px); } }
-.nope { animation: nope .3s; }
-@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+.go { flex-shrink: 0; margin-top: 16px; background: var(--green); color: var(--ink); border-radius: 999px; padding: 16px; width: 100%;
+  font-size: 15px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; font-variant-numeric: tabular-nums; }
 </style>
 
-<div class="app">
-  <div class="proto" role="group" aria-label="Tipo de equipo">
-    <button id="t-bar" aria-pressed="true" data-k="bar">Barra</button>
-    <button id="t-stack" aria-pressed="false" data-k="stack">Polea</button>
-    <button id="t-db" aria-pressed="false" data-k="db">Mancuernas</button>
+<div class="app" id="app">
+  <div class="proto" role="group" aria-label="Equipo">
+    <button aria-pressed="true" data-k="bar">Barra</button>
+    <button aria-pressed="false" data-k="stack">Polea</button>
+    <button aria-pressed="false" data-k="db">Mancuernas</button>
   </div>
-
   <section class="screen" id="s-bar">
-    <div class="back">‹ Pierna</div>
-    <div class="name">Sentadilla en Smith</div>
-    <div class="last"><span class="lab">La última vez · 24 sep</span><span class="v">30 kg<small>por lado · 4×10</small><span class="cfg">20 + 10</span></span></div>
-    <div class="val"><span class="num">32.5</span><span class="unit">kg por lado</span><div class="line"></div></div>
-    <div class="stage">
-      <div class="barwrap" id="barwrap"><div class="shaft"></div><div class="sleeve"></div><div class="collar"></div></div>
-      <div class="tray" id="tray"></div>
-    </div>
-    <button class="go" id="go-bar"></button>
+  <div class="back">‹ Pierna</div>
+  <div class="name">Sentadilla en Smith</div>
+  <div class="last"><span class="lab">La última vez · 24 sep</span><span class="v">30 kg<small>por lado · 4×10</small><span class="cfg">20 + 10</span></span></div>
+  <div class="val"><span class="num" id="num">0</span><span class="unit">kg por lado</span><div class="line" id="line"></div></div>
+  <div class="stage">
+    <div class="bararea" id="area"><div class="bar" id="bar"><div class="sleeve" id="slL"></div><div class="sleeve" id="slR"></div><div class="shaft"></div><div class="collar" id="coL"></div><div class="collar" id="coR"></div></div></div>
+    <div class="tree" id="tree"></div>
+  </div>
+  <button class="go" id="go"></button>
   </section>
-
   <section class="screen" id="s-stack" hidden>
-    <div class="back">‹ Hombro</div>
-    <div class="name">Laterales en polea</div>
-    <div class="last"><span class="lab">La última vez · 27 sep</span><span class="v">7.5 kg<small>4×10</small></span></div>
-    <div class="val"><span class="num">7.5</span><span class="unit">kg</span><div class="line"></div></div>
-    <div class="stage">
-      <div class="stackarea" id="stackarea"><div class="cols"><div class="tags" id="stags"></div><div class="stk" id="stk"></div><div></div>
-        <div class="pin" id="pin"><div class="rod"></div><div class="knob"></div></div></div></div>
-    </div>
-    <button class="go" id="go-stack"></button>
+  <div class="back">‹ Hombro</div>
+  <div class="name">Laterales en polea</div>
+  <div class="last"><span class="lab">La última vez · 27 sep</span><span class="v">7.5 kg<small>4×10</small></span></div>
+  <div class="val"><span class="num" id="num2">7.5</span><span class="unit">kg</span><div class="line" id="line2"></div></div>
+  <div class="stage">
+    <div class="stackarea" id="sarea"><div class="cable" id="cable"></div><div class="stk" id="stk"></div><div class="knob" id="knob"></div><div class="fade t" id="fT"></div><div class="fade b" id="fB"></div></div>
+  </div>
+  <button class="go" id="go2"></button>
   </section>
-
   <section class="screen" id="s-db" hidden>
-    <div class="back">‹ Hombro</div>
-    <div class="name">Press de hombro con mancuernas</div>
-    <div class="last"><span class="lab">La última vez · 27 sep</span><span class="v">24 kg<small>c/u · 4×8</small></span></div>
-    <div class="val"><span class="num">24</span><span class="unit">kg c/u</span><div class="line"></div></div>
-    <div class="stage">
-      <div class="rack" id="rack"></div>
-    </div>
-    <button class="go" id="go-db"></button>
+  <div class="back">‹ Hombro</div>
+  <div class="name">Press de hombro con mancuernas</div>
+  <div class="last"><span class="lab">La última vez · 27 sep</span><span class="v">24 kg<small>c/u · 4×8</small></span></div>
+  <div class="val"><span class="num" id="num3">24</span><span class="unit">kg c/u</span><div class="line" id="line3"></div></div>
+  <div class="stage">
+    <div class="rackarea" id="rarea"><div class="rack" id="rackv"><div class="track" id="rack"></div></div></div>
+  </div>
+  <button class="go" id="go3"></button>
   </section>
 </div>
 
 <script>
-const $ = (s, r = document) => r.querySelector(s);
+const $ = s => document.querySelector(s);
 const fmt = v => String(Math.round(v * 100) / 100);
-const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
 const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const buzz = ms => { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) {} };
+const LAST = 30, LAST_CFG = [20, 10], SUG_CFG = [20, 10, 2.5], SUG = 32.5, DATE = '24', FLOOR = 6;
+// relative diameter and thickness (at diameter 240) per plate
+const SPEC = { 20: [1, 30], 10: [.8, 24], 5: [.62, 19], 2.5: [.46, 14], 1.25: [.38, 11] };
+const WS = [20, 10, 5, 2.5, 1.25];
+const app = $('#app'), area = $('#area'), bar = $('#bar'), tree = $('#tree');
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let plates = [], pid = 0, G = {};
 
-// Data from the real log; suggestion follows PROGRESSION.md
-const CFG = {
-  bar:   { last: 30,  date: '24', sug: 32.5, floor: 6,  same: null,  unit: 'kg por lado', btn: 'kg por lado' },
-  stack: { last: 7.5, date: '27', sug: 7.5,  floor: 10, same: '4×11', unit: 'kg', btn: 'kg' },
-  db:    { last: 24,  date: '27', sug: 24,   floor: 8,  same: '4×9',  unit: 'kg c/u', btn: 'kg c/u' },
-};
-const shown = {};
+/* front view of the whole bar: shaft in the middle, one sleeve per side, plates mirrored */
+function geo() {
+  const w = area.clientWidth, h = area.clientHeight, D = Math.min(h - 8, 220), k = D / 240, cy = h / 2, cx = w / 2;
+  const half = Math.max(30, w * .1), cw = 8;
+  G = { w, h, D, k, cy, cx, inL: cx - half - cw, inR: cx + half + cw };
+  const sh = Math.max(8, D * .045), sl = Math.max(14, D * .075), ch = Math.max(34, D * .22);
+  Object.assign($('.shaft').style, { left: (cx - half) + 'px', width: half * 2 + 'px', top: (cy - sh / 2) + 'px', height: sh + 'px' });
+  Object.assign($('#slL').style, { left: '-4px', width: (G.inL + 4) + 'px', top: (cy - sl / 2) + 'px', height: sl + 'px' });
+  Object.assign($('#slR').style, { left: G.inR + 'px', right: '-4px', top: (cy - sl / 2) + 'px', height: sl + 'px' });
+  Object.assign($('#coL').style, { left: (cx - half - cw) + 'px', width: cw + 'px', top: (cy - ch / 2) + 'px', height: ch + 'px' });
+  Object.assign($('#coR').style, { left: (cx + half) + 'px', width: cw + 'px', top: (cy - ch / 2) + 'px', height: ch + 'px' });
+}
+const dims = w => { const [d, t] = SPEC[w]; const D = G.D * d, T = Math.max(6, t * G.k); return { D, T, r: Math.min(4, T / 3) }; };
+const offset = (list, i) => list.slice(0, i).reduce((x, p) => x + dims(p.w).T + 2, 2);
+const xs = (list, i) => { const o = offset(list, i), T = dims(list[i].w).T; return { L: G.inL - o - T, R: G.inR + o }; };
+function mk(p) {
+  const el = document.createElement('div'); el.className = 'plate'; el.innerHTML = `<span>${fmt(p.w)}</span>`;
+  el.onclick = () => remove(p); bar.append(el); return el;
+}
+function relayout() {
+  const total = plates.reduce((s, p) => s + p.w, 0), up = total > LAST + 1e-9, pool = [...LAST_CFG];
+  plates.forEach((p, i) => {
+    const j = pool.indexOf(p.w); p.up = up && j < 0; if (j >= 0) pool.splice(j, 1);
+    const { D, T, r } = dims(p.w), x = xs(plates, i);
+    [[p.L, x.L], [p.R, x.R]].forEach(([el, left]) => {
+      const s = el.style; s.width = T + 'px'; s.height = D + 'px'; s.top = (G.cy - D / 2) + 'px'; s.left = left + 'px'; s.borderRadius = r + 'px';
+      el.classList.toggle('up', p.up);
+      const sp = el.firstChild; sp.style.fontSize = Math.min(12, T * .55) + 'px'; sp.style.display = T >= 12 ? '' : 'none';
+    });
+  });
+  header(total);
+}
 
-function header(k, v, onReset) {
-  const c = CFG[k], s = $('#s-' + k), num = $('.num', s), line = $('.line', s);
-  const up = v > c.last + 1e-9, down = v < c.last - 1e-9, d = fmt(Math.abs(v - c.last));
-  if (num.textContent !== fmt(v)) {
-    num.textContent = fmt(v);
-    if (!reduced) num.animate([{ transform: 'scale(1.07)' }, { transform: 'scale(1)' }], { duration: 220, easing: 'cubic-bezier(.2,.9,.3,1)' });
+/* plate tree: plates seen face-on, as on the gym's rack */
+const treeEls = {};
+function buildTree() {
+  tree.innerHTML = '';
+  WS.forEach(w => {
+    const b = document.createElement('button'), d = Math.max(44, 30 + w * 2.6);
+    b.className = 'tp'; b.style.width = b.style.height = d + 'px'; b.textContent = fmt(w);
+    b.setAttribute('aria-label', `Cargar disco de ${fmt(w)} kg por lado`);
+    b.onclick = () => add(w); tree.append(b); treeEls[w] = b;
+  });
+}
+const rel = el => { const a = app.getBoundingClientRect(), r = el.getBoundingClientRect(); return { x: r.left - a.left, y: r.top - a.top, w: r.width, h: r.height }; };
+
+/* heavier plates travel slower and land harder */
+const travel = w => reduced ? 1 : 340 + w * 12;
+function land(p) {
+  if (reduced) return;
+  const k = Math.min(4, .18 * p.w + 1);
+  bar.animate([{ transform: 'translateY(0)' }, { transform: `translateY(${k}px)` }, { transform: 'translateY(0)' }],
+    { duration: 150 + p.w * 6, easing: 'cubic-bezier(.3,0,.3,1)' });
+  buzz(p.w >= 10 ? 22 : p.w >= 5 ? 14 : 8);
+}
+function fits(w) {
+  const per = plates.reduce((s, p) => s + dims(p.w).T + 2, 2) + dims(w).T;
+  return G.inL - per >= 4;
+}
+/* a plate travels in two moves: through the air to the sleeve end, then slides along the sleeve until it hits the next plate */
+function fly(from, to, bg0, bg1, dur, slide) {
+  const f = document.createElement('div'); f.className = 'fly'; app.append(f);
+  const box = (b, bg) => ({ left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px', borderRadius: b.r + 'px', background: bg });
+  const via = { ...to, x: to.x + slide };
+  return f.animate([
+    { ...box(from, bg0), easing: 'cubic-bezier(.3,.7,.3,1)' },
+    { ...box(via, bg1), offset: .7, easing: 'cubic-bezier(.6,0,1,.6)' },
+    box(to, bg1)
+  ], { duration: dur, fill: 'forwards' }).finished.then(() => f.remove());
+}
+function unfly(from, to, bg0, bg1, slide) {
+  const f = document.createElement('div'); f.className = 'fly'; app.append(f);
+  const box = (b, bg) => ({ left: b.x + 'px', top: b.y + 'px', width: b.w + 'px', height: b.h + 'px', borderRadius: b.r + 'px', background: bg });
+  return f.animate([
+    { ...box(from, bg0), easing: 'cubic-bezier(.3,0,.6,1)' },
+    { ...box({ ...from, x: from.x + slide }, bg0), offset: .3, easing: 'cubic-bezier(.4,0,.2,1)' },
+    box(to, bg1)
+  ], { duration: 440, fill: 'forwards' }).finished.then(() => f.remove());
+}
+function add(w) {
+  if (!fits(w)) {
+    if (!reduced) treeEls[w].animate([{ transform: 'translateX(0)' }, { transform: 'translateX(-5px)' }, { transform: 'translateX(5px)' }, { transform: 'translateX(0)' }], { duration: 240 });
+    buzz([10, 50, 10]); return;
   }
-  num.classList.toggle('up', up);
-  let txt = up ? `+${d} kg · apunta a ${c.floor} o más` : down ? `−${d} kg que el ${c.date}` : `igual que el ${c.date}` + (c.same ? ` · apunta a ${c.same}` : '');
+  const p = { id: ++pid, w }; p.L = mk(p); p.R = mk(p);
+  p.L.style.visibility = p.R.style.visibility = 'hidden';
+  plates.push(p); relayout();               // loads on the outside, in the order you pick
+  const s = rel(treeEls[w]), a = rel(area), { D, T, r } = dims(w), i = plates.indexOf(p), x = xs(plates, i), ty = a.y + G.cy - D / 2;
+  const from = { ...s, r: s.w / 2 }, bg1 = css(p.up ? '--green' : '--plate'), dur = travel(w) * 1.25, gap = 18;
+  Promise.all([
+    fly(from, { x: a.x + x.L, y: ty, w: T, h: D, r }, css('--surface'), bg1, dur, -gap),
+    fly(from, { x: a.x + x.R, y: ty, w: T, h: D, r }, css('--surface'), bg1, dur, gap)
+  ]).then(() => { if (!p.L.isConnected) return; p.L.style.visibility = p.R.style.visibility = ''; land(p); });
+}
+function remove(p) {
+  if (!plates.includes(p) || p.L.style.visibility === 'hidden') return;
+  const sL = rel(p.L), sR = rel(p.R), t = rel(treeEls[p.w]), bg = getComputedStyle(p.L).backgroundColor, r = parseFloat(p.L.style.borderRadius);
+  plates = plates.filter(q => q !== p); p.L.remove(); p.R.remove(); relayout(); buzz(6);   // outer plates slide in
+  if (reduced) return;
+  const to = { ...t, r: t.w / 2 };
+  Promise.all([unfly({ ...sL, r }, to, bg, css('--surface'), -18), unfly({ ...sR, r }, to, bg, css('--surface'), 18)])
+    .then(() => treeEls[p.w].animate([{ transform: 'scale(1.08)' }, { transform: 'scale(1)' }], { duration: 160, easing: 'ease-out' }));
+}
+
+/* number rolls between values */
+let shown = 0, rollRaf = 0;
+function roll(to) {
+  cancelAnimationFrame(rollRaf);
+  const from = shown, t0 = performance.now(), d = reduced ? 1 : 260, num = $('#num');
+  const step = now => {
+    const k = Math.min(1, (now - t0) / d), e = 1 - Math.pow(1 - k, 3), v = from + (to - from) * e;
+    num.textContent = fmt(k < 1 ? Math.round(v * 4) / 4 : to); shown = k < 1 ? v : to;
+    if (k < 1) rollRaf = requestAnimationFrame(step);
+  };
+  rollRaf = requestAnimationFrame(step);
+}
+function header(v) {
+  roll(v);
+  const up = v > LAST + 1e-9, down = v < LAST - 1e-9, d = fmt(Math.abs(v - LAST)), line = $('#line');
+  $('#num').classList.toggle('up', up);
   line.innerHTML = '';
-  const de = document.createElement('span'); de.className = 'delta' + (up ? ' up' : ''); de.textContent = txt; line.append(de);
-  if (Math.abs(v - c.sug) < 1e-9) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'sugerido'; line.append(t); }
-  else { const b = document.createElement('button'); b.className = 'reset'; b.textContent = `↺ sugerido ${fmt(c.sug)}`; b.onclick = onReset; line.append(b); }
-  $('#go-' + k).textContent = `Empezar con ${fmt(v)} ${c.btn}`;
+  const de = document.createElement('span'); de.className = 'delta' + (up ? ' up' : '');
+  de.textContent = v === 0 ? 'carga la barra' : up ? `+${d} kg · apunta a ${FLOOR} o más` : down ? `−${d} kg que el ${DATE}` : `igual que el ${DATE}`;
+  line.append(de);
+  if (Math.abs(v - SUG) < 1e-9) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'sugerido'; line.append(t); }
+  else if (v > 0) { const b = document.createElement('button'); b.className = 'reset'; b.textContent = `↺ sugerido ${fmt(SUG)}`; b.onclick = toSuggested; line.append(b); }
+  $('#go').textContent = `Empezar con ${fmt(v)} kg por lado`;
 }
+const wait = ms => new Promise(r => setTimeout(r, reduced ? 0 : ms));
+async function toSuggested() {
+  const out = [...plates].reverse();
+  for (const p of out) { remove(p); await wait(60); }
+  if (out.length) await wait(300);
+  for (const w of SUG_CFG) { add(w); await wait(travel(w) * .75); }
+}
+addEventListener('resize', () => { if (inited.bar) { geo(); relayout(); } });
+function initBar() { geo(); buildTree(); header(0); setTimeout(toSuggested, 350); }
 
-/* ---------------- A: barra ---------------- */
-const PL = { 20: [30, 200], 10: [24, 164], 5: [18, 128], 2.5: [12, 96], 1.25: [9, 78] }; // thickness, diameter
-const LAST_CFG = [20, 10], SUG_CFG = [20, 10, 2.5];
-const barwrap = $('#barwrap'); let plates = [], pid = 0; const pel = new Map();
-const tray = $('#tray');
-Object.keys(PL).map(Number).sort((a, b) => b - a).forEach(w => {
-  const b = document.createElement('button'); b.className = 'tp'; b.setAttribute('aria-label', `Agregar disco de ${fmt(w)} kg`);
-  const [t, h] = PL[w]; b.innerHTML = `<i style="width:${Math.max(6, t * .5)}px;height:${h * .38}px"></i><b>${fmt(w)}</b>`;
-  b.onclick = () => addPlate(w, b); tray.append(b);
-});
-const barTotal = () => plates.reduce((s, p) => s + p.w, 0);
-function layoutBar(entering) {
-  const total = barTotal(), up = total > CFG.bar.last + 1e-9, pool = [...LAST_CFG];
-  let x = 52; const W = barwrap.clientWidth;
-  plates.forEach(p => {
-    const [t, h] = PL[p.w];
-    let el = pel.get(p.id);
-    const isUp = up && !(pool.includes(p.w) && pool.splice(pool.indexOf(p.w), 1));
-    if (!el) {
-      el = document.createElement('div'); el.className = 'plate'; el.innerHTML = `<span>${fmt(p.w)}</span>`;
-      el.style.width = t + 'px'; el.style.height = h + 'px'; el.style.top = (115 - h / 2) + 'px';
-      el.onclick = e => { e.stopPropagation(); removePlate(p.id); };
-      barwrap.append(el); pel.set(p.id, el);
-      el.style.transform = `translate(${x}px,0)`;
-      if (!reduced) el.animate([{ transform: `translate(${W + 20}px,-34px)` }, { transform: `translate(${x}px,0)` }],
-        { duration: 420, easing: 'cubic-bezier(.2,1.25,.35,1)' });
-    } else el.style.transform = `translate(${x}px,0)`;
-    el.classList.toggle('up', isUp);
-    x += t + 3;
-  });
-  header('bar', total, resetBar);
+/* ---------- Polea: pila vista de frente; el pasador elige hasta qué placa levantas ---------- */
+const S = { last: 7.5, step: 2.5, sug: 7.5, date: '27', same: '4×11', floor: 10 };
+const N = Math.round((Math.max(S.last * 2, S.last + 10 * S.step)) / S.step);
+const sarea = $('#sarea'), stk = $('#stk'), knob = $('#knob');
+let pin = Math.round(S.sug / S.step) - 1, SG = {}, sps = [], shown2 = S.sug, roll2 = 0;
+function sgeo() {
+  const w = sarea.clientWidth, h = sarea.clientHeight, topPad = 28;
+  const pitch = Math.max(26, Math.min(36, (h - topPad - 8) / N)), ph = pitch - 4, pw = Math.min(220, w * .6), x = (w - pw) / 2;
+  SG = { w, h, pitch, ph, pw, x, topPad, win: topPad + N * pitch > h };
+  stk.innerHTML = ''; sps = [];
+  for (const side of [x + pw * .14, x + pw * .86 - 4]) { const r = document.createElement('div'); r.className = 'rod'; Object.assign(r.style, { left: side + 'px', top: '0px', height: (topPad + N * pitch) + 'px' }); stk.append(r); }
+  for (let i = 0; i < N; i++) {
+    const d = document.createElement('div'); d.className = 'sp';
+    Object.assign(d.style, { left: x + 'px', width: pw + 'px', top: (topPad + i * pitch) + 'px', height: ph + 'px', fontSize: Math.min(14, ph * .5) + 'px' });
+    d.innerHTML = `${fmt((i + 1) * S.step)}<i></i>`; stk.append(d); sps.push(d);
+  }
+  const li = Math.round(S.last / S.step) - 1, t = document.createElement('div'); t.className = 'stag'; t.textContent = `${S.date} sep`;
+  t.style.top = (topPad + li * pitch + ph / 2 - 11) + 'px'; t.style.right = (w - x + 10) + 'px'; stk.append(t);
+  Object.assign($('#cable').style, { left: (w / 2 - 1.5) + 'px', height: topPad + 'px' });
+  const kd = Math.min(30, ph + 6); Object.assign(knob.style, { width: kd + 'px', height: kd + 'px', left: (w / 2 - kd / 2) + 'px' });
+  SG.kd = kd; renderStack(false);
 }
-function addPlate(w, btn) {
-  const used = plates.reduce((s, p) => s + PL[p.w][0] + 3, 52);
-  if (used + PL[w][0] > barwrap.clientWidth - 6) { btn.classList.remove('nope'); void btn.offsetWidth; btn.classList.add('nope'); buzz([10, 40, 10]); return; }
-  plates.push({ id: ++pid, w }); plates.sort((a, b) => b.w - a.w); buzz(12); layoutBar();
-}
-function removePlate(id) {
-  const el = pel.get(id); plates = plates.filter(p => p.id !== id); pel.delete(id); buzz(8);
-  const m = /translate\(([-\d.]+)px/.exec(el.style.transform), x = m ? +m[1] : 0;
-  el.style.transition = 'none'; el.style.pointerEvents = 'none';
-  el.animate([{ transform: `translate(${x}px,0)`, opacity: 1 }, { transform: `translate(${barwrap.clientWidth + 20}px,-34px)`, opacity: 0 }],
-    { duration: reduced ? 1 : 260, easing: 'cubic-bezier(.5,0,.8,.4)' }).onfinish = () => el.remove();
-  layoutBar();
-}
-function resetBar() {
-  [...plates].forEach(p => removePlate(p.id));
-  SUG_CFG.forEach((w, i) => setTimeout(() => { plates.push({ id: ++pid, w }); plates.sort((a, b) => b.w - a.w); layoutBar(); buzz(10); }, 200 + i * 140));
-}
-function initBar() { header('bar', 0, resetBar); resetBar(); }
-
-/* ---------------- B: pila ---------------- */
-const N = 12, STEP = 2.5, PITCH = 32, GAP = 12, lastIdx = 2, sugIdx = 2;
-const stk = $('#stk'), stags = $('#stags'), pin = $('#pin'), area = $('#stackarea');
-stk.style.height = stags.style.height = (N * PITCH + GAP) + 'px';
-const sps = [];
-for (let i = 0; i < N; i++) { const d = document.createElement('div'); d.className = 'sp'; d.style.top = i * PITCH + 'px'; d.textContent = fmt((i + 1) * STEP); stk.append(d); sps.push(d); }
-const tagAt = (i, txt) => { const t = document.createElement('div'); t.className = 'stag'; t.style.top = i * PITCH + 'px'; t.innerHTML = `<span>${txt}</span>`; stags.append(t); };
-tagAt(lastIdx, '27 sep');
-let pIdx = sugIdx;
 function renderStack(tick) {
-  sps.forEach((d, i) => {
-    d.classList.toggle('on', i <= pIdx && i <= lastIdx);
-    d.classList.toggle('up', i <= pIdx && i > lastIdx);
-    d.style.transform = i > pIdx ? `translateY(${GAP}px)` : 'none';
-  });
-  pin.style.top = pIdx * PITCH + 'px';
-  if (tick && !reduced) $('.knob', pin).animate([{ transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 140 });
-  header('stack', (pIdx + 1) * STEP, () => setIdx(sugIdx));
+  const li = Math.round(S.last / S.step) - 1;
+  sps.forEach((d, i) => { d.classList.toggle('on', i <= pin && i <= li); d.classList.toggle('up', i <= pin && i > li); });
+  let off = 0;
+  if (SG.win) { const want = SG.topPad + pin * SG.pitch - SG.h / 2; off = Math.max(0, Math.min(want, SG.topPad + N * SG.pitch - SG.h + 8)); }
+  stk.style.transform = `translateY(${-off}px)`;
+  $('#cable').style.transform = `translateY(${-off}px)`;
+  $('#fT').style.opacity = off > 2 ? 1 : 0;
+  $('#fB').style.opacity = SG.win && off < SG.topPad + N * SG.pitch - SG.h + 6 ? 1 : 0;
+  knob.style.top = (SG.topPad + pin * SG.pitch + SG.ph / 2 - SG.kd / 2 - off) + 'px';
+  if (tick && !reduced) knob.animate([{ transform: 'scale(.88)' }, { transform: 'scale(1)' }], { duration: 120, easing: 'ease-out' });
+  sheader((pin + 1) * S.step);
 }
-function setIdx(i) { i = Math.max(0, Math.min(N - 1, i)); if (i !== pIdx) { pIdx = i; buzz(6); renderStack(true); } }
-const idxFromY = y => Math.round((y - stk.getBoundingClientRect().top - 14) / PITCH);
-let drag = null;
-area.addEventListener('pointerdown', e => { area.setPointerCapture(e.pointerId); drag = { y: e.clientY, t: performance.now(), v: 0 }; setIdx(idxFromY(e.clientY)); });
-area.addEventListener('pointermove', e => {
-  if (!drag) return; const now = performance.now(), dt = Math.max(1, now - drag.t);
-  drag.v = .7 * drag.v + .3 * ((e.clientY - drag.y) / dt); drag.y = e.clientY; drag.t = now; setIdx(idxFromY(e.clientY));
-});
-const endDrag = () => {
-  if (!drag) return; const v = drag.v, y0 = drag.y; drag = null;
-  if (Math.abs(v) < .3 || reduced) return;
-  // inertia: keep travelling and clicking through plates, then settle
-  const target = idxFromY(y0 + v * 160); let cur = pIdx; const dir = Math.sign(target - cur);
-  const stepOn = (n, delay) => { if (cur === target || n > N) return; setTimeout(() => { cur += dir; setIdx(cur); stepOn(n + 1, delay * 1.35); }, delay); };
-  stepOn(0, 45);
+function setPin(i, tick = true) { i = Math.max(0, Math.min(N - 1, i)); if (i === pin) return; pin = i; buzz(6); renderStack(tick); }
+const pinFromY = y => { const r = sarea.getBoundingClientRect(), m = /-?[\d.]+(?=px\))/.exec(stk.style.transform), off = m ? -parseFloat(m[0]) : 0;
+  return Math.round((y - r.top + off - SG.topPad - SG.ph / 2) / SG.pitch); };
+/* settle: the pin is pushed home and the selected block seats on it. Nothing lifts: changing the pin doesn't move the weight */
+function settle() {
+  if (reduced) return;
+  const n = pin + 1, dur = 130 + n * 6;
+  knob.animate([{ transform: 'scale(1.16)' }, { transform: `translateY(${Math.min(3, 1.5 + n * .1)}px) scale(1)` }, { transform: 'scale(1)' }], { duration: Math.max(140, dur), easing: 'ease-out' });
+  const base = stk.style.transform || 'translateY(0px)', dy = Math.min(3, 1.5 + n * .1), cb = $('#cable').style.transform || 'translateY(0px)';
+  stk.animate([{ transform: base }, { transform: `${base} translateY(${dy}px)` }, { transform: base }], { duration: dur, easing: 'ease-out' });
+  $('#cable').animate([{ transform: `${cb} scaleY(1)` }, { transform: `${cb} scaleY(${(SG.topPad + dy) / SG.topPad})` }, { transform: `${cb} scaleY(1)` }], { duration: dur, easing: 'ease-out' });
+  buzz(n > 4 ? 18 : 10);
+}
+let sd = null;
+sarea.addEventListener('pointerdown', e => { sarea.setPointerCapture(e.pointerId); sd = { y: e.clientY, t: performance.now(), v: 0 }; setPin(pinFromY(e.clientY)); });
+sarea.addEventListener('pointermove', e => { if (!sd) return; const n = performance.now(), dt = Math.max(1, n - sd.t);
+  sd.v = .7 * sd.v + .3 * ((e.clientY - sd.y) / dt); sd.y = e.clientY; sd.t = n; setPin(pinFromY(e.clientY)); });
+const sup = () => {
+  if (!sd) return; const v = sd.v; sd = null;
+  if (Math.abs(v) < .35 || reduced) { settle(); return; }
+  const target = Math.max(0, Math.min(N - 1, pin + Math.round(v * 6))), dir = Math.sign(target - pin);
+  const go = d => { if (pin === target) { settle(); return; } setTimeout(() => { setPin(pin + dir); go(d * 1.3); }, d); };
+  go(40);
 };
-area.addEventListener('pointerup', endDrag); area.addEventListener('pointercancel', endDrag);
-function initStack() { renderStack(); }
+sarea.addEventListener('pointerup', sup); sarea.addEventListener('pointercancel', sup);
+function sheader(v) {
+  cancelAnimationFrame(roll2); const from = shown2, t0 = performance.now(), num = $('#num2');
+  const st = n => { const k = Math.min(1, (n - t0) / (reduced ? 1 : 180)), e = 1 - Math.pow(1 - k, 3); shown2 = from + (v - from) * e;
+    num.textContent = fmt(k < 1 ? Math.round(shown2 / S.step) * S.step : v); if (k < 1) roll2 = requestAnimationFrame(st); };
+  roll2 = requestAnimationFrame(st);
+  const up = v > S.last + 1e-9, down = v < S.last - 1e-9, d = fmt(Math.abs(v - S.last)), line = $('#line2');
+  num.classList.toggle('up', up); line.innerHTML = '';
+  const de = document.createElement('span'); de.className = 'delta' + (up ? ' up' : '');
+  de.textContent = up ? `+${d} kg · apunta a ${S.floor} o más` : down ? `−${d} kg que el ${S.date}` : `igual que el ${S.date} · apunta a ${S.same}`; line.append(de);
+  if (Math.abs(v - S.sug) < 1e-9) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'sugerido'; line.append(t); }
+  else { const b = document.createElement('button'); b.className = 'reset'; b.textContent = `↺ sugerido ${fmt(S.sug)}`;
+    b.onclick = () => { const t = Math.round(S.sug / S.step) - 1, dir = Math.sign(t - pin); const g = () => { if (pin === t) { settle(); return; } setPin(pin + dir); setTimeout(g, 45); }; g(); };
+    line.append(b); }
+  $('#go2').textContent = `Empezar con ${fmt(v)} kg`;
+}
 
-/* ---------------- C: mancuernas ---------------- */
-const rack = $('#rack'), DBV = []; for (let w = 2; w <= 40; w += 2) DBV.push(w);
-const dbs = DBV.map(w => {
-  const d = document.createElement('div'); d.className = 'db';
-  const hh = 40 + w * 2, hw = 12 + w * .6;
-  d.innerHTML = `<div class="dbv"><div class="dt">${w === 24 ? '<span>27 sep</span>' : ''}</div><div class="dbs"><div class="hd" style="width:${hw}px;height:${hh}px"></div><div class="hn"></div><div class="hd" style="width:${hw}px;height:${hh}px"></div></div><b>${w}</b></div>`;
-  d.onclick = () => scrollToDb(DBV.indexOf(w), true); rack.append(d); return d;
-});
-let dbSel = -1, raf = 0;
-function paintRack() {
-  raf = 0; const mid = rack.scrollLeft + rack.clientWidth / 2; let best = 0, bd = 1e9;
-  dbs.forEach((d, i) => {
-    const c = d.offsetLeft + d.offsetWidth / 2, dist = c - mid, k = Math.max(0, 1 - Math.abs(dist) / 80);
-    if (Math.abs(dist) < bd) { bd = Math.abs(dist); best = i; }
-    $('.dbv', d).style.transform = `translateY(${-26 * k}px) scale(${.82 + .5 * k})`;
-    $('.dbv', d).style.opacity = .4 + .6 * k;
+/* ---------- Mancuernas: rack de frente; la del centro es la que levantas ---------- */
+const M = { last: 24, step: 2, sug: 24, date: '27', same: '4×9', floor: 8, max: 50 };
+const MW = []; for (let w = M.step; w <= M.max; w += M.step) MW.push(w);
+const rack = $('#rack'), rackv = $('#rackv'), rarea = $('#rarea');
+let dbs = [], msel = -1, MG = {}, shown3 = M.sug, roll3 = 0, centers = [], X = 0, V = 0, T = 0, anim = 0, drag3 = null;
+const ddim = w => { const H = (26 + w * 1.05) * MG.k, Wd = (9 + w * .32) * MG.k; return { H, Wd, hn: 30 * MG.k }; };
+function mgeo() {
+  const h = rarea.clientHeight;
+  MG.lift = Math.min(28, h * .08);
+  MG.k = Math.max(.5, Math.min(1.3, (h - 52 - 6 - MG.lift - 8) * .95 / (26 + M.max * 1.05)));
+  rack.innerHTML = ''; dbs = []; centers = [];
+  const widths = MW.map(w => { const { Wd, hn } = ddim(w); return Math.ceil(Wd * 2 + hn + 8 + 16); });
+  MG.cw = rackv.clientWidth; MG.widths = widths;
+  const maxH = ddim(M.max).H; let acc = 0;
+  MW.forEach((w, i) => {
+    const { H, Wd, hn } = ddim(w), d = document.createElement('div'); d.className = 'db'; d.style.width = widths[i] + 'px';
+    d.innerHTML = `<div style="height:${maxH + MG.lift + 4}px;display:flex;align-items:flex-end"><div class="dbv"><div class="hd" style="width:${Wd}px;height:${H}px;border-radius:${Wd * .38}px"></div><div class="fl" style="height:${H * .42}px"></div><div class="hn" style="width:${hn}px;height:${Math.max(6, 7 * MG.k)}px"></div><div class="fl" style="height:${H * .42}px"></div><div class="hd" style="width:${Wd}px;height:${H}px;border-radius:${Wd * .38}px"></div></div></div><div class="sh"></div><div class="lb">${w}${w === M.last ? `<small>${M.date} sep</small>` : ''}</div>`;
+    d.dbv = d.querySelector('.dbv'); rack.append(d); dbs.push(d);
+    centers.push(acc + widths[i] / 2); acc += widths[i];
   });
-  if (best !== dbSel) {
-    if (dbSel >= 0) dbs[dbSel].classList.remove('sel', 'up');
-    dbSel = best; const w = DBV[best];
-    dbs[best].classList.add('sel'); dbs[best].classList.toggle('up', w > CFG.db.last);
-    buzz(5); header('db', w, () => scrollToDb(DBV.indexOf(CFG.db.sug), true));
+  msel = -1; X = T = snapX(MW.indexOf(M.sug)); V = 0; paintRack();
+}
+const snapX = i => MG.cw / 2 - centers[i];
+const nearest = x => { let i = 0, bd = 1e9; centers.forEach((c, j) => { const d = Math.abs(c + x - MG.cw / 2); if (d < bd) { bd = d; i = j; } }); return i; };
+/* the dumbbell crossing the middle comes off the rack right away; the one leaving falls with gravity and lands */
+function heft(i, prev) {
+  if (prev >= 0) {
+    const v = dbs[prev].dbv, w = MW[prev];
+    v.style.transition = reduced ? 'none' : `transform ${170 + w * 3}ms cubic-bezier(.55,0,1,.45)`;
+    v.style.transform = 'translateY(0)';
+    if (!reduced) {
+      const landed = () => { v.removeEventListener('transitionend', landed);
+        if (prev === msel) return;
+        v.parentElement.animate([{ transform: 'translateY(0)' }, { transform: `translateY(${Math.min(3, 1 + w * .05)}px)` }, { transform: 'translateY(0)' }], { duration: 120 + w * 2, easing: 'ease-out' });
+        buzz(w >= 20 ? 14 : 8); };
+      v.addEventListener('transitionend', landed);
+    }
+  }
+  const v = dbs[i].dbv, w = MW[i];
+  v.style.transition = reduced ? 'none' : `transform ${240 + w * 7}ms cubic-bezier(.2,.8,.3,1)`;
+  v.style.transform = `translateY(${-MG.lift}px)`;
+}
+function paintRack() {
+  rack.style.transform = `translateX(${X}px)`;
+  const i = nearest(X);
+  if (i !== msel) {
+    const prev = msel;
+    if (prev >= 0) dbs[prev].classList.remove('sel', 'up');
+    msel = i; const w = MW[i]; dbs[i].classList.add('sel'); dbs[i].classList.toggle('up', w > M.last);
+    heft(i, prev); buzz(5); mheader(w);
   }
 }
-rack.addEventListener('scroll', () => { if (!raf) raf = requestAnimationFrame(paintRack); }, { passive: true });
-function scrollToDb(i, smooth) { const d = dbs[i]; rack.scrollTo({ left: d.offsetLeft + d.offsetWidth / 2 - rack.clientWidth / 2, behavior: smooth && !reduced ? 'smooth' : 'auto' }); }
-function initDb() { scrollToDb(DBV.indexOf(CFG.db.sug), false); paintRack(); }
+/* spring toward the target; heavier settle is not faked, it's the same spring for all */
+function run() {
+  cancelAnimationFrame(anim); let last = performance.now();
+  const step = now => {
+    const dt = Math.min(.032, (now - last) / 1000); last = now;
+    const kS = 140, c = 2 * Math.sqrt(kS) * .95;
+    V += (kS * (T - X) - c * V) * dt; X += V * dt; paintRack();
+    if (Math.abs(T - X) < .3 && Math.abs(V) < 4) { X = T; V = 0; paintRack(); return; }
+    anim = requestAnimationFrame(step);
+  };
+  if (reduced) { X = T; V = 0; paintRack(); return; }
+  anim = requestAnimationFrame(step);
+}
+function scrollToW(i) { T = snapX(i); run(); }
+const minX = () => snapX(MW.length - 1), maxX = () => snapX(0);
+rackv.addEventListener('pointerdown', e => {
+  cancelAnimationFrame(anim); rackv.setPointerCapture(e.pointerId);
+  drag3 = { x0: e.clientX, x: e.clientX, X0: X, t: performance.now(), v: 0, moved: false };
+});
+rackv.addEventListener('pointermove', e => {
+  if (!drag3) return; const now = performance.now(), dt = Math.max(1, now - drag3.t);
+  drag3.v = .75 * drag3.v + .25 * ((e.clientX - drag3.x) / dt * 1000); drag3.x = e.clientX; drag3.t = now;
+  if (Math.abs(e.clientX - drag3.x0) > 6) drag3.moved = true;
+  let nx = drag3.X0 + (e.clientX - drag3.x0);
+  if (nx > maxX()) nx = maxX() + (nx - maxX()) * .35; if (nx < minX()) nx = minX() + (nx - minX()) * .35;   // rubber band at the ends
+  X = nx; paintRack();
+});
+const rackUp = e => {
+  if (!drag3) return; const d = drag3; drag3 = null;
+  if (!d.moved) {   // tap: go to the dumbbell under the finger
+    const r = rackv.getBoundingClientRect(), xIn = e.clientX - r.left - X; let i = 0, bd = 1e9;
+    centers.forEach((c, j) => { const dd = Math.abs(c - xIn); if (dd < bd) { bd = dd; i = j; } });
+    scrollToW(i); return;
+  }
+  V = Math.abs(performance.now() - d.t) > 80 ? 0 : d.v;
+  const proj = Math.max(minX(), Math.min(maxX(), X + V * .18));
+  T = snapX(nearest(proj)); run();
+};
+rackv.addEventListener('pointerup', rackUp); rackv.addEventListener('pointercancel', rackUp);
+function mheader(v) {
+  cancelAnimationFrame(roll3); const from = shown3, t0 = performance.now(), num = $('#num3');
+  const st = n => { const k = Math.min(1, (n - t0) / (reduced ? 1 : 160)), e = 1 - Math.pow(1 - k, 3); shown3 = from + (v - from) * e;
+    num.textContent = k < 1 ? Math.round(shown3) : v; if (k < 1) roll3 = requestAnimationFrame(st); };
+  roll3 = requestAnimationFrame(st);
+  const up = v > M.last, down = v < M.last, d = Math.abs(v - M.last), line = $('#line3');
+  num.classList.toggle('up', up); line.innerHTML = '';
+  const de = document.createElement('span'); de.className = 'delta' + (up ? ' up' : '');
+  de.textContent = up ? `+${d} kg · apunta a ${M.floor} o más` : down ? `−${d} kg que el ${M.date}` : `igual que el ${M.date} · apunta a ${M.same}`; line.append(de);
+  if (v === M.sug) { const t = document.createElement('span'); t.className = 'tag'; t.textContent = 'sugerido'; line.append(t); }
+  else { const b = document.createElement('button'); b.className = 'reset'; b.textContent = `↺ sugerido ${M.sug}`; b.onclick = () => scrollToW(MW.indexOf(M.sug)); line.append(b); }
+  $('#go3').textContent = `Empezar con ${v} kg c/u`;
+}
 
-/* ---------------- switcher ---------------- */
-const inits = { bar: initBar, stack: initStack, db: initDb };
+/* switcher */
+const inited = {};
 function show(k) {
   ['bar', 'stack', 'db'].forEach(x => { $('#s-' + x).hidden = x !== k; $(`[data-k="${x}"]`).setAttribute('aria-pressed', x === k); });
-  if (!shown[k]) { shown[k] = true; requestAnimationFrame(inits[k]); }
+  if (!inited[k]) { inited[k] = true; requestAnimationFrame({ bar: initBar, stack: sgeo, db: mgeo }[k]); }
 }
 document.querySelectorAll('.proto button').forEach(b => b.onclick = () => show(b.dataset.k));
-const h = location.hash.slice(1); show(['bar', 'stack', 'db'].includes(h) ? h : 'bar');
+addEventListener('resize', () => { if (inited.stack) sgeo(); if (inited.db) mgeo(); });
+show(['stack', 'db'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'bar');
 </script>
