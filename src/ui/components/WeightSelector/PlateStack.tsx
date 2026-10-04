@@ -1,15 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, {
-  cancelAnimation,
+  Easing,
   runOnJS,
-  useAnimatedReaction,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
-  withDecay,
-  withSpring,
+  withSequence,
   withTiming,
   type SharedValue,
 } from 'react-native-reanimated';
@@ -18,136 +16,185 @@ import { formatKg } from '@/domain/format';
 import { haptics } from '@/services/haptics';
 
 import { tabular } from '../../text';
-import { color, metal } from '../../tokens';
+import { color } from '../../tokens';
 import { stackPitch } from './logic';
-import { MetalRect } from './Metal';
+
+// design/selector.html, stack: every constant below comes from the approved prototype.
+const TOP_PAD = 28; // the cable from the top down to the first plate
+const PIN_MS = 160;
+const PIN_EASE = Easing.bezier(0.5, 0, 0.2, 1);
+const SCROLL_EASE = Easing.bezier(0.4, 0, 0.2, 1);
 
 interface Props {
   width: number;
   height: number;
   /** The plates, lightest (top) to heaviest. */
   values: readonly number[];
-  /** Selected index; changing it from outside ("↺ sugerido") moves the pin there. */
-  index: number;
+  /** Where the pin starts. */
+  initialIndex: number;
+  /** A new `resetKey` walks the pin, plate by plate, to `resetIndex` ("↺ sugerido"). */
+  resetIndex: number;
+  resetKey: number;
   /** Last time's load: plates above it are green when selected; its plate gets a date tag. */
   lastKg: number | null;
   lastTag: string | null;
   onChange(index: number): void;
 }
 
-const SNAP = { damping: 20, stiffness: 220 };
-
 /**
- * A weight stack with a pin (design/selector.html): drag anywhere on it, fling it (inertia) and it
- * settles on the nearest plate; every plate crossed clicks (selection haptic). Plates under the pin
- * part a little. Too many to fit at 26 pt: a window that follows the pin, the far plates faded.
+ * A weight stack seen from the front: cable from the top, two guide rods, the weight printed on each
+ * plate and the pin in its hole. Selected = the plates from the top down to the pin. Drag anywhere on
+ * the stack; fling and the pin keeps clicking through plates, slower each time. Let go and the pin is
+ * pushed home: the whole stack sinks a little on it and comes back. Nothing lifts.
  */
-export function PlateStack({ width, height, values, index, lastKg, lastTag, onChange }: Props) {
+export function PlateStack({ width, height, values, initialIndex, resetIndex, resetKey, lastKg, lastTag, onChange }: Props) {
   const reduced = useReducedMotion();
   const n = values.length;
-  const pad = 8;
-  const { pitch, gap, windowed } = stackPitch(height - pad * 2, n);
-  const plateH = pitch - 4;
-  const plateW = Math.min(200, Math.round(width * 0.5));
-  const sideW = (width - plateW) / 2;
-  const contentH = n * pitch + gap;
-
-  const pos = useSharedValue(index);
-  const start = useSharedValue(index);
-  const [selected, setSelected] = useState(index);
-
-  // From outside ("↺ sugerido"): the pin goes there.
-  useEffect(() => {
-    if (Math.round(pos.value) === index) return;
-    pos.value = reduced ? index : withSpring(index, SNAP);
-  }, [index, pos, reduced]);
-
-  const select = (i: number) => {
-    setSelected(i);
-    haptics.select();
-    onChange(i);
-  };
-  useAnimatedReaction(
-    () => Math.round(pos.value),
-    (cur, prev) => {
-      if (prev !== null && cur !== prev) runOnJS(select)(Math.min(n - 1, Math.max(0, cur)));
-    },
-  );
-
-  // The window: keep the pin centered, within the stack's ends.
-  const offset = useSharedValue(0);
-  useAnimatedReaction(
-    () => pos.value,
-    (p) => {
-      offset.value = windowed ? Math.min(Math.max(p * pitch + pitch / 2 - (height - pad * 2) / 2, 0), contentH - (height - pad * 2)) : 0;
-    },
-  );
-  const top0 = windowed ? pad : Math.max(pad, (height - contentH) / 2);
-
-  const pan = Gesture.Pan()
-    .onStart(() => {
-      cancelAnimation(pos);
-      start.value = pos.value;
-    })
-    .onUpdate((e) => {
-      pos.value = Math.min(n - 1, Math.max(0, start.value + e.translationY / pitch));
-    })
-    .onEnd((e) => {
-      if (reduced) {
-        pos.value = Math.round(pos.value);
-        return;
-      }
-      pos.value = withDecay({ velocity: e.velocityY / pitch, clamp: [0, n - 1], deceleration: 0.994 }, () => {
-        pos.value = withSpring(Math.round(pos.value), SNAP);
-      });
-    });
-  const tap = Gesture.Tap().onEnd((e) => {
-    const i = Math.min(n - 1, Math.max(0, Math.floor((e.y - top0 + offset.value) / pitch)));
-    pos.value = reduced ? i : withSpring(i, SNAP);
-  });
-
-  const contentStyle = useAnimatedStyle(() => ({ transform: [{ translateY: -offset.value }] }));
-  const pinStyle = useAnimatedStyle(() => ({ transform: [{ translateY: pos.value * pitch }] }));
+  const { pitch } = stackPitch(height - TOP_PAD - 8, n);
+  const ph = pitch - 4;
+  const pw = Math.min(220, width * 0.6);
+  const x = (width - pw) / 2;
+  const contentH = TOP_PAD + n * pitch;
+  const windowed = contentH > height;
+  const maxOff = Math.max(0, contentH - height + 8);
+  const kd = Math.min(30, ph + 6);
   const lastIdx = lastKg === null ? -1 : values.findIndex((v) => Math.abs(v - lastKg) < 1e-6);
 
+  const [pin, setPinState] = useState(initialIndex);
+  const pinRef = useRef(initialIndex);
+  const offFor = (i: number) => (windowed ? Math.max(0, Math.min(TOP_PAD + i * pitch - height / 2, maxOff)) : 0);
+  const off = useSharedValue(offFor(initialIndex));
+  const knobY = useSharedValue(TOP_PAD + initialIndex * pitch + ph / 2 - kd / 2);
+  const knobScale = useSharedValue(1);
+  const sink = useSharedValue(0);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const setPin = (i: number, tick = true) => {
+    const next = Math.max(0, Math.min(n - 1, i));
+    if (next === pinRef.current) return;
+    pinRef.current = next;
+    setPinState(next);
+    onChange(next);
+    haptics.select();
+    const y = TOP_PAD + next * pitch + ph / 2 - kd / 2;
+    if (reduced) {
+      knobY.value = y;
+      off.value = offFor(next);
+      return;
+    }
+    knobY.value = withTiming(y, { duration: PIN_MS, easing: PIN_EASE });
+    off.value = withTiming(offFor(next), { duration: 250, easing: SCROLL_EASE });
+    if (tick) knobScale.value = withSequence(withTiming(0.88, { duration: 0 }), withTiming(1, { duration: 120, easing: Easing.out(Easing.quad) }));
+  };
+
+  /** The pin is pushed home and the selected block seats on it: it sinks and comes back. */
+  const settle = () => {
+    if (reduced) return;
+    const count = pinRef.current + 1;
+    const ms = 130 + count * 6;
+    const dy = Math.min(3, 1.5 + count * 0.1);
+    knobScale.value = withSequence(withTiming(1.16, { duration: 0 }), withTiming(1, { duration: Math.max(140, ms), easing: Easing.out(Easing.quad) }));
+    sink.value = withSequence(withTiming(dy, { duration: ms / 2, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: ms / 2, easing: Easing.out(Easing.quad) }));
+    haptics.thud(count > 4 ? 'medium' : 'light');
+  };
+
+  const stop = () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = null;
+  };
+  /** Walks the pin to `target` one plate at a time, the steps spacing out (fling), then settles. */
+  const walk = (target: number, first: number, factor: number) => {
+    stop();
+    const t = Math.max(0, Math.min(n - 1, target));
+    const dir = Math.sign(t - pinRef.current);
+    const go = (d: number) => {
+      if (pinRef.current === t || dir === 0) {
+        settle();
+        return;
+      }
+      timer.current = setTimeout(() => {
+        setPin(pinRef.current + dir);
+        go(d * factor);
+      }, d);
+    };
+    go(first);
+  };
+  useEffect(() => stop, []);
+
+  // "↺ sugerido": plate by plate (45 ms), then it settles.
+  useEffect(() => {
+    if (resetKey === 0) return;
+    if (reduced) {
+      setPin(resetIndex, false);
+      return;
+    }
+    walk(resetIndex, 45, 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
+
+  const pinFromY = (y: number) => Math.round((y + off.value - sink.value - TOP_PAD - ph / 2) / pitch);
+  const down = (y: number) => {
+    stop();
+    setPin(pinFromY(y));
+  };
+  const move = (y: number) => setPin(pinFromY(y));
+  const up = (vyPxPerSec: number) => {
+    const v = vyPxPerSec / 1000; // px per ms
+    if (Math.abs(v) < 0.35 || reduced) {
+      settle();
+      return;
+    }
+    walk(pinRef.current + Math.round(v * 6), 40, 1.3);
+  };
+  const pan = Gesture.Pan()
+    .minDistance(0)
+    .onBegin((e) => runOnJS(down)(e.y))
+    .onUpdate((e) => runOnJS(move)(e.y))
+    .onEnd((e) => runOnJS(up)(e.velocityY));
+
+  const stackStyle = useAnimatedStyle(() => ({ transform: [{ translateY: sink.value - off.value }] }));
+  const cableStyle = useAnimatedStyle(() => ({ height: TOP_PAD + sink.value, transform: [{ translateY: -off.value }] }));
+  const knobStyle = useAnimatedStyle(() => ({ top: knobY.value, transform: [{ scale: knobScale.value }] }));
+
   return (
-    <GestureDetector gesture={Gesture.Race(pan, tap)}>
-      <View style={{ width, height, overflow: 'hidden' }} accessible accessibilityRole="adjustable" accessibilityValue={{ text: `${formatKg(values[selected])} kg` }}
+    <GestureDetector gesture={pan}>
+      <View
+        style={{ width, height, overflow: 'hidden' }}
+        accessible
+        accessibilityRole="adjustable"
+        accessibilityValue={{ text: `${formatKg(values[pin])} kg` }}
         accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
-        onAccessibilityAction={(e) => {
-          const i = Math.min(n - 1, Math.max(0, selected + (e.nativeEvent.actionName === 'increment' ? 1 : -1)));
-          pos.value = i;
-        }}
+        onAccessibilityAction={(e) => setPin(pinRef.current + (e.nativeEvent.actionName === 'increment' ? 1 : -1))}
       >
-        <Animated.View style={[{ position: 'absolute', left: 0, right: 0, top: top0, height: contentH }, contentStyle]}>
+        <Animated.View style={[styles.cable, { left: width / 2 - 1.5 }, cableStyle]} />
+        <Animated.View style={[StyleSheet.absoluteFill, stackStyle]}>
+          {[x + pw * 0.14, x + pw * 0.86 - 4].map((left) => (
+            <View key={left} style={[styles.rod, { left, top: 0, height: contentH }]} />
+          ))}
           {values.map((kg, i) => (
             <StackPlate
               key={kg}
               i={i}
               kg={kg}
-              pos={pos}
-              offset={offset}
-              maxOffset={contentH - (height - pad * 2)}
+              top={TOP_PAD + i * pitch}
+              left={x}
+              width={pw}
+              height={ph}
+              fill={i > pin ? 'off' : i > lastIdx && lastIdx >= 0 ? 'up' : 'on'}
+              off={off}
+              maxOff={maxOff}
+              viewH={height}
               windowed={windowed}
-              viewH={height - pad * 2}
-              pitch={pitch}
-              gap={gap}
-              left={sideW}
-              width={plateW}
-              height={plateH}
-              finish={i > selected ? 'off' : lastKg !== null && kg > lastKg + 1e-6 ? 'green' : 'metal'}
-              reduced={reduced}
             />
           ))}
           {lastIdx >= 0 && lastTag && (
-            <View style={[styles.tagBox, { top: lastIdx * pitch + (lastIdx > selected ? gap : 0), width: sideW - 8, height: pitch }]}>
+            <View style={[styles.tagBox, { top: TOP_PAD + lastIdx * pitch, height: ph, right: width - x + 10 }]}>
               <Text style={styles.tag}>{lastTag}</Text>
             </View>
           )}
-          {/* The pin: through the selected plate, its knob to the right. */}
-          <Animated.View pointerEvents="none" style={[styles.pin, { left: sideW + plateW * 0.7, height: pitch, width: Math.min(sideW - 4, pitch * 3) + plateW * 0.3 }, pinStyle]}>
-            <View style={[styles.rod, { top: pitch / 2 - 3 }]} />
-            <View style={[styles.knob, { width: pitch + 4, height: pitch + 4, borderRadius: (pitch + 4) / 2, top: -2 }]} />
+          {/* The pin: flat, in the hole of its plate. */}
+          <Animated.View pointerEvents="none" style={[styles.knob, { left: width / 2 - kd / 2, width: kd, height: kd, borderRadius: kd / 2 }, knobStyle]}>
+            <View style={[styles.knobCenter, { borderRadius: kd }]} />
           </Animated.View>
         </Animated.View>
       </View>
@@ -158,56 +205,47 @@ export function PlateStack({ width, height, values, index, lastKg, lastTag, onCh
 function StackPlate(p: {
   i: number;
   kg: number;
-  pos: SharedValue<number>;
-  offset: SharedValue<number>;
-  maxOffset: number;
-  windowed: boolean;
-  viewH: number;
-  pitch: number;
-  gap: number;
+  top: number;
   left: number;
   width: number;
   height: number;
-  finish: 'metal' | 'green' | 'off';
-  reduced: boolean;
+  fill: 'off' | 'on' | 'up';
+  off: SharedValue<number>;
+  maxOff: number;
+  viewH: number;
+  windowed: boolean;
 }) {
+  // In a window, plates near an edge fade (only an edge with more plates beyond it). Solid colors, no gradient.
   const style = useAnimatedStyle(() => {
-    const below = p.i > Math.round(p.pos.value) ? p.gap : 0;
-    const y = p.i * p.pitch + below - p.offset.value;
-    // In a window, the plates near an edge fade out — only an edge with more plates beyond it.
-    const top = p.offset.value > 0.5 ? y : Infinity;
-    const bottom = p.offset.value < p.maxOffset - 0.5 ? p.viewH - (y + p.pitch) : Infinity;
-    const edge = Math.min(top, bottom);
-    return {
-      transform: [{ translateY: p.reduced ? below : withTiming(below, { duration: 140 }) }],
-      opacity: p.windowed ? Math.min(1, Math.max(0.12, edge / (p.pitch * 1.5))) : 1,
-    };
+    if (!p.windowed) return { opacity: 1 };
+    const y = p.top - p.off.value;
+    const topEdge = p.off.value > 2 ? y : Infinity;
+    const bottomEdge = p.off.value < p.maxOff - 2 ? p.viewH - (y + p.height) : Infinity;
+    return { opacity: Math.min(1, Math.max(0.1, Math.min(topEdge, bottomEdge) / 40)) };
   });
-  const on = p.finish !== 'off';
+  const on = p.fill !== 'off';
   return (
-    <Animated.View style={[{ position: 'absolute', top: p.i * p.pitch, left: p.left, width: p.width, height: p.height }, style]}>
-      {on ? (
-        <MetalRect width={p.width} height={p.height} radius={5} finish={p.finish === 'green' ? 'green' : 'metal'} horizontal={false} />
-      ) : (
-        <View style={[StyleSheet.absoluteFill, styles.off]} />
-      )}
-      <View style={[StyleSheet.absoluteFill, styles.plateRow]} pointerEvents="none">
-        <Text style={[styles.plateLabel, on && styles.plateLabelOn]}>{formatKg(p.kg)}</Text>
-        <View style={[styles.hole, { width: p.height * 0.36, height: p.height * 0.36, borderRadius: p.height * 0.18 }]} />
-      </View>
+    <Animated.View
+      style={[
+        styles.plate,
+        { top: p.top, left: p.left, width: p.width, height: p.height, backgroundColor: p.fill === 'up' ? color.green : on ? color.plate : color.surface },
+        style,
+      ]}
+    >
+      <Text style={[styles.plateLabel, { fontSize: Math.min(14, p.height * 0.5), color: on ? color.ink : color.muted }]}>{formatKg(p.kg)}</Text>
+      <View style={styles.hole} />
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  off: { backgroundColor: color.surface, borderRadius: 5 },
-  plateRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 },
-  plateLabel: { fontSize: 13, fontWeight: '800', color: color.muted, ...tabular },
-  plateLabelOn: { color: color.ink },
-  hole: { backgroundColor: color.bg, marginRight: 10 },
-  tagBox: { position: 'absolute', left: 0, alignItems: 'flex-end', justifyContent: 'center' },
+  cable: { position: 'absolute', top: 0, width: 3, borderRadius: 2, backgroundColor: color.steel },
+  rod: { position: 'absolute', width: 4, borderRadius: 2, backgroundColor: color.steel },
+  plate: { position: 'absolute', borderRadius: 4, justifyContent: 'center', paddingLeft: 12 },
+  plateLabel: { fontWeight: '800', ...tabular },
+  hole: { position: 'absolute', left: '50%', top: '50%', width: 8, height: 8, marginLeft: -4, marginTop: -4, borderRadius: 4, backgroundColor: color.bg },
+  tagBox: { position: 'absolute', justifyContent: 'center' },
   tag: { fontSize: 11, fontWeight: '800', color: color.text, backgroundColor: color.raised, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 4, overflow: 'hidden' },
-  pin: { position: 'absolute', top: 0 },
-  rod: { position: 'absolute', left: 0, right: 16, height: 6, borderRadius: 3, backgroundColor: color.text },
-  knob: { position: 'absolute', right: 0, backgroundColor: metal.light, borderWidth: 2, borderColor: metal.shine },
+  knob: { position: 'absolute', backgroundColor: color.text, alignItems: 'center', justifyContent: 'center' },
+  knobCenter: { width: '40%', height: '40%', backgroundColor: color.steelHi },
 });

@@ -28,6 +28,8 @@ export const copy = {
     up: (diff: string, floor: number) => `+${diff} kg · apunta a ${floor} o más`,
     same: (day: string, target: string | null) => `igual que el ${day}${target ? ` · apunta a ${target}` : ''}`,
     down: (diff: string, day: string) => `−${diff} kg que el ${day}`,
+    loadTheBar: 'carga la barra',
+    addPlateBothSides: (kg: string) => `Cargar disco de ${kg} kg por lado`,
     suggested: 'sugerido',
     backToSuggested: (kg: string) => `↺ sugerido ${kg}`,
     start: (kg: string, unit: string) => `Empezar con ${kg} ${unit}`,

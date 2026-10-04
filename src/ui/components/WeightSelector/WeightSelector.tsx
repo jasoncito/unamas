@@ -12,6 +12,7 @@ import { dayOf, deltaText, unitFor } from './format';
 import { deltaLine, equipmentFor, greedyPlates, nearestIndex, rackRange, stackRange, sumPlates, type Plate } from './logic';
 import { PlateBar } from './PlateBar';
 import { PlateStack } from './PlateStack';
+import { RollingNumber } from './RollingNumber';
 
 export interface WeightSelectorProps {
   loadBasis: LoadBasis;
@@ -46,9 +47,12 @@ export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, 
     [equipment, stepKg, last],
   );
   const [plates, setPlates] = useState<Plate[]>([]);
-  const [index, setIndex] = useState(() => nearestIndex(values, startKg));
+  const [initialIndex] = useState(() => nearestIndex(values, startKg));
+  const [index, setIndex] = useState(initialIndex);
   const [load, setLoad] = useState(() => ({ plates: greedyPlates(startKg), key: 0 }));
+  const [resetKey, setResetKey] = useState(0);
   const value = equipment === 'bar' ? sumPlates(plates) : values[index];
+  const suggestedIndex = nearestIndex(values, suggestedKg);
 
   const [zone, setZone] = useState<{ width: number; height: number } | null>(null);
   const onZone = (e: LayoutChangeEvent) => {
@@ -59,10 +63,13 @@ export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, 
   const up = last !== null && value > last.loadKg + 1e-6;
   const line = deltaLine(value, last && { loadKg: last.loadKg, day: dayOf(last.date, today) }, repFloor, suggestion);
   const isSuggested = Math.abs(value - suggestedKg) < 1e-6;
+  const emptyBar = equipment === 'bar' && value === 0;
   const backToSuggested = () => {
     if (equipment === 'bar') setLoad((l) => ({ plates: greedyPlates(suggestedKg), key: l.key + 1 }));
-    else setIndex(nearestIndex(values, suggestedKg));
+    else setResetKey((r) => r + 1);
   };
+  // The number rolls (design/selector.html): slower on the bar, quick on the stack and the rack.
+  const roll = equipment === 'bar' ? { ms: 260, quantum: 0.25 } : equipment === 'stack' ? { ms: 180, quantum: stepKg } : { ms: 160, quantum: 1 };
   const lastUnit = loadBasis === 'per_side' ? ' por lado' : loadBasis === 'per_dumbbell' ? ' c/u' : '';
 
   return (
@@ -83,13 +90,17 @@ export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, 
       )}
 
       <View style={styles.valueBlock}>
-        <Text style={styles.number} accessibilityLiveRegion="polite" numberOfLines={1} adjustsFontSizeToFit>
-          <Text style={up && styles.up}>{formatKg(value)}</Text>
+        <View style={styles.numberRow} accessibilityLiveRegion="polite">
+          <RollingNumber value={value} durationMs={roll.ms} quantum={roll.quantum} style={[styles.number, up && styles.up]} />
           <Text style={styles.unit}>{` ${unit}`}</Text>
-        </Text>
+        </View>
         <View style={styles.line}>
-          {line && <Text style={[styles.delta, line.kind === 'up' && styles.up]}>{deltaText(line)}</Text>}
-          {isSuggested ? (
+          {emptyBar ? (
+            <Text style={styles.delta}>{copy.selector.loadTheBar}</Text>
+          ) : (
+            line && <Text style={[styles.delta, line.kind === 'up' && styles.up]}>{deltaText(line)}</Text>
+          )}
+          {emptyBar ? null : isSuggested ? (
             <Text style={styles.tag}>{copy.selector.suggested}</Text>
           ) : (
             <Pressable onPress={backToSuggested} style={({ pressed }) => [styles.reset, pressed && styles.pressed]} accessibilityRole="button" hitSlop={6}>
@@ -100,16 +111,18 @@ export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, 
       </View>
 
       {/* The zone between the number and the button: measured, and every size comes from it. */}
-      <View style={styles.zone} onLayout={onZone}>
+      <View style={[styles.zone, equipment !== 'bar' && styles.zonePad]} onLayout={onZone}>
         {zone &&
           (equipment === 'bar' ? (
             <PlateBar width={zone.width} height={zone.height} load={load.plates} loadKey={load.key} previous={lastPlates} onChange={setPlates} />
           ) : equipment === 'stack' ? (
             <PlateStack
               width={zone.width}
-              height={zone.height}
+              height={zone.height - 16}
               values={values}
-              index={index}
+              initialIndex={initialIndex}
+              resetIndex={suggestedIndex}
+              resetKey={resetKey}
               lastKg={last?.loadKg ?? null}
               lastTag={last ? formatShortDate(last.date) : null}
               onChange={setIndex}
@@ -117,9 +130,11 @@ export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, 
           ) : (
             <DumbbellRack
               width={zone.width}
-              height={zone.height}
+              height={zone.height - 16}
               values={values}
-              index={index}
+              initialIndex={initialIndex}
+              resetIndex={suggestedIndex}
+              resetKey={resetKey}
               lastKg={last?.loadKg ?? null}
               lastTag={last ? formatShortDate(last.date) : null}
               bleed={space.screenX}
@@ -148,7 +163,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'baseline',
     gap: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
+    marginTop: 8,
     borderTopWidth: StyleSheet.hairlineWidth * 2,
     borderBottomWidth: StyleSheet.hairlineWidth * 2,
     borderColor: color.divider,
@@ -158,16 +174,19 @@ const styles = StyleSheet.create({
   lastKg: { fontSize: 20, fontWeight: '800', color: color.text, ...tabular },
   lastSmall: { fontSize: 13, fontWeight: '600', color: color.muted },
   lastCfg: { fontSize: 12, fontWeight: '600', color: color.muted, marginTop: 2, ...tabular },
-  valueBlock: { alignItems: 'center', paddingTop: 16 },
-  number: { fontSize: 80, fontWeight: '800', letterSpacing: 80 * -0.045, color: color.text, ...tabular },
+  valueBlock: { alignItems: 'center', paddingTop: 24 },
+  numberRow: { flexDirection: 'row', alignItems: 'baseline' },
+  number: { fontSize: 80, lineHeight: 84, fontWeight: '800', letterSpacing: 80 * -0.045, color: color.text, ...tabular },
   unit: { fontSize: 22, fontWeight: '700', color: color.muted, letterSpacing: 0 },
   up: { color: color.green },
-  line: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 8, minHeight: 32 },
+  line: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', gap: 8, marginTop: 12, minHeight: 32 },
   delta: { fontSize: 15, fontWeight: '700', color: color.muted, textAlign: 'center', ...tabular },
   tag: { fontSize: 12, fontWeight: '800', color: color.text, backgroundColor: color.raised, borderRadius: radius.pill, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden' },
   reset: { borderWidth: 1.5, borderColor: color.border, borderRadius: radius.pill, paddingHorizontal: 12, paddingVertical: 4 },
   resetText: { fontSize: 13, fontWeight: '700', color: color.text, ...tabular },
-  zone: { flex: 1, marginVertical: 16 },
+  // The stage (design/selector.html): 16 above it (the bar draws its own), 16 above the button.
+  zone: { flex: 1, marginBottom: 16 },
+  zonePad: { paddingTop: 16 },
   start: { backgroundColor: color.green, borderRadius: radius.pill, paddingVertical: 16, paddingHorizontal: 16, alignItems: 'center' },
   pressed: { opacity: 0.85 },
   startText: { ...font('button'), color: color.ink, ...tabular },

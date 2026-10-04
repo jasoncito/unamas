@@ -15,6 +15,11 @@ export const haptics = {
   select(): void {
     void Haptics.selectionAsync().catch(() => {});
   },
+  /** Weight landing (a plate on the bar, a stack settling, a dumbbell on the shelf): the heavier, the firmer. */
+  thud(strength: 'light' | 'medium' | 'heavy'): void {
+    const style = { light: Haptics.ImpactFeedbackStyle.Light, medium: Haptics.ImpactFeedbackStyle.Medium, heavy: Haptics.ImpactFeedbackStyle.Heavy }[strength];
+    void Haptics.impactAsync(style).catch(() => {});
+  },
   /** Something can't be done (the sleeve is full). */
   warn(): void {
     void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
