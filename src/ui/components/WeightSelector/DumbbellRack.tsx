@@ -78,6 +78,8 @@ export function DumbbellRack({ width, height, values, initialIndex, resetIndex, 
   const X0 = useSharedValue(0);
   const [selected, setSelected] = useState(initialIndex);
   const selectedRef = useRef(initialIndex);
+  // "↺ sugerido" reports its dumbbell once, when the rack starts moving; a touch on the way reports the one in the middle.
+  const quiet = useRef(false);
   const lifts = useLifts(values.length, initialIndex, -lift);
   const seats = useLifts(values.length, -1, 0);
 
@@ -86,7 +88,8 @@ export function DumbbellRack({ width, height, values, initialIndex, resetIndex, 
     if (i === prev) return;
     selectedRef.current = i;
     setSelected(i);
-    onChange(i);
+    if (i === resetIndex) quiet.current = false;
+    if (!quiet.current) onChange(i);
     haptics.select();
     const w = values[i];
     if (reduced) {
@@ -140,8 +143,16 @@ export function DumbbellRack({ width, height, values, initialIndex, resetIndex, 
   const goTo = (i: number, velocity = 0) => {
     X.value = reduced ? snapX(i) : withSpring(snapX(i), { ...SPRING, velocity });
   };
+  const interrupt = () => {
+    if (!quiet.current) return;
+    quiet.current = false;
+    onChange(selectedRef.current);
+  };
   useEffect(() => {
-    if (resetKey > 0) goTo(resetIndex);
+    if (resetKey === 0 || selectedRef.current === resetIndex) return;
+    quiet.current = true;
+    onChange(resetIndex);
+    goTo(resetIndex);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
 
@@ -155,6 +166,7 @@ export function DumbbellRack({ width, height, values, initialIndex, resetIndex, 
     goTo(nearestTo(proj), vx);
   };
   const tapAt = (xIn: number) => {
+    interrupt();
     let best = 0;
     for (let j = 1; j < centers.length; j++) if (Math.abs(centers[j] - xIn) < Math.abs(centers[best] - xIn)) best = j;
     goTo(best);
@@ -164,6 +176,7 @@ export function DumbbellRack({ width, height, values, initialIndex, resetIndex, 
     .activeOffsetX([-6, 6])
     .onStart(() => {
       X0.value = X.value;
+      runOnJS(interrupt)();
     })
     .onUpdate((e) => {
       let nx = X0.value + e.translationX;

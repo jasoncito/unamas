@@ -12,7 +12,7 @@ import { dayOf, deltaText, unitFor } from './format';
 import { deltaLine, equipmentFor, greedyPlates, nearestIndex, rackRange, stackRange, sumPlates, type Plate } from './logic';
 import { PlateBar } from './PlateBar';
 import { PlateStack } from './PlateStack';
-import { RollingNumber } from './RollingNumber';
+import { NumericText } from './NumericText';
 
 export interface WeightSelectorProps {
   loadBasis: LoadBasis;
@@ -46,7 +46,7 @@ export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, 
     () => (equipment === 'stack' ? stackRange(stepKg, last?.loadKg ?? null) : equipment === 'rack' ? rackRange(stepKg) : []),
     [equipment, stepKg, last],
   );
-  const [plates, setPlates] = useState<Plate[]>([]);
+  const [plates, setPlates] = useState<Plate[]>(() => (equipment === 'bar' ? greedyPlates(startKg) : []));
   const [initialIndex] = useState(() => nearestIndex(values, startKg));
   const [index, setIndex] = useState(initialIndex);
   const [load, setLoad] = useState(() => ({ plates: greedyPlates(startKg), key: 0 }));
@@ -68,8 +68,6 @@ export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, 
     if (equipment === 'bar') setLoad((l) => ({ plates: greedyPlates(suggestedKg), key: l.key + 1 }));
     else setResetKey((r) => r + 1);
   };
-  // The number rolls (design/selector.html): slower on the bar, quick on the stack and the rack.
-  const roll = equipment === 'bar' ? { ms: 260, quantum: 0.25 } : equipment === 'stack' ? { ms: 180, quantum: stepKg } : { ms: 160, quantum: 1 };
   const lastUnit = loadBasis === 'per_side' ? ' por lado' : loadBasis === 'per_dumbbell' ? ' c/u' : '';
 
   return (
@@ -90,9 +88,8 @@ export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, 
       )}
 
       <View style={styles.valueBlock}>
-        <View style={styles.numberRow} accessibilityLiveRegion="polite">
-          <RollingNumber value={value} durationMs={roll.ms} quantum={roll.quantum} style={[styles.number, up && styles.up]} />
-          <Text style={styles.unit}>{` ${unit}`}</Text>
+        <View accessibilityLiveRegion="polite">
+          <NumericText value={value} green={up} style={styles.number} unit={unit} unitStyle={styles.unit} />
         </View>
         <View style={styles.line}>
           {emptyBar ? (
@@ -175,7 +172,6 @@ const styles = StyleSheet.create({
   lastSmall: { fontSize: 13, fontWeight: '600', color: color.muted },
   lastCfg: { fontSize: 12, fontWeight: '600', color: color.muted, marginTop: 2, ...tabular },
   valueBlock: { alignItems: 'center', paddingTop: 24 },
-  numberRow: { flexDirection: 'row', alignItems: 'baseline' },
   number: { fontSize: 80, lineHeight: 84, fontWeight: '800', letterSpacing: 80 * -0.045, color: color.text, ...tabular },
   unit: { fontSize: 22, fontWeight: '700', color: color.muted, letterSpacing: 0 },
   up: { color: color.green },

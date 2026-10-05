@@ -25,7 +25,7 @@ import { greenPlates, PLATES, type Plate } from './logic';
 const SPEC: Record<Plate, [number, number]> = { 20: [1, 30], 10: [0.8, 24], 5: [0.62, 19], 2.5: [0.46, 14], 1.25: [0.38, 11] };
 const PAD_TOP = 16; // stage padding above the bar
 const GAP = 24; // between the bar and the plate tree
-const TREE_H = 96; // the plate tree's row
+const TREE_H = { min: 64, max: 96, share: 0.18 }; // the plate tree's row: 18 % of the stage, 64–96 pt
 const SLIDE = 18; // a plate stops this far outside its place, then slides in
 const OUT_MS = 440;
 /** Heavier plates travel slower. */
@@ -50,6 +50,7 @@ interface Props {
   loadKey: number;
   /** Last time's plates: what goes beyond them (if the total goes up) is green. */
   previous: readonly number[] | null;
+  /** The plates on the bar: a plate counts when it lands, and stops counting when it's tapped off. */
   onChange(plates: Plate[]): void;
 }
 
@@ -69,7 +70,8 @@ export function PlateBar({ width, height, load, loadKey, previous, onChange }: P
   const tree = useTreeAnims();
 
   // Geometry, all from the stage's size.
-  const barH = Math.max(40, height - PAD_TOP - GAP - TREE_H);
+  const treeH = Math.min(TREE_H.max, Math.max(TREE_H.min, height * TREE_H.share));
+  const barH = Math.max(40, height - PAD_TOP - GAP - treeH);
   const D = Math.min(barH - 8, 220);
   const k = D / 240;
   const cy = PAD_TOP + barH / 2;
@@ -90,21 +92,29 @@ export function PlateBar({ width, height, load, loadKey, previous, onChange }: P
   };
   const fits = (kg: Plate) => inL - (offset(current.current, current.current.length) + dims(kg).T) >= 4;
 
-  // The tree: circles of max(44, 30 + 2.6w), space-around in their row.
-  const diam = (kg: Plate) => Math.max(44, 30 + kg * 2.6);
+  // The tree: circles of 30 + 2.6w at the full row, scaled with it and never under 44 (touchable), space-around.
+  const diam = (kg: Plate) => Math.max(44, ((30 + kg * 2.6) * treeH) / TREE_H.max);
   const unit = (width - PLATES.reduce((s, kg) => s + diam(kg), 0)) / PLATES.length;
   const treeTop = PAD_TOP + barH + GAP;
   const circleRect = (kg: Plate): Rect => {
     const i = PLATES.indexOf(kg);
     const x = PLATES.slice(0, i).reduce((s, w) => s + diam(w) + unit, 0) + unit / 2;
     const d = diam(kg);
-    return { x, y: treeTop + TREE_H / 2 - d / 2, w: d, h: d, r: d / 2 };
+    return { x, y: treeTop + treeH / 2 - d / 2, w: d, h: d, r: d / 2 };
   };
 
+  // A load sequence reports its total once, when it starts, and nothing until its last plate lands.
+  const sequence = useRef<'off' | 'adding' | 'landing'>('off');
+  const report = (list: readonly Loaded[]) => onChange(list.filter((p) => p.landed).map((p) => p.kg));
   const set = (next: Loaded[]) => {
     current.current = next;
     setPlates(next);
-    onChange(next.map((p) => p.kg));
+    if (sequence.current === 'off') report(next);
+  };
+  const endSequenceIfLanded = () => {
+    if (sequence.current !== 'landing' || !current.current.every((p) => p.landed)) return;
+    sequence.current = 'off';
+    report(current.current);
   };
   const isGreen = (list: readonly Loaded[], i: number) =>
     greenPlates(
@@ -117,6 +127,7 @@ export function PlateBar({ width, height, load, loadKey, previous, onChange }: P
     const p = current.current.find((q) => q.id === id);
     if (!p) return;
     set(current.current.map((q) => (q.id === id ? { ...q, landed: true } : q)));
+    endSequenceIfLanded();
     // The bar takes the weight: it dips and comes back, more for heavier plates.
     const dy = Math.min(4, 0.18 * p.kg + 1);
     const ms = 150 + p.kg * 6;
@@ -178,6 +189,8 @@ export function PlateBar({ width, height, load, loadKey, previous, onChange }: P
     }
     let cancelled = false;
     const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    sequence.current = 'adding';
+    onChange([...load]);
     void (async () => {
       const out = [...current.current].reverse();
       if (out.length === 0) await wait(350);
@@ -192,6 +205,9 @@ export function PlateBar({ width, height, load, loadKey, previous, onChange }: P
         add(kg);
         await wait(travel(kg) * 0.75);
       }
+      if (cancelled) return;
+      sequence.current = 'landing';
+      endSequenceIfLanded();
     })();
     return () => {
       cancelled = true;

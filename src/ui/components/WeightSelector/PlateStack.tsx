@@ -50,12 +50,11 @@ interface Props {
 export function PlateStack({ width, height, values, initialIndex, resetIndex, resetKey, lastKg, lastTag, onChange }: Props) {
   const reduced = useReducedMotion();
   const n = values.length;
-  const { pitch } = stackPitch(height - TOP_PAD - 8, n);
+  const { pitch, windowed } = stackPitch(height - TOP_PAD - 8, n);
   const ph = pitch - 4;
   const pw = Math.min(220, width * 0.6);
   const x = (width - pw) / 2;
   const contentH = TOP_PAD + n * pitch;
-  const windowed = contentH > height;
   const maxOff = Math.max(0, contentH - height + 8);
   const kd = Math.min(30, ph + 6);
   const lastIdx = lastKg === null ? -1 : values.findIndex((v) => Math.abs(v - lastKg) < 1e-6);
@@ -68,13 +67,15 @@ export function PlateStack({ width, height, values, initialIndex, resetIndex, re
   const knobScale = useSharedValue(1);
   const sink = useSharedValue(0);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // "↺ sugerido" reports its plate once, when the walk starts; a touch on the way reports where the pin is.
+  const quiet = useRef(false);
 
   const setPin = (i: number, tick = true) => {
     const next = Math.max(0, Math.min(n - 1, i));
     if (next === pinRef.current) return;
     pinRef.current = next;
     setPinState(next);
-    onChange(next);
+    if (!quiet.current) onChange(next);
     haptics.select();
     const y = TOP_PAD + next * pitch + ph / 2 - kd / 2;
     if (reduced) {
@@ -102,6 +103,12 @@ export function PlateStack({ width, height, values, initialIndex, resetIndex, re
     if (timer.current) clearTimeout(timer.current);
     timer.current = null;
   };
+  const interrupt = () => {
+    stop();
+    if (!quiet.current) return;
+    quiet.current = false;
+    onChange(pinRef.current);
+  };
   /** Walks the pin to `target` one plate at a time, the steps spacing out (fling), then settles. */
   const walk = (target: number, first: number, factor: number) => {
     stop();
@@ -109,6 +116,7 @@ export function PlateStack({ width, height, values, initialIndex, resetIndex, re
     const dir = Math.sign(t - pinRef.current);
     const go = (d: number) => {
       if (pinRef.current === t || dir === 0) {
+        quiet.current = false;
         settle();
         return;
       }
@@ -128,13 +136,15 @@ export function PlateStack({ width, height, values, initialIndex, resetIndex, re
       setPin(resetIndex, false);
       return;
     }
+    quiet.current = true;
+    onChange(resetIndex);
     walk(resetIndex, 45, 1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
 
   const pinFromY = (y: number) => Math.round((y + off.value - sink.value - TOP_PAD - ph / 2) / pitch);
   const down = (y: number) => {
-    stop();
+    interrupt();
     setPin(pinFromY(y));
   };
   const move = (y: number) => setPin(pinFromY(y));
