@@ -78,17 +78,13 @@ export function nearestIndex(values: readonly number[], kg: number): number {
   return best;
 }
 
-/** The gap that opens under the pin, as a fraction of the pitch. */
-export const STACK_GAP = 0.4;
-
 /**
- * The stack's plate pitch: what fits (counting the gap under the pin), between 26 and 36 pt; at 26 and
- * still too tall, it scrolls (a window that follows the pin).
+ * The stack's plate pitch: what fits, between 26 and 36 pt; at 26 and still too tall, it scrolls (a window
+ * that follows the pin).
  */
-export function stackPitch(height: number, plates: number): { pitch: number; gap: number; windowed: boolean } {
-  const pitch = Math.min(36, Math.max(26, height / (plates + STACK_GAP)));
-  const gap = Math.round(pitch * STACK_GAP);
-  return { pitch, gap, windowed: pitch * plates + gap > height + EPS };
+export function stackPitch(height: number, plates: number): { pitch: number; windowed: boolean } {
+  const pitch = Math.min(36, Math.max(26, height / plates));
+  return { pitch, windowed: pitch * plates > height + EPS };
 }
 
 /** The line under the big number: compared with last time. */
@@ -113,4 +109,38 @@ export function deltaLine(
   if (diff < -EPS) return { kind: 'down', diffKg: -diff, day: last.day };
   const target = suggestion && Math.abs(suggestion.loadKg - value) < EPS ? suggestion.reps : null;
   return { kind: 'same', day: last.day, target };
+}
+
+/** The decimal point's place. */
+export const POINT = 'p';
+
+/** One character of the big number, by place: `i0` units, `i1` tens…, `p` the point, `f0` tenths… */
+export interface DigitSlot {
+  place: string;
+  char: string;
+  /** The character it replaced, while this one is new; null the first time a place appears. */
+  replaced: string | null;
+  /** Goes up each time the place's character changes. */
+  version: number;
+  changed: boolean;
+}
+
+/**
+ * The number's characters by place, left to right, against the ones shown before: a place keeps its
+ * character (and version) or changes it, so only the changed places animate and "9.5" → "10" lines up
+ * units with units.
+ */
+export function digitSlots(text: string, before: readonly DigitSlot[]): DigitSlot[] {
+  const [int, frac = ''] = text.split('.');
+  const places = [
+    ...[...int].map((char, i) => ({ place: `i${int.length - 1 - i}`, char })),
+    ...(text.includes('.') ? [{ place: POINT, char: '.' }] : []),
+    ...[...frac].map((char, i) => ({ place: `f${i}`, char })),
+  ];
+  return places.map(({ place, char }) => {
+    const old = before.find((s) => s.place === place);
+    if (!old) return { place, char, replaced: null, version: 0, changed: true };
+    if (old.char === char) return { ...old, changed: false };
+    return { place, char, replaced: old.char, version: old.version + 1, changed: true };
+  });
 }

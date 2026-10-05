@@ -1,5 +1,5 @@
 import { dayOf, deltaText, unitFor } from './format';
-import { deltaLine, equipmentFor, greedyPlates, greenPlates, nearestIndex, rackRange, sortPlates, stackPitch, stackRange, sumPlates } from './logic';
+import { deltaLine, digitSlots, equipmentFor, greedyPlates, greenPlates, nearestIndex, rackRange, sortPlates, stackPitch, stackRange, sumPlates } from './logic';
 
 describe('greedyPlates', () => {
   it('heaviest first, as many of each as fit', () => {
@@ -64,14 +64,12 @@ describe('rackRange and nearestIndex', () => {
 });
 
 describe('stackPitch', () => {
-  it('what fits, counting the gap under the pin, between 26 and 36', () => {
-    expect(stackPitch(400, 10)).toEqual({ pitch: 36, gap: 14, windowed: false });
-    const p = stackPitch(312, 10); // 312 / 10.4 = 30
-    expect(p).toEqual({ pitch: 30, gap: 12, windowed: false });
-    expect(p.pitch * 10 + p.gap).toBeLessThanOrEqual(312); // the last plate is never cut
+  it('what fits, between 26 and 36', () => {
+    expect(stackPitch(400, 10)).toEqual({ pitch: 36, windowed: false });
+    expect(stackPitch(300, 10)).toEqual({ pitch: 30, windowed: false });
   });
   it('not even at 26: a window that follows the pin', () => {
-    expect(stackPitch(300, 13)).toEqual({ pitch: 26, gap: 10, windowed: true });
+    expect(stackPitch(300, 13)).toEqual({ pitch: 26, windowed: true });
   });
 });
 
@@ -104,5 +102,25 @@ describe('labels', () => {
   });
   it('the day: number in the same month, with the month otherwise', () => {
     expect([dayOf('2026-09-27', '2026-09-29'), dayOf('2026-08-30', '2026-09-29')]).toEqual(['27', '30 ago']);
+  });
+});
+
+describe('digitSlots', () => {
+  const chars = (slots: ReturnType<typeof digitSlots>) => slots.map((s) => `${s.place}:${s.char}`).join(' ');
+  it('by place, left to right', () => {
+    expect(chars(digitSlots('32.5', []))).toBe('i1:3 i0:2 p:. f0:5');
+  });
+  it('only the places whose character changed', () => {
+    const before = digitSlots('32.5', []);
+    const after = digitSlots('35', before);
+    expect(after.map((s) => s.changed)).toEqual([false, true]);
+    expect(after[1]).toMatchObject({ char: '5', replaced: '2', version: 1 });
+    expect(after[0]).toMatchObject({ char: '3', version: 0 });
+  });
+  it('a new place lines up units with units: 9.5 → 10', () => {
+    const after = digitSlots('10', digitSlots('9.5', []));
+    expect(chars(after)).toBe('i1:1 i0:0');
+    expect(after[0]).toMatchObject({ replaced: null, changed: true });
+    expect(after[1]).toMatchObject({ replaced: '9', version: 1, changed: true });
   });
 });
