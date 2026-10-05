@@ -52,3 +52,33 @@ Decisiones de Claude al arreglarlos, sin aprobación paso a paso:
 - **"Por lado":** sale del nombre y queda como nota chica bajo el peso, porque dice cómo dictarlo ("32,5 a cada lado").
 - **Placeholder que se quedaba atrás:** no se pudo reproducir desde aquí. Se aplicó el arreglo para la causa conocida (input controlado a través del store): el input guarda su propio texto y se sincroniza cuando cambia desde afuera. A confirmar en el iPhone.
 - **"máquina leg press":** regla en el prompt + red en el Worker (CLAUDE.md §6). Una primera versión de la red, más estricta, habría pasado dos frases del seed de ⚠️ a ❌ (descripciones como "bíceps un brazo sentado…"); la simulación lo detectó antes de gastar, y la red quedó limitada a una sola palabra suelta compartida. Eval: ✅ 28 · ⚠️ 4 · ❌ 0 (37/37), $0.1865.
+
+# Selector de peso (4–5 oct 2026, rama `feat/weight-selector`)
+
+Pantalla 2 de la pantalla por ejercicio (BACKLOG, "Ahora"). El componente está en `src/ui/components/WeightSelector/`. **Todavía no está conectado al flujo**: solo se abre desde la pantalla de desarrollo.
+
+## Diseño
+- La referencia es el prototipo plano aprobado, `design/selector.html`. Si el código y el prototipo no coinciden, mandan las constantes del prototipo. Las capturas revisadas están en `design/captures/weight-selector/`.
+- **Polea:** el paso entre placas es lo que cabe, entre 26 y 36 pt. Ya no se reserva espacio para el hueco bajo el pasador, porque ese hueco no existe en el diseño plano. Si a 26 pt no caben (con 8 pt de margen abajo), la columna se desplaza como una ventana que sigue al pasador.
+- **Barra:** la fila de discos para elegir mide `clamp(64, 18 % del alto del área del selector, 96)`. Los círculos escalan con ella y nunca bajan de 44 pt, el mínimo para tocarlos. Así la barra gana alto en el iPhone SE. El número dentro del círculo se queda en 15 pt, porque "1.25" cabe en 44 pt.
+
+## El número grande (probado por Jason en el iPhone, 5 oct 2026)
+- Transición por dígito, como `.contentTransition(.numericText())` de SwiftUI:
+  - Cada dígito está en una ventana del alto exacto de la línea, con `overflow: hidden`. Solo se mueven los que cambian, sin fade.
+  - El dígito viejo sale el 100 % del alto y el nuevo entra desde el otro borde: hacia arriba si el valor sube, hacia abajo si baja.
+  - Dura 260 ms con bezier(.2, .8, .2, 1), sin rebote, con 20 ms de desfase entre dígitos, de derecha a izquierda.
+- Los dígitos se alinean por posición: unidades con unidades, décimas con décimas. Así, en 9.5 → 10, el 9 se convierte en 0 y el 1 aparece a la izquierda.
+- Una posición que desaparece (las décimas en 9.5 → 10) sale deslizándose en la dirección en que cambió el valor, sin desfase.
+- El punto y la unidad no se desplazan en vertical. El ancho y el verde cambian en los mismos 260 ms y con la misma curva.
+- Con Reduce Motion, el número cambia directo.
+- **Cuándo cambia el número:**
+  - **Barra:** al cargar un disco, cambia cuando el disco llega a la barra; al quitarlo, cambia al tocarlo.
+  - **Al abrir:** el número ya muestra el valor final desde el primer cuadro.
+  - **"↺ sugerido", en las tres pestañas:** el número cambia una sola vez, al valor final, cuando empieza la secuencia. Si se toca la polea o las mancuernas a mitad del recorrido, el número pasa a lo que está seleccionado ahí.
+  - **Polea y mancuernas a mano:** cambia con cada placa o mancuerna.
+- Se descartaron dos versiones antes de esta: el conteo animado de la primera versión, y una primera transición por dígito con fade y un desplazamiento del 40 %.
+
+## Pantalla de desarrollo
+- `app/dev/weight-selector.tsx` existe en desarrollo, o en un build hecho con `EXPO_PUBLIC_DEV_SCREENS=1`. Usa ejercicios reales del seed.
+- **En el teléfono:** abre en Safari `unamas:///dev/weight-selector?ex=bar&state=sugerido`. Los valores de `ex` son `bar`, `stack` o `rack`, y los de `state` son `sugerido` o `subido`.
+- **Para capturas en el simulador:** `xcrun simctl launch <sim> com.jasoncito.unamas -devScreen bar:subido`. Así se evita el diálogo "¿Abrir en unamas?" que sale con `openurl`.

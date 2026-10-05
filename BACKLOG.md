@@ -12,6 +12,8 @@ Una línea por ítem: qué, y por qué. Al terminar uno, se saca de aquí. Solo 
 - **Live Activity en la pantalla bloqueada durante la sesión** — ver el cronómetro y la sesión sin abrir la app.
 - **Editar o borrar una entrada desde "Hoy" después de los 4,5 s** (si no quedó hecho) — corregir un número sin borrar y volver a dictar.
 
+- **Configurar lint** — el proyecto no tiene. `expo lint` lo instaló solo el 5 oct 2026 (`eslint`, `eslint-config-expo`, `eslint.config.js`, sin commit) y marca 24 problemas, casi todos reglas nuevas de React que confunden los valores de Reanimated con estado. Falta decidir si se queda (y con qué reglas) o se revierte.
+
 ## Después
 - **Sugerir rutinas** (y una pestaña "lo de antes / rutina sugerida", que depende de eso) — hoy la app solo propone lo de la última vez.
 - **Perfil con peso corporal y edad** — no afecta la progresión, porque el "salto absorbible" ya es relativo a lo que cada persona levanta (2 kg es +8 % con 24 kg y +33 % con 6 kg); sirve para estadísticas de fuerza relativa y ejercicios con peso corporal. Ejemplo: a alguien de 40 kg le cuesta mucho más subir 1 kg que a alguien de 90 kg; lo cubre el paso aprendido por ejercicio (1 kg o 0,5 kg si el gimnasio los tiene).
