@@ -82,3 +82,49 @@ Pantalla 2 de la pantalla por ejercicio (BACKLOG, "Ahora"). El componente está 
 - `app/dev/weight-selector.tsx` existe en desarrollo, o en un build hecho con `EXPO_PUBLIC_DEV_SCREENS=1`. Usa ejercicios reales del seed.
 - **En el teléfono:** abre en Safari `unamas:///dev/weight-selector?ex=bar&state=sugerido`. Los valores de `ex` son `bar`, `stack` o `rack`, y los de `state` son `sugerido` o `subido`.
 - **Para capturas en el simulador:** `xcrun simctl launch <sim> com.jasoncito.unamas -devScreen bar:subido`. Así se evita el diálogo "¿Abrir en unamas?" que sale con `openurl`.
+
+# Flujo por ejercicio e historial visible (6 oct 2026, rama `feat/flujo-ejercicio`)
+
+El flujo lo definió Jason: elegir un ejercicio de la última vez → elegir el peso viendo la última vez → hacerlo → anotar las reps. Referencias: `design/flujo-ejercicio.html` (pantallas 1, 3 y 4; la 2 es el `WeightSelector`) y `design/selector.html`. Estas son las decisiones que no salieron de él.
+
+## Datos
+- **Draft:** migración v7. SQLite no deja cambiar un `CHECK`, así que la tabla `entry` se reconstruye con las mismas columnas y `'draft'` permitido. Postgres no cambia: los drafts nunca suben.
+- Un draft se guarda con **`dirty = 0`** y pasa a `dirty = 1` al guardar. Hay dos protecciones: `sync` solo sube `status = 'ok'`, y un draft no frena el cierre de sesión ("no se borra nada sin subir"), porque no es un dato terminado.
+- **El draft crea la sesión** (la entrada necesita su `session_id`), con `started_at` = EMPEZAR como siempre. Desde ahí desaparece el "‹" para volver a la pantalla 1. La sesión no sube a Supabase hasta tener una entrada `ok`.
+- Al guardar, la entrada toma **la hora de guardar** como `created_at`, no la de "Empezar". Así "Hoy" y el historial quedan en el orden en que se terminaron los ejercicios.
+- `raw_text` de una entrada guardada desde el flujo = la frase como se dictaría ("Sentadilla en máquina Smith, 32.5 kg, 8, 8, 8, 7"). La columna es obligatoria y así se lee bien en el servidor.
+- **Terminar la sesión con un draft abierto lo borra** (nunca subió). El stop aparece solo con una entrada anotada o pendiente: con un draft solo no hay nada que terminar.
+- Al guardar un ejercicio de otro grupo, sus grupos se suman a la sesión, igual que al dictarlo.
+
+## Lista (pantalla 1)
+- Las secciones son **los grupos elegidos en la pantalla 1** (`chosen_groups`). Un grupo que se sumó por un ejercicio de otro grupo no tiene sección propia.
+- Cada sección muestra los ejercicios de la última sesión de **ese** grupo. Uno que trabaja dos grupos elegidos (sentadilla: pierna y glúteo) aparece solo en el primero.
+- **Ejercicio hecho hoy:** va al final de su sección, en gris, con lo que se hizo y el delta (verde si subió). **Tocarlo muestra "Borrar"**, como en "Hoy" (decidido con Jason el 2 oct). No abre el flujo otra vez: para hacerlo una segunda vez está "¿Otro? Dímelo".
+- Lo anotado por el input que no es de ningún grupo elegido, y lo pendiente sin señal, sigue en una sección "Hoy" al final.
+- **"En curso":** la fila muestra el peso del draft y "en curso". Si el ejercicio ya se había hecho hoy, aparecen las dos filas.
+- Sin el título "¿Con qué empiezas?" / "¿Qué sigue?": el diseño no lo tiene, y el input dice "¿Otro? Dímelo". **El teclado ya no se abre solo**, porque ahora el camino principal es la lista.
+- El encabezado lleva "›" al final, para que se vea que se puede tocar.
+
+## Pantallas 2 a 4
+- Arriba, "‹ <Músculo>" (el de la sección del ejercicio) y el nombre en 30/800. Sin la barra de sesión, como en el diseño.
+- Dentro del flujo, el gesto de volver de iOS queda apagado (sacaría de la sesión); "‹" y el botón atrás de Android van una pantalla atrás.
+- **"‹" en la pantalla 2 al cambiar el peso** vuelve a la 3 con el peso que tenía. En la 4, vuelve a la 3 sin perder el draft.
+- **Reabrir:** si la app se cierra con drafts, vuelve a la pantalla 3 del **último que se tocó**, aunque se hubiera salido con "‹".
+- **Rango "Apunta a":** el piso y el tope efectivo del motor para ese peso: el tope +5 si el siguiente salto no es absorbible (PROGRESSION.md §3.3). Así, laterales con 7,5 kg dicen 10–20.
+- **Reps prellenadas:** si se repite el peso, last+1 hasta el tope (el de Jason); si se sube, el piso. **Si se baja**, igual que repetir (last+1 hasta el tope). Sin última vez, 3 series con el piso.
+- "+ Agregar serie" copia las reps de la última fila. Mínimo 1 serie, máximo 20; reps de 1 a 99.
+- **Deslizar para quitar** muestra "Quitar", y debajo de las filas dice "Desliza una serie a la izquierda para quitarla." (nada de gestos escondidos, CLAUDE.md §1).
+- **"O dilo como siempre":** el lector local entiende "N de M", "NxM", "N por M", "N series de M", "una/otra/la última de M", listas ("8 8 7", "8, 8, 7") y números en palabras (el dictado a veces escribe "tres de ocho"). Si la frase trae otra cosa (un peso, "fácil"), no adivina: pregunta a `/parse` con el ejercicio y el peso fijos. Sin señal o sin entender, las filas quedan como estaban y se explica por qué.
+- Al guardar: háptica firme si subió y leve si no, como "Anotado". No hay burbuja ni "Deshacer": se borra desde la fila.
+
+## Historial
+- Son **rutas aparte** (`/history`, `/history/[id]`, `/history/exercise/[id]`), no estados de la sesión: así funciona el gesto de volver y la sesión sigue igual debajo.
+- Arriba, "‹ Volver" y un título: el músculo, el nombre del ejercicio o "Tus sesiones".
+- **Historial del músculo:** las sesiones terminadas que lo trabajaron (elegido, o con un ejercicio de ese grupo), con **solo los ejercicios de ese músculo**; tocar una abre la sesión completa. La sesión abierta no aparece (ya está en la lista).
+- **"Tus sesiones"**, en la pantalla inicial, va a la derecha del título "¿Qué toca hoy?".
+- **Sesión:** es el resumen de la pantalla 7 sin "La próxima vez" (era la próxima de entonces) y sin CERRAR.
+- **Ejercicio:** una fila por sesión, con su mejor entrada (PROGRESSION.md §4), contra la sesión anterior; "primera vez" en la primera.
+- Fechas con mes ("Sábado 27 sep"), porque el historial cruza meses.
+
+## Capturas
+- `-devScreen flujo:lista|entrenando|reps` y `historial:musculo|sesion|ejercicio` (`src/features/dev/flowCapture.ts`) dejan la base del simulador en ese estado: una sesión de hombro y tríceps con el press hecho y las laterales en curso. Solo existe con las pantallas de desarrollo.

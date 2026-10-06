@@ -2,9 +2,8 @@
 
 Una línea por ítem: qué, y por qué. Al terminar uno, se saca de aquí. Solo se trabaja en **Ahora**; lo demás, preguntando a Jason (CLAUDE.md, "Backlog").
 
-## Ahora — rediseño (diseñar con Claude chat antes de construir)
-- **Pantalla por ejercicio** — tocar un ejercicio de "hoy te toca" abre su vista con la meta de hoy vs la última vez; al terminar, "Hecho así" (un toque) o corregir; luego vuelve a la lista. Resuelve "¿a qué rato registro?", la confusión entre Hoy y hoy te toca, y que las filas del historial no se puedan tocar. Evaluar registrar serie por serie.
-- **Historial visible después de terminar** — hoy, al cerrar la sesión, no queda dónde ver lo hecho ni las sesiones anteriores. Sin menús nuevos: en la pantalla 1, la fecha de cada músculo se puede tocar y abre sus sesiones pasadas con su resumen (como la pantalla 7); en la pantalla por ejercicio, la evolución de ese ejercicio en el tiempo (fecha, peso, series).
+## Ahora
+_(vacío: el flujo por ejercicio y el historial visible están en la rama `feat/flujo-ejercicio`, por probar en el gym)_
 
 ## Pronto
 - **Agrupar pierna y pantorrilla** (y revisar los grupos en general) — hoy son grupos separados aunque se entrenan juntos.
