@@ -1,6 +1,6 @@
 import { router, Stack, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo } from 'react';
-import { Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { BackHandler, Keyboard, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import Animated, {
   Easing,
@@ -13,6 +13,8 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { deltaOf } from '@/domain/delta';
+import { muscleGroupLabel } from '@/features/picker/groups';
 import { suggestionsFor, textAfterPicking } from '@/features/session/controller';
 import { pastSessionActions } from '@/features/session/pastSessions';
 import { useComposer } from '@/features/session/useComposer';
@@ -25,11 +27,16 @@ import { Bubble } from '@/ui/components/Bubble';
 import { Flood } from '@/ui/components/Flood';
 import { GroupsTitle } from '@/ui/components/GroupsTitle';
 import { InputBar } from '@/ui/components/InputBar';
-import { PlanTable } from '@/ui/components/PlanTable';
+import { ExerciseSection } from '@/ui/components/ExerciseSection';
+import { FlowHeader } from '@/ui/components/flow/FlowHeader';
+import { RepsView } from '@/ui/components/flow/RepsView';
+import { TrainingView } from '@/ui/components/flow/TrainingView';
 import { SessionBar } from '@/ui/components/SessionBar';
 import { SuggestionList } from '@/ui/components/SuggestionList';
 import { SummaryView } from '@/ui/components/SummaryView';
 import { TodayList } from '@/ui/components/TodayList';
+import { WeightSelector } from '@/ui/components/WeightSelector';
+import { localDateOf } from '@/domain/dates';
 import { font } from '@/ui/text';
 import { color, space } from '@/ui/tokens';
 
@@ -37,15 +44,13 @@ const AnimatedBlurView = Animated.createAnimatedComponent(BlurView);
 /** How blurred the content is when the stop completes (1–100; the mockup's 2 px is subtle). */
 const MAX_BLUR = 18;
 
-// Screens 2–7 are states of this one route (CLAUDE.md §4.2).
+// Screens 2–7 are states of this one route (CLAUDE.md §4.2), and so are the per-exercise flow's
+// (design/flujo-ejercicio.html): the list, the weight, training and the reps.
 export default function SessionRoute() {
   const params = useLocalSearchParams<{ groups?: string; startedAt?: string }>();
   const pending = params.groups ? (JSON.parse(params.groups) as string[]) : null;
-  const { screen, state, setText, send, choose, undo, deleteEntry, end, close } = useSessionScreen(
-    pending,
-    () => router.replace('/'),
-    params.startedAt ?? null,
-  );
+  const session = useSessionScreen(pending, () => router.replace('/'), params.startedAt ?? null);
+  const { screen, state, setText, send, choose, undo, deleteEntry, end, close, flow } = session;
   const flood = useSharedValue(0);
   // Their exercise names and aliases help the recognizer with "jalón", "Smith"…
   const hints = useMemo(() => (screen ? screen.exercises.flatMap((e) => [e.canonicalName, ...e.aliases]) : []), [screen]);
@@ -61,6 +66,17 @@ export default function SessionRoute() {
     if (state.phase === 'summary') flood.value = withTiming(0, { duration: 600, easing: Easing.bezier(0.6, 0, 0.2, 1) });
   }, [state.phase, flood]);
 
+  // Android's back button goes one screen back inside the flow, like "‹".
+  const inFlow = flow.screen !== 'list';
+  useEffect(() => {
+    if (!inFlow) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      session.back();
+      return true;
+    });
+    return () => sub.remove();
+  }, [inFlow, session]);
+
   const suggestions = useMemo(
     () => (screen && state.phase !== 'disambiguating' ? suggestionsFor(state.text, screen) : []),
     [state.text, state.phase, screen],
@@ -71,6 +87,8 @@ export default function SessionRoute() {
   const onBack = screen.canGoBack ? () => (router.canGoBack() ? router.back() : router.replace('/')) : undefined;
   const started = screen.sessionId !== null;
   const hasToday = screen.today.length + screen.pending.length > 0;
+  const openHistory = (group: string) => router.push({ pathname: '/history', params: { group } });
+  const openExerciseHistory = (exerciseId: string) => router.push({ pathname: '/history/exercise/[id]', params: { id: exerciseId } });
   const onSend = () => {
     if (!state.text.trim() && !composer.photo) return;
     Keyboard.dismiss();
@@ -93,12 +111,17 @@ export default function SessionRoute() {
 
   return (
     <View style={styles.screen}>
-      <Stack.Screen options={{ gestureEnabled: screen.canGoBack }} />
+      {/* Inside the flow the iOS gesture would leave the session: "‹" goes one screen back instead. */}
+      <Stack.Screen options={{ gestureEnabled: screen.canGoBack && !inFlow }} />
       <SafeAreaView style={styles.flex} edges={['top', 'bottom']}>
         {state.phase === 'summary' ? (
           <View style={styles.content}>
             <SummaryView summary={state.summary} onClose={onClose} />
           </View>
+        ) : inFlow ? (
+          <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+            <View style={styles.flowContent}>{session.view && <FlowScreen session={session} onLast={openExerciseHistory} />}</View>
+          </KeyboardAvoidingView>
         ) : (
           <LayoutAnimationConfig skipEntering>
             <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -110,7 +133,7 @@ export default function SessionRoute() {
                     flood={flood}
                     onEnd={onEnd}
                     stopTip={state.phase === 'ready' ? state.stopTip : undefined}
-                    showStop={started}
+                    showStop={screen.hasEntries}
                     onBack={onBack}
                   />
                 </View>
@@ -122,13 +145,19 @@ export default function SessionRoute() {
                   keyboardShouldPersistTaps="handled"
                   keyboardDismissMode="on-drag"
                 >
+                  {!screen.startedAt && !started && <GroupsTitle text={screen.groupsLabel} onBack={onBack} />}
+                  {screen.sections.map((section) => (
+                    <ExerciseSection
+                      key={section.group}
+                      section={section}
+                      onHistory={openHistory}
+                      onPick={session.pick}
+                      onResume={session.resume}
+                      onDelete={deleteEntry}
+                    />
+                  ))}
+                  {/* Said through the input and of no chosen group, or waiting for signal. */}
                   {hasToday && <TodayList lines={screen.today} pending={screen.pending} onDelete={deleteEntry} />}
-                  {screen.plan.length > 0 ? (
-                    // The bar above already says the groups and holds "‹".
-                    <PlanTable title={copy.session.planTitleStarted} lines={screen.plan} />
-                  ) : (
-                    !screen.startedAt && !hasToday && !started && <GroupsTitle text={screen.groupsLabel} onBack={onBack} />
-                  )}
                 </ScrollView>
 
                 {(state.phase === 'sending' || state.phase === 'feedback') && (
@@ -156,11 +185,7 @@ export default function SessionRoute() {
                     ) : (
                       state.phase === 'ready' && state.reply && <Text style={styles.reply}>{state.reply}</Text>
                     )}
-                    {composer.photo ? (
-                      <Text style={styles.hint}>{copy.session.photoHint}</Text>
-                    ) : (
-                      <Text style={styles.title}>{started ? copy.session.nextTitle : copy.session.firstTitle}</Text>
-                    )}
+                    {composer.photo && <Text style={styles.hint}>{copy.session.photoHint}</Text>}
                   </>
                 )}
 
@@ -173,13 +198,9 @@ export default function SessionRoute() {
                   onCamera={composer.takePhoto}
                   photo={composer.photo}
                   onRemovePhoto={composer.removePhoto}
-                  placeholder={
-                    state.phase === 'disambiguating'
-                      ? copy.session.otherPlaceholder
-                      : started
-                        ? copy.session.nextPlaceholder
-                        : (screen.placeholder ?? copy.session.genericPlaceholder)
-                  }
+                  placeholder={state.phase === 'disambiguating' ? copy.session.otherPlaceholder : copy.flow.otherPlaceholder}
+                  // The list is the main way now: the keyboard opens when they tap the input.
+                  autoFocus={false}
                 />
                 {started && <AnimatedBlurView tint="dark" animatedProps={blurProps} style={StyleSheet.absoluteFill} pointerEvents="none" />}
               </Animated.View>
@@ -192,14 +213,64 @@ export default function SessionRoute() {
   );
 }
 
+/** Screens 2–4 of the flow: the weight, training, the reps. */
+function FlowScreen({ session, onLast }: { session: ReturnType<typeof useSessionScreen>; onLast(exerciseId: string): void }) {
+  const { flow, view, screen } = session;
+  if (flow.screen === 'list' || !view || !screen) return null;
+  const ex = view.exercise;
+  // "‹ Pierna": the section the exercise is listed under, or its own first group.
+  const section = screen.sections.find((s) => s.rows.some((r) => (r.kind === 'done' ? r.line.exerciseId : r.kind === 'draft' ? r.exerciseId : r.line.exerciseId) === ex.id));
+  const backLabel = section?.label ?? muscleGroupLabel(ex.muscleGroups[0] ?? '');
+  const onSave = () => {
+    if (flow.screen !== 'reps') return;
+    const today = { date: '', loadKg: flow.loadKg, reps: flow.reps };
+    const delta = deltaOf(view.last && { ...view.last }, today, ex.repFloor);
+    haptics.logged(delta.kind !== 'new' && delta.tone === 'up');
+    session.save();
+  };
+  return (
+    <>
+      <FlowHeader backLabel={backLabel} name={ex.canonicalName} onBack={session.back} />
+      {flow.screen === 'weight' ? (
+        <WeightSelector
+          // A new selector for each exercise and each draft: it starts at the load it's given.
+          key={`${ex.id}:${flow.draft?.id ?? 'new'}`}
+          loadBasis={ex.loadBasis}
+          stepKg={ex.stepKg}
+          repFloor={ex.repFloor}
+          last={view.last}
+          suggestion={view.suggestion}
+          today={localDateOf(new Date().toISOString())}
+          initialKg={flow.draft?.loadKg}
+          onStart={(kg) => session.start(kg)}
+          onLastPress={() => onLast(ex.id)}
+        />
+      ) : flow.screen === 'training' ? (
+        <TrainingView view={view} loadKg={flow.loadKg} onChangeWeight={session.changeWeight} onDone={session.done} />
+      ) : (
+        <RepsView
+          view={view}
+          loadKg={flow.loadKg}
+          reps={flow.reps}
+          onSetRep={(index, reps) => session.flowDispatch({ type: 'SET_REP', index, reps })}
+          onAddSet={() => session.flowDispatch({ type: 'ADD_SET' })}
+          onRemoveSet={(index) => session.flowDispatch({ type: 'REMOVE_SET', index })}
+          onSay={session.say}
+          onSave={onSave}
+        />
+      )}
+    </>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.bg },
   flex: { flex: 1 },
   bar: { paddingHorizontal: space.screenX, paddingTop: 12 },
   content: { flex: 1, paddingHorizontal: space.screenX, paddingTop: 12, paddingBottom: 16, gap: 10 },
+  flowContent: { flex: 1, paddingHorizontal: space.screenX, paddingTop: 12, paddingBottom: 16 },
   planScroll: { flex: 1 },
   planContent: { flexGrow: 1 },
-  title: { ...font('title'), color: color.text },
   reply: { ...font('body'), color: color.muted, lineHeight: 21 },
   hint: { ...font('label'), fontWeight: '400', color: color.muted },
 });

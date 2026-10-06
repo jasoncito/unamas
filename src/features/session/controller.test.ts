@@ -8,7 +8,7 @@ import { insertExercise } from '@/data/repos/exercises';
 import { createSession, endSession } from '@/data/repos/sessions';
 import { formatSets } from '@/domain/format';
 
-import { loadSessionScreen, loadSummary, suggestionsFor, textAfterPicking } from './controller';
+import { loadSessionScreen, loadSummary, loggedToday, suggestionsFor, textAfterPicking, type SessionScreen } from './controller';
 
 const TODAY = '2026-09-29';
 let db: Db;
@@ -20,8 +20,10 @@ beforeEach(async () => {
 
 /** Screen 2 right after EMPEZAR: the groups are only in memory, no session row yet. */
 const screenFor = async (groups: string[]) => (await loadSessionScreen(db, TODAY, groups))!;
-const lines = (s: Awaited<ReturnType<typeof screenFor>>) =>
-  s.plan.map((l) => [l.name, l.loadKg, formatSets(l.reps), l.loadUp ? 'PESO↑' : l.setsUp ? 'SERIES↑' : '=']);
+/** The rows still to do, every section in order. */
+const planOf = (s: SessionScreen) => s.sections.flatMap((x) => x.rows.flatMap((r) => (r.kind === 'todo' ? [r.line] : [])));
+const lines = (s: SessionScreen) =>
+  planOf(s).map((l) => [l.name, l.loadKg, formatSets(l.reps), l.loadUp ? 'PESO↑' : l.setsUp ? 'SERIES↑' : '=']);
 
 describe('loadSessionScreen (design/meta.html)', () => {
   it('hombro + tríceps: today’s targets, reps going up', async () => {
@@ -34,18 +36,21 @@ describe('loadSessionScreen (design/meta.html)', () => {
       ['Tríceps en polea, barra V', 30, '4×11', 'SERIES↑'],
       ['Tríceps sobre la cabeza', 20, '3×11', 'SERIES↑'],
     ]);
-    expect(s.plan[0].before).toEqual({ loadKg: 24, reps: [8, 8, 8, 8] });
+    expect(planOf(s)[0].before).toEqual({ loadKg: 24, reps: [8, 8, 8, 8] });
   });
 
-  it('the placeholder is the first target, as it would be dictated', async () => {
-    expect((await screenFor(['shoulders', 'triceps'])).placeholder).toBe('press de hombros, 24 kg, 4 de 9');
+  it('one section per chosen group, with its last time before today', async () => {
+    const s = await screenFor(['shoulders', 'triceps']);
+    expect(s.sections.map((x) => [x.label, x.lastDate, x.rows.length])).toEqual([
+      ['Hombro', '2026-09-27', 3],
+      ['Tríceps', '2026-09-27', 2],
+    ]);
   });
 
   it('pierna: the sentadilla goes up in load, with the per-side basis kept', async () => {
     const s = await screenFor(['legs']);
     expect(lines(s)[0]).toEqual(['Sentadilla en máquina Smith', 32.5, '4×6', 'PESO↑']);
-    expect(s.plan[0].loadBasis).toBe('per_side');
-    expect(s.placeholder).toBe('sentadilla smith, 32.5 kg, 4 de 6');
+    expect(planOf(s)[0].loadBasis).toBe('per_side');
   });
 
   it('an exercise that never had a load has no target and is left out (lumbar on 15 sep)', async () => {
@@ -57,13 +62,19 @@ describe('loadSessionScreen (design/meta.html)', () => {
       [],
     );
     const s = await screenFor(['back']);
-    expect(s.plan.map((l) => l.name)).toEqual(['Remo bajo en máquina']);
+    expect(planOf(s).map((l) => l.name)).toEqual(['Remo bajo en máquina']);
   });
 
-  it('groups with no history: no list and the generic placeholder', async () => {
+  it('a group with no history: its section has no rows and no date', async () => {
     const s = await screenFor(['core']);
-    expect(s.plan).toEqual([]);
-    expect(s.placeholder).toBeNull();
+    expect(planOf(s)).toEqual([]);
+    expect(s.sections).toEqual([{ group: 'core', label: 'Core', lastDate: null, rows: [] }]);
+  });
+
+  it('sections are the groups chosen on screen 1, not one an exercise added along the way', async () => {
+    await createSession(db, 'f0000000-0000-4000-8000-00000000000d', ['shoulders'], '2026-09-29T17:00:00.000Z');
+    await db.runAsync(`UPDATE session SET muscle_groups = '["shoulders","chest"]' WHERE id = 'f0000000-0000-4000-8000-00000000000d'`, []);
+    expect((await loadSessionScreen(db, TODAY, null))!.sections.map((x) => x.group)).toEqual(['shoulders']);
   });
 
   it('right after EMPEZAR the stopwatch already has its start; an open session keeps its own', async () => {
@@ -111,7 +122,7 @@ describe('suggestionsFor (screen 3)', () => {
   it('an exercise already done today goes last, not first (backlog: gym test)', async () => {
     const s = await screenFor(['shoulders']);
     const mancuernas = s.exercises.find((e) => e.canonicalName === 'Press de hombro con mancuernas')!;
-    const done = { ...s, today: [{ exerciseId: mancuernas.id } as (typeof s.today)[number]] };
+    const done = { ...s, today: [{ exerciseId: mancuernas.id, createdAt: '' } as (typeof s.today)[number]] };
     const names = suggestionsFor('press de hom', done).map((x) => x.exercise.canonicalName);
     expect(names).toEqual(['Press de hombro en máquina', 'Press de hombro con mancuernas']);
   });
@@ -164,7 +175,7 @@ describe('"Hoy" (screen 4)', () => {
     await log(S, 'Remo al mentón', 15, [12, 12, 12], '2026-09-29T18:10:00.000Z');
     const s = (await loadSessionScreen(db, TODAY, null))!;
 
-    expect(s.today.map((t) => [t.name, t.loadKg, formatSets(t.reps), t.comparedTo, t.delta])).toEqual([
+    expect(loggedToday(s).map((t) => [t.name, t.loadKg, formatSets(t.reps), t.comparedTo, t.delta])).toEqual([
       ['Press de hombro con mancuernas', 24, '4×9', '2026-09-27', { kind: 'reps_per_set', diff: 1, tone: 'up' }],
       ['Remo al mentón', 15, '3×12', null, { kind: 'new' }],
     ]);
@@ -181,7 +192,7 @@ describe('"Hoy" (screen 4)', () => {
     await log(S, 'Press de hombro con mancuernas', 24, [9, 9, 9, 9], '2026-09-29T18:00:00.000Z');
     await log(S, 'Press de hombro con mancuernas', 26, [6, 6], '2026-09-29T18:20:00.000Z');
     const s = (await loadSessionScreen(db, TODAY, null))!;
-    expect(s.today.map((t) => [t.comparedTo, t.delta.kind])).toEqual([['2026-09-27', 'reps_per_set'], ['2026-09-29', 'load']]);
+    expect(loggedToday(s).map((t) => [t.comparedTo, t.delta.kind])).toEqual([['2026-09-27', 'reps_per_set'], ['2026-09-29', 'load']]);
   });
 
   it('a new exercise first does not make today the "last time" of the group: the plan still comes from 27 sep', async () => {
@@ -193,7 +204,7 @@ describe('"Hoy" (screen 4)', () => {
       [S],
     );
     const s = (await loadSessionScreen(db, TODAY, null))!;
-    expect(s.plan.map((l) => l.name)).toEqual(['Press de hombro con mancuernas', 'Laterales con pecho en rodillas']);
+    expect(planOf(s).map((l) => l.name)).toEqual(['Press de hombro con mancuernas', 'Laterales con pecho en rodillas']);
   });
 
   it('saved without signal: in "pending" with their words; a doubt or a logged one is not', async () => {
@@ -207,7 +218,7 @@ describe('"Hoy" (screen 4)', () => {
     }
     const s = (await loadSessionScreen(db, TODAY, null))!;
     expect(s.pending).toEqual([{ entryId: 'f0000000-0000-4000-8000-0000000000dd', rawText: 'laterales 7,5 4 de 11', createdAt: '2026-09-29T18:10:00.000Z' }]);
-    expect(s.today.map((t) => t.name)).toEqual(['Press de hombro con mancuernas']);
+    expect(loggedToday(s).map((t) => t.name)).toEqual(['Press de hombro con mancuernas']);
   });
 
   it('right after EMPEZAR there is nothing pending', async () => {

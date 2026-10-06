@@ -56,3 +56,8 @@ export function formatClock(ms: number): string {
   const s = String(total % 60).padStart(2, '0');
   return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`;
 }
+
+/** '2026-09-27' → "Sábado 27 sep" (the history's dates: they span months). */
+export function formatLongDate(date: string): string {
+  return `${formatDayLabel(date)} ${MONTHS[Number(date.split('-')[1]) - 1]}`;
+}

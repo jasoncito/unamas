@@ -167,3 +167,9 @@ export async function dropUnusedAddedGroups(db: Db, sessionId: string): Promise<
   await db.runAsync('UPDATE session SET muscle_groups = ?, updated_at = ?, dirty = 1 WHERE id = ?', [JSON.stringify(kept), nowIso(), sessionId]);
   return kept;
 }
+
+/** The groups chosen on screen 1 (local only, v6), or null if the session doesn't know them. */
+export async function getChosenGroups(db: Db, sessionId: string): Promise<string[] | null> {
+  const row = await db.getFirstAsync<{ chosen_groups: string | null }>('SELECT chosen_groups FROM session WHERE id = ?', [sessionId]);
+  return row?.chosen_groups ? JSON.parse(row.chosen_groups) : null;
+}

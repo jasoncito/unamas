@@ -63,7 +63,12 @@ export default function PickerScreen() {
   return (
     <SafeAreaView style={styles.screen}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>{copy.picker.title}</Text>
+        <View style={styles.titleRow}>
+          <Text style={styles.title}>{copy.picker.title}</Text>
+          <Pressable onPress={() => router.push('/history')} hitSlop={10} accessibilityRole="link">
+            <Text style={styles.sessions}>{`${copy.history.yourSessions} ›`}</Text>
+          </Pressable>
+        </View>
         <Text style={styles.subtitle}>{copy.picker.subtitle}</Text>
         <View style={styles.list}>
           {rows.map((g) => {
@@ -118,7 +123,9 @@ const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: color.bg },
   past: { flex: 1, paddingHorizontal: space.screenX, paddingTop: 18, paddingBottom: 16 },
   content: { paddingHorizontal: space.screenX, paddingTop: 18, paddingBottom: 24 },
-  title: { ...font('title'), color: color.text },
+  titleRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: 12 },
+  title: { ...font('title'), color: color.text, flexShrink: 1 },
+  sessions: { ...font('label'), color: color.muted },
   subtitle: { ...font('label'), color: color.muted, marginTop: 2 },
   list: { marginTop: 14 },
   row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 7 },

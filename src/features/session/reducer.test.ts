@@ -57,7 +57,7 @@ describe('sessionReducer', () => {
     });
   });
 
-  const SUMMARY = { dayLabel: 'Lunes 28', groupsLabel: 'Hombro', duration: '58 min', rows: [], tally: { up: 0, same: 0, down: 0, new: 0 }, pending: 0, nextTime: null };
+  const SUMMARY = { date: '2026-09-28', dayLabel: 'Lunes 28', groupsLabel: 'Hombro', duration: '58 min', rows: [], tally: { up: 0, same: 0, down: 0, new: 0 }, pending: 0, nextTime: null };
 
   it('"listo" → the stop tip, bumped each time, without a reply', () => {
     const once = run([{ type: 'SENT', text: 'listo' }, { type: 'SHOW_STOP_TIP' }]);

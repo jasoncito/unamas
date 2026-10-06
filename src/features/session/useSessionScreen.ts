@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { newId, nowIso } from '@/data/ids';
 import { endStaleSessions, getOpenSession } from '@/data/repos/sessions';
 import { localDateOf } from '@/domain/dates';
+import { createFlowActions, loadExerciseView, type ExerciseView, type FlowActions } from '@/features/exercise/actions';
+import { useFlowStore } from '@/features/exercise/store';
 import { usePicker } from '@/features/picker/store';
 import { requestSync } from '@/features/sync/useSync';
 import { ai } from '@/services/aiClient';
@@ -28,6 +30,9 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
   const { state, dispatch, reset } = useSessionStore();
   const [screen, setScreen] = useState<SessionScreen | null>(null);
   const actions = useRef<SessionActions | null>(null);
+  const flowActions = useRef<FlowActions | null>(null);
+  const flow = useFlowStore((f) => f.state);
+  const [view, setView] = useState<ExerciseView | null>(null);
   const shownLogged = useRef(0);
   const pendingKey = JSON.stringify(pendingGroups);
 
@@ -45,6 +50,7 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
   // First load: a fresh state, the actions for this session, and whatever was left unresolved.
   useEffect(() => {
     reset();
+    useFlowStore.getState().reset();
     shownLogged.current = 0;
     let cancelled = false;
     let stopWatching = () => {};
@@ -62,6 +68,14 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
           onChanged: () => void reload(), // a retry turned a pending row into a logged one
         },
       );
+      flowActions.current = createFlowActions(
+        { db, ai, newId, now: nowIso, today, requestSync },
+        actions.current,
+        () => useFlowStore.getState().state,
+        useFlowStore.getState().dispatch,
+      );
+      // The app closed with an exercise started: back to its screen 3.
+      void flowActions.current.resume();
       // Entries saved without signal: retried now, and on every new chance to reach the network.
       void actions.current.retryPending();
       stopWatching = onReconnectOrForeground(async () => {
@@ -78,6 +92,20 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
       stopWatching();
     };
   }, [db, reload, reset]);
+
+  // Screens 2–4 show one exercise: its config, last time and today's target, from SQLite.
+  const flowExerciseId = flow.screen === 'list' ? null : flow.exerciseId;
+  useEffect(() => {
+    if (!flowExerciseId) return setView(null);
+    let cancelled = false;
+    void loadExerciseView(db, flowExerciseId, today()).then((v) => !cancelled && setView(v));
+    return () => {
+      cancelled = true;
+    };
+  }, [db, flowExerciseId]);
+
+  /** A flow step that changed the database (a draft saved or logged): the list catches up. */
+  const thenReload = (work: Promise<unknown> | undefined) => void work?.then(() => reload());
 
   // The bubble stays FEEDBACK_MS, then goes to the list. Keyed on each new "Anotado" (logged moves on
   // every LOGGED), so typing meanwhile neither restarts the countdown nor buzzes again.
@@ -123,7 +151,23 @@ export function useSessionScreen(pendingGroups: string[] | null, onMissing: () =
     /** CERRAR: a fresh state for the next session, and screen 1 with nothing selected. */
     close: () => {
       reset();
+      useFlowStore.getState().reset();
       usePicker.getState().reset();
     },
+    /** The per-exercise flow (design/flujo-ejercicio.html): its screen, its exercise, and its steps. */
+    flow,
+    view: view && flowExerciseId === view.exercise.id ? view : null,
+    pick: (exerciseId: string) => flowActions.current?.pick(exerciseId),
+    resume: (draftId: string) => thenReload(flowActions.current?.resume(draftId)),
+    back: () => {
+      flowActions.current?.back();
+      void reload();
+    },
+    start: (loadKg: number) => thenReload(flowActions.current?.start(loadKg)),
+    changeWeight: () => flowActions.current?.changeWeight(),
+    done: () => void flowActions.current?.done(),
+    say: (text: string) => flowActions.current?.interpret(text) ?? Promise.resolve('unclear' as const),
+    save: () => thenReload(flowActions.current?.save()),
+    flowDispatch: useFlowStore.getState().dispatch,
   };
 }

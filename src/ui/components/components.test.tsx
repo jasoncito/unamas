@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react-native';
 import { StyleSheet } from 'react-native';
 
 import type { Exercise } from '@/data/repos/exercises';
-import type { PlanLine, Suggestion } from '@/features/session/controller';
+import type { GroupSection, PlanLine, Suggestion, TodayLine } from '@/features/session/controller';
 
 import { color } from '../tokens';
 import { AmbiguityPanel } from './AmbiguityPanel';
@@ -10,19 +10,27 @@ import { Bubble } from './Bubble';
 import { TodayList } from './TodayList';
 import { GroupsTitle } from './GroupsTitle';
 import { InputBar } from './InputBar';
-import { PlanTable } from './PlanTable';
+import { ExerciseSection } from './ExerciseSection';
 import { SuggestionList } from './SuggestionList';
 
 const colorOf = (text: string) => StyleSheet.flatten(screen.getByText(text).props.style).color;
 
-describe('PlanTable (design/meta.html)', () => {
+describe('ExerciseSection (design/flujo-ejercicio.html, design/meta.html)', () => {
   const lines: PlanLine[] = [
     { exerciseId: 'a', name: 'Press de hombro con mancuernas', loadBasis: 'per_dumbbell', loadKg: 24, reps: [9, 9, 9, 9], loadUp: false, setsUp: true, before: { loadKg: 24, reps: [8, 8, 8, 8] } },
     { exerciseId: 'b', name: 'Sentadilla en máquina Smith', loadBasis: 'per_side', loadKg: 32.5, reps: [6, 6, 6, 6], loadUp: true, setsUp: false, before: { loadKg: 30, reps: [10, 10, 10, 10] } },
   ];
+  const done: TodayLine = {
+    entryId: 'e', exerciseId: 'c', name: 'Extensión de pierna', loadBasis: 'stack', loadKg: 70, reps: [11, 11, 11, 11], comparedTo: '2026-09-24',
+    delta: { kind: 'reps_per_set', diff: 1, tone: 'up' }, createdAt: '2026-09-29T18:00:00.000Z',
+  };
+  const section = (over: Partial<GroupSection> = {}): GroupSection => ({
+    group: 'legs', label: 'Pierna', lastDate: '2026-09-24', rows: lines.map((line) => ({ kind: 'todo', line })), ...over,
+  });
+  const handlers = () => ({ onHistory: jest.fn(), onPick: jest.fn(), onResume: jest.fn(), onDelete: jest.fn() });
 
   it('only what goes up is green, with "antes" below; the rest is white without "antes"', async () => {
-    await render(<PlanTable title="Hombro y pierna · hoy te toca" lines={lines} />);
+    await render(<ExerciseSection section={section()} {...handlers()} />);
     expect(colorOf('4×9')).toBe(color.green);
     expect(screen.getByText('antes 4×8')).toBeTruthy();
     expect(colorOf('24 kg')).toBe(color.text);
@@ -32,19 +40,53 @@ describe('PlanTable (design/meta.html)', () => {
     expect(screen.queryByText('antes 4×10')).toBeNull();
   });
 
-  it('shows the header and the columns; "por lado" under the load, not in the name', async () => {
-    await render(<PlanTable title="Hombro y pierna · hoy te toca" lines={lines} />);
-    expect(screen.getByText('Hombro y pierna · hoy te toca')).toBeTruthy();
+  it('the header says the group and its last time, never "hoy te toca"; "por lado" under the load', async () => {
+    await render(<ExerciseSection section={section()} {...handlers()} />);
+    expect(screen.getByText(/Pierna · tu última vez, 24 sep/)).toBeTruthy();
+    expect(screen.queryByText(/hoy te toca/i)).toBeNull();
     expect(screen.getByText('Peso')).toBeTruthy();
     expect(screen.getByText('Series')).toBeTruthy();
-    expect(screen.getByText('Sentadilla en máquina Smith')).toBeTruthy();
     expect(screen.getAllByText('por lado')).toHaveLength(1);
+    expect(screen.getByText('vuelves a 6')).toBeTruthy();
   });
 
-  it('the load goes up: SERIES explains it, "vuelves a 6" (backlog: gym test)', async () => {
-    await render(<PlanTable title="t" lines={lines} />);
-    expect(screen.getByText('vuelves a 6')).toBeTruthy();
-    expect(screen.queryByText('vuelves a 9')).toBeNull(); // reps going up: "antes 4×8" instead
+  it('tapping the header opens the group’s history; tapping a row, its weight', async () => {
+    const h = handlers();
+    await render(<ExerciseSection section={section()} {...h} />);
+    await fireEvent.press(screen.getByText(/tu última vez/));
+    expect(h.onHistory).toHaveBeenCalledWith('legs');
+    await fireEvent.press(screen.getByText('Sentadilla en máquina Smith'));
+    expect(h.onPick).toHaveBeenCalledWith('b');
+  });
+
+  it('a started exercise says "en curso" and goes back to it', async () => {
+    const h = handlers();
+    const draft = { id: 'd', sessionId: 's', exerciseId: 'b', loadKg: 32.5, createdAt: '' };
+    await render(<ExerciseSection section={section({ rows: [{ kind: 'draft', line: lines[1], name: lines[1].name, exerciseId: 'b', draft }] })} {...h} />);
+    expect(screen.getByText('en curso')).toBeTruthy();
+    await fireEvent.press(screen.getByText('Sentadilla en máquina Smith'));
+    expect(h.onResume).toHaveBeenCalledWith('d');
+    expect(h.onPick).not.toHaveBeenCalled();
+  });
+
+  it('done today: what was done and its comparison, green when it went up; tap, then "Borrar"', async () => {
+    const h = handlers();
+    await render(<ExerciseSection section={section({ rows: [{ kind: 'done', line: done }] })} {...h} />);
+    expect(screen.getByText('4×11')).toBeTruthy();
+    expect(colorOf('+1')).toBe(color.green);
+    await fireEvent.press(screen.getByText('Extensión de pierna'));
+    await fireEvent.press(screen.getByText('Borrar'));
+    expect(h.onDelete).toHaveBeenCalledWith('e');
+    expect(h.onPick).not.toHaveBeenCalled();
+  });
+
+  it('a group without history: "sin registro", no columns, no rows', async () => {
+    const h = handlers();
+    await render(<ExerciseSection section={section({ lastDate: null, rows: [] })} {...h} />);
+    expect(screen.getByText('Pierna · sin registro')).toBeTruthy();
+    expect(screen.queryByText('Peso')).toBeNull();
+    await fireEvent.press(screen.getByText('Pierna · sin registro'));
+    expect(h.onHistory).not.toHaveBeenCalled();
   });
 });
 

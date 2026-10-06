@@ -9,6 +9,8 @@ import {
   getExerciseHistory,
   getAllPendingEntries,
   getDoubtEntry,
+  getDrafts,
+  deleteDraft,
   getEndedSessionDoubt,
   getLastExposures,
   insertPendingEntry,
@@ -113,6 +115,12 @@ export interface SessionActions {
    * synced) is simply removed.
    */
   deleteEntry(entryId: string): Promise<void>;
+  /** The per-exercise flow's draft needs the session row: created now if it's the first entry. */
+  ensureSession(): Promise<string>;
+  /** Null until the first entry (a draft counts) creates the session row. */
+  sessionId(): string | null;
+  /** A saved exercise of another group joined its groups to the session's. */
+  groupsChanged(groups: string[]): void;
 }
 
 /** What asking /parse about a saved entry ended in, with the database already updated. */
@@ -420,8 +428,22 @@ export function createSessionActions(
         events.onChanged();
       }),
 
+    ensureSession: () =>
+      serial(async () => {
+        const { id, created } = await ensureSession();
+        if (created) events.onSessionCreated(id);
+      }).then(() => ctx.sessionId!),
+
+    sessionId: () => ctx.sessionId,
+
+    groupsChanged: (groups) => {
+      ctx.groups = groups;
+    },
+
     end: async () => {
       if (!ctx.sessionId) return null;
+      // An exercise started and never saved doesn't count: its draft goes (it never synced).
+      for (const d of await getDrafts(deps.db, ctx.sessionId)) await deleteDraft(deps.db, d.id);
       await endSession(deps.db, ctx.sessionId, deps.now());
       deps.requestSync();
       const summary = await loadSummary(deps.db, ctx.sessionId);

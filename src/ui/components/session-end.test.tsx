@@ -114,7 +114,7 @@ describe('SessionBar from EMPEZAR (backlog: gym test)', () => {
 });
 
 const SUMMARY: SessionSummary = {
-  dayLabel: 'Lunes 28',
+  date: '2026-09-28', dayLabel: 'Lunes 28',
   groupsLabel: 'Hombro',
   duration: '58 min',
   tally: { up: 2, same: 1, down: 0, new: 1 },

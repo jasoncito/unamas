@@ -38,37 +38,55 @@ export async function getExerciseHistory(db: Db, exerciseId: string): Promise<Lo
   return rows.map(fromLoggedRow);
 }
 
+/** A chosen group's section on the session's list: its last session before today, and that session's exercises. */
+export interface GroupPlan {
+  group: string;
+  /** Null when the group has no history: the section has no rows. */
+  lastSessionId: string | null;
+  /** ISO timestamp of the group's last logged entry ("tu última vez, 24 sep"). */
+  lastAt: string | null;
+  /** The exercises of that session that work this group, in the order they were logged. */
+  exerciseIds: string[];
+}
+
 /**
- * Screen 2's list: for each chosen group (in order), the exercises of the last session that worked it,
- * keeping only exercises of the chosen groups, in the order they were logged. No repeats.
+ * The session's list (per-exercise flow, screen 1): for each chosen group, in order, the last session
+ * that worked it and its exercises of that group. An exercise already listed under an earlier group
+ * isn't repeated (sentadilla works pierna and glúteo: it goes under the first one chosen).
  */
-export async function getPlanExerciseIds(
+export async function getGroupPlans(
   db: Db,
   groups: readonly string[],
-  /** Today's session: the plan comes from the ones before it. */
+  /** Today's session: the list comes from the ones before it. */
   excludeSessionId: string | null = null,
-): Promise<string[]> {
-  const ids: string[] = [];
+): Promise<GroupPlan[]> {
+  const seen = new Set<string>();
+  const plans: GroupPlan[] = [];
   for (const group of groups) {
-    const last = await db.getFirstAsync<{ session_id: string }>(
-      `SELECT e.session_id FROM entry e JOIN exercise x ON x.id = e.exercise_id, json_each(x.muscle_groups) g
+    const last = await db.getFirstAsync<{ session_id: string; created_at: string }>(
+      `SELECT e.session_id, e.created_at FROM entry e JOIN exercise x ON x.id = e.exercise_id, json_each(x.muscle_groups) g
        WHERE g.value = ? AND e.status = 'ok' AND e.deleted_at IS NULL AND x.deleted_at IS NULL
          AND e.session_id IS NOT ?
        ORDER BY e.created_at DESC LIMIT 1`,
       [group, excludeSessionId],
     );
-    if (!last) continue;
+    if (!last) {
+      plans.push({ group, lastSessionId: null, lastAt: null, exerciseIds: [] });
+      continue;
+    }
     const rows = await db.getAllAsync<{ exercise_id: string }>(
       `SELECT e.exercise_id, MIN(e.created_at) AS first_at
        FROM entry e JOIN exercise x ON x.id = e.exercise_id
        WHERE e.session_id = ? AND e.status = 'ok' AND e.deleted_at IS NULL AND x.deleted_at IS NULL
-         AND EXISTS (SELECT 1 FROM json_each(x.muscle_groups) g WHERE g.value IN (${groups.map(() => '?').join(', ')}))
+         AND EXISTS (SELECT 1 FROM json_each(x.muscle_groups) g WHERE g.value = ?)
        GROUP BY e.exercise_id ORDER BY first_at`,
-      [last.session_id, ...groups],
+      [last.session_id, group],
     );
-    for (const r of rows) if (!ids.includes(r.exercise_id)) ids.push(r.exercise_id);
+    const exerciseIds = rows.map((r) => r.exercise_id).filter((id) => !seen.has(id));
+    for (const id of exerciseIds) seen.add(id);
+    plans.push({ group, lastSessionId: last.session_id, lastAt: last.created_at, exerciseIds });
   }
-  return ids;
+  return plans;
 }
 
 /** The last logged set of every exercise that has one (for "Última: …" in the suggestions). */
@@ -266,10 +284,66 @@ export async function deleteEntries(db: Db, ids: readonly string[]): Promise<voi
 export async function getEntryRef(
   db: Db,
   id: string,
-): Promise<{ sessionId: string; exerciseId: string | null; status: 'ok' | 'pending' | 'ambiguous' } | null> {
-  const row = await db.getFirstAsync<{ session_id: string; exercise_id: string | null; status: 'ok' | 'pending' | 'ambiguous' }>(
+): Promise<{ sessionId: string; exerciseId: string | null; status: 'ok' | 'pending' | 'ambiguous' | 'draft' } | null> {
+  const row = await db.getFirstAsync<{ session_id: string; exercise_id: string | null; status: 'ok' | 'pending' | 'ambiguous' | 'draft' }>(
     'SELECT session_id, exercise_id, status FROM entry WHERE id = ? AND deleted_at IS NULL',
     [id],
   );
   return row && { sessionId: row.session_id, exerciseId: row.exercise_id, status: row.status };
+}
+
+// ─── Drafts (per-exercise flow) ──────────────────────────────────────────────────────────────────
+
+/** "Empezar con X": the exercise and the load are chosen, the reps aren't done yet. Never synced. */
+export interface Draft {
+  id: string;
+  sessionId: string;
+  exerciseId: string;
+  loadKg: number;
+  createdAt: string;
+}
+
+/**
+ * Saves the draft: status 'draft', no reps, dirty = 0 (it never uploads; sync only sends status 'ok', and
+ * a draft must not hold back signing out). It becomes a normal entry with "Guardar".
+ */
+export async function insertDraftEntry(db: Db, d: Draft): Promise<void> {
+  await db.runAsync(
+    `INSERT INTO entry (id, session_id, exercise_id, load_kg, raw_text, status, created_at, updated_at, dirty)
+     VALUES (?, ?, ?, ?, '', 'draft', ?, ?, 0)`,
+    [d.id, d.sessionId, d.exerciseId, d.loadKg, d.createdAt, d.createdAt],
+  );
+}
+
+/** "cambiar peso" on a draft. */
+export async function setDraftLoad(db: Db, id: string, loadKg: number): Promise<void> {
+  await db.runAsync("UPDATE entry SET load_kg = ?, updated_at = ? WHERE id = ? AND status = 'draft'", [loadKg, nowIso(), id]);
+}
+
+/** The session's open drafts, the latest first (the one reopened when the app comes back). */
+export async function getDrafts(db: Db, sessionId: string): Promise<Draft[]> {
+  const rows = await db.getAllAsync<{ id: string; session_id: string; exercise_id: string; load_kg: number; created_at: string }>(
+    `SELECT id, session_id, exercise_id, load_kg, created_at FROM entry
+     WHERE session_id = ? AND status = 'draft' AND deleted_at IS NULL
+     ORDER BY updated_at DESC, created_at DESC`,
+    [sessionId],
+  );
+  return rows.map((r) => ({ id: r.id, sessionId: r.session_id, exerciseId: r.exercise_id, loadKg: r.load_kg, createdAt: r.created_at }));
+}
+
+/**
+ * "Guardar": the draft becomes a logged entry, ready to sync. Its time is now, when the exercise was
+ * done, so "Hoy" and the history keep the order things were finished in.
+ */
+export async function saveDraft(db: Db, id: string, e: { reps: readonly number[]; rawText: string; at: string }): Promise<void> {
+  await db.runAsync(
+    `UPDATE entry SET reps = ?, raw_text = ?, status = 'ok', created_at = ?, updated_at = ?, dirty = 1
+     WHERE id = ? AND status = 'draft'`,
+    [JSON.stringify(e.reps), e.rawText, e.at, e.at, id],
+  );
+}
+
+/** A draft that won't be done (the session ended with it open). It never synced: it's removed. */
+export async function deleteDraft(db: Db, id: string): Promise<void> {
+  await db.runAsync("DELETE FROM entry WHERE id = ? AND status = 'draft'", [id]);
 }

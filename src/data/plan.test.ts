@@ -4,7 +4,7 @@ import { localDateOf } from '@/domain/dates';
 
 import type { Db } from './db';
 import { initDb } from './init';
-import { getLastExposures, getPlanExerciseIds } from './repos/entries';
+import { getGroupPlans, getLastExposures } from './repos/entries';
 import { createSession, getOpenSession } from './repos/sessions';
 import { loadSeed, type Seed } from './seed';
 import { openMemoryDb } from './testing/memoryDb';
@@ -18,42 +18,48 @@ beforeEach(async () => {
   ids = (await loadSeed(db, seedJson as Seed))!;
 });
 
-describe('getPlanExerciseIds', () => {
-  it('hombro + tríceps: the 27 sep session, in logged order (design/meta.html)', async () => {
-    expect((await getPlanExerciseIds(db, ['shoulders', 'triceps'])).map(seedIdOf)).toEqual([
-      'press_hombro_mancuernas',
-      'laterales_polea',
-      'laterales_pecho_rodillas',
-      'pushdown_barra_v',
-      'triceps_mancuerna_cabeza',
+/** Each group's exercises, as seed ids. */
+const plansOf = async (groups: string[]) => (await getGroupPlans(db, groups)).map((p) => [p.group, p.exerciseIds.map(seedIdOf)]);
+
+describe('getGroupPlans', () => {
+  it('hombro + tríceps: the 27 sep session, each group its own exercises in logged order (design/meta.html)', async () => {
+    expect(await plansOf(['shoulders', 'triceps'])).toEqual([
+      ['shoulders', ['press_hombro_mancuernas', 'laterales_polea', 'laterales_pecho_rodillas']],
+      ['triceps', ['pushdown_barra_v', 'triceps_mancuerna_cabeza']],
+    ]);
+    const [shoulders] = await getGroupPlans(db, ['shoulders']);
+    expect([shoulders.lastSessionId, localDateOf(shoulders.lastAt!)]).toEqual([ids.get('s5'), '2026-09-27']);
+  });
+
+  it('only exercises of that group: pecho on 17 sep leaves out that day’s biceps and back', async () => {
+    expect(await plansOf(['chest'])).toEqual([['chest', ['press_banca_barra', 'press_pecho_maquina']]]);
+  });
+
+  it('each group brings its own last session; an exercise already listed under an earlier group is not repeated', async () => {
+    expect(await plansOf(['legs', 'glutes'])).toEqual([
+      ['legs', ['sentadilla_smith', 'zancadas_barra', 'leg_extension']],
+      ['glutes', []],
+    ]);
+    expect(await plansOf(['calves', 'biceps'])).toEqual([
+      ['calves', ['pantorrilla_pie_mancuerna']], // 24 sep
+      ['biceps', ['curl_barra_z', 'curl_inclinado_mancuernas', 'curl_martillo_polea', 'preacher_curl_z']], // 17 sep
     ]);
   });
 
-  it('only exercises of the chosen groups: pecho on 17 sep leaves out that day’s biceps and back', async () => {
-    expect((await getPlanExerciseIds(db, ['chest'])).map(seedIdOf)).toEqual(['press_banca_barra', 'press_pecho_maquina']);
-  });
-
-  it('each group brings its own last session, in the order chosen, without repeats', async () => {
-    expect((await getPlanExerciseIds(db, ['legs', 'glutes'])).map(seedIdOf)).toEqual([
-      'sentadilla_smith',
-      'zancadas_barra',
-      'leg_extension',
-    ]);
-    const mixed = (await getPlanExerciseIds(db, ['calves', 'biceps'])).map(seedIdOf);
-    expect(mixed[0]).toBe('pantorrilla_pie_mancuerna'); // 24 sep
-    expect(mixed.slice(1)).toEqual(['curl_barra_z', 'curl_inclinado_mancuernas', 'curl_martillo_polea', 'preacher_curl_z']); // 17 sep
-  });
-
-  it('a group with no history gives no list', async () => {
-    expect(await getPlanExerciseIds(db, ['core'])).toEqual([]);
+  it('a group with no history: no session, no date, no exercises', async () => {
+    expect(await getGroupPlans(db, ['core'])).toEqual([{ group: 'core', lastSessionId: null, lastAt: null, exerciseIds: [] }]);
   });
 
   it('deleted entries do not count: the list falls back to the previous session', async () => {
     for (const e of ['s5e1', 's5e2', 's5e3', 's5e4', 's5e5']) {
       await db.runAsync("UPDATE entry SET deleted_at = '2026-09-30T00:00:00Z' WHERE id = ?", [ids.get(e)!]);
     }
-    const list = (await getPlanExerciseIds(db, ['triceps'])).map(seedIdOf);
-    expect(list).toEqual(['triceps_polea_tras_cabeza', 'pushdown_barra_v']); // 16 sep
+    expect(await plansOf(['triceps'])).toEqual([['triceps', ['triceps_polea_tras_cabeza', 'pushdown_barra_v']]]); // 16 sep
+  });
+
+  it('today’s session is left out: the list comes from the ones before it', async () => {
+    const [shoulders] = await getGroupPlans(db, ['shoulders'], ids.get('s5')!);
+    expect(localDateOf(shoulders.lastAt!)).toBe('2026-09-17');
   });
 });
 

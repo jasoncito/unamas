@@ -11,9 +11,12 @@ import { copy } from '../copy';
 import { font, tabular } from '../text';
 import { color, radius } from '../tokens';
 
-/** Screen 7: the count, every exercise against its own last time, the next time, and CERRAR. */
-export function SummaryView({ summary, onClose }: { summary: SessionSummary; onClose(): void }) {
-  const next = summary.nextTime && nextTimeLine(summary.nextTime);
+/**
+ * Screen 7: the count, every exercise against its own last time, the next time, and CERRAR. A past
+ * session in the history (no `onClose`) shows the same, without "La próxima vez" (it was then) nor CERRAR.
+ */
+export function SummaryView({ summary, onClose }: { summary: SessionSummary; onClose?(): void }) {
+  const next = onClose && summary.nextTime && nextTimeLine(summary.nextTime);
   const pending = pendingLine(summary.pending);
   return (
     <View style={styles.screen}>
@@ -41,9 +44,11 @@ export function SummaryView({ summary, onClose }: { summary: SessionSummary; onC
           </View>
         )}
       </ScrollView>
-      <Pressable onPress={onClose} style={({ pressed }) => [styles.close, pressed && styles.pressed]} accessibilityRole="button">
-        <Text style={styles.closeText}>{copy.session.close}</Text>
-      </Pressable>
+      {onClose && (
+        <Pressable onPress={onClose} style={({ pressed }) => [styles.close, pressed && styles.pressed]} accessibilityRole="button">
+          <Text style={styles.closeText}>{copy.session.close}</Text>
+        </Pressable>
+      )}
     </View>
   );
 }

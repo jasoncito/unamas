@@ -27,6 +27,8 @@ export interface WeightSelectorProps {
   initialKg?: number;
   /** "Empezar con X": the weight is kept before starting (screen 3). Plates only on the bar. */
   onStart(kg: number, plates: Plate[] | null): void;
+  /** The "La última vez" row opens the exercise's history; without it the row isn't tappable. */
+  onLastPress?(): void;
 }
 
 /**
@@ -35,7 +37,7 @@ export interface WeightSelectorProps {
  * line above it, always. Every size of the equipment comes from the space left between the number and
  * the button (measured), so nothing overlaps on any phone.
  */
-export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, today, initialKg, onStart }: WeightSelectorProps) {
+export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, today, initialKg, onStart, onLastPress }: WeightSelectorProps) {
   const equipment = equipmentFor(loadBasis);
   const suggestedKg = suggestion?.loadKg ?? last?.loadKg ?? stepKg;
   const startKg = initialKg ?? suggestedKg;
@@ -73,8 +75,16 @@ export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, 
   return (
     <View style={styles.root}>
       {last && (
-        <View style={styles.lastRow}>
-          <Text style={styles.lastLabel}>{copy.selector.lastTime(formatShortDate(last.date))}</Text>
+        <Pressable
+          onPress={onLastPress}
+          disabled={!onLastPress}
+          style={({ pressed }) => [styles.lastRow, pressed && styles.pressed]}
+          accessibilityRole={onLastPress ? 'link' : undefined}
+        >
+          <Text style={styles.lastLabel}>
+            {copy.selector.lastTime(formatShortDate(last.date))}
+            {onLastPress && <Text style={styles.lastChevron}> ›</Text>}
+          </Text>
           <View style={styles.lastValue}>
             <Text style={styles.lastKg}>
               {`${formatKg(last.loadKg)} kg`}
@@ -84,7 +94,7 @@ export function WeightSelector({ loadBasis, stepKg, repFloor, last, suggestion, 
               <Text style={styles.lastCfg}>{lastPlates.map(formatKg).join(' + ')}</Text>
             )}
           </View>
-        </View>
+        </Pressable>
       )}
 
       <View style={styles.valueBlock}>
@@ -167,6 +177,7 @@ const styles = StyleSheet.create({
     borderColor: color.divider,
   },
   lastLabel: { ...font('label'), color: color.muted, flexShrink: 1 },
+  lastChevron: { fontWeight: '700' },
   lastValue: { alignItems: 'flex-end' },
   lastKg: { fontSize: 20, fontWeight: '800', color: color.text, ...tabular },
   lastSmall: { fontSize: 13, fontWeight: '600', color: color.muted },
